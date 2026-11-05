@@ -92,3 +92,7 @@
 ## API 运行时
 
 - 常驻 API 运行在 Node 24 上，Bun 只用于 `db:push`；原因和限制见 [RUNTIME.md](./RUNTIME.md)。
+
+## 新项目初始化
+
+- 从 GitHub Template 初始化新项目：首次启动前按 README 中“从 GitHub Template 初始化新项目”一节完成改名、换端口和更换 Cookie 名，并保留侧栏布局基线。

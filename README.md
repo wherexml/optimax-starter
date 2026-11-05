@@ -2,6 +2,8 @@
 
 OptiMax Starter 是一个可直接运行、不含 AI 的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。
 
+[使用此模板创建新项目](https://github.com/wherexml/optimax-starter/generate) · [新项目初始化流程](#从-github-template-初始化新项目)
+
 ![资产台账](docs/images/assets.png)
 
 ## 功能与页面
@@ -106,17 +108,102 @@ compose.yaml             web / api / db 三个服务
 - 新增 API 写在 `apps/server/src/console.ts`。管理员写操作必须在同一事务中写入操作日志，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
 - 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航 → 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。
 
-## 从脚手架派生新项目
+## 从 GitHub Template 初始化新项目
 
-目前没有自动生成脚本，需要手动完成：
+用模板创建仓库只会复制文件。新仓库的提交历史与本仓库无关，之后也不会自动同步本仓库的更新；模板也不会帮你改任何配置。参考 GitHub 官方文档：[Creating a repository from a template](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)。下文以 `my-console` 为例，`OWNER` 换成你的 GitHub 账户或组织名。
 
-1. 复制仓库源码，不要复制本项目的 `.git`、`.env`、`evidence/`、`tasks/` 或任何本地运行数据；为新项目建立独立仓库与远端。
-2. 一并带走 `AGENTS.md` 及相关文档（FRONTEND、AUTH、FILTERS、RUNTIME、REUSE 等），并遵守其中的侧栏布局基线。
-3. 在 `compose.yaml` 中修改：
-   - 顶层 `name`（compose 项目名）和 `image` 标签，都要唯一，否则会与本项目共用数据卷或镜像；
-   - 端口：选一对相邻、未被占用的五位端口（例如 `38150`/`38151`），并同步修改端口映射、`PORT`、`CORS_ORIGIN`、`VITE_SERVER_URL`、API 健康检查地址，以及 `apps/web/vite.config.ts` 中的 `server.port` 和 `/console` 代理目标；测试脚本的预览地址也要同步。
-4. 如有需要，修改 `package.json` 名称和 `@optimax-starter/*` 包命名空间（注意同步所有引用）。
-5. 运行新项目自己的 `./scripts/init-local.sh`，生成独立的 `.env`。演示账户只能用于本地。
+### 1. 创建仓库
+
+需要对本仓库有读取权限。两种方式任选其一：
+
+- 网页：打开 <https://github.com/wherexml/optimax-starter/generate>（也可以在仓库页点 **Use this template → Create a new repository**）。可见性选 **Private**，不要勾选 **Include all branches**（只复制 `main`）。
+- 命令行：
+
+```sh
+gh repo create OWNER/my-console --template wherexml/optimax-starter --private --clone
+cd my-console
+git remote get-url origin   # 应输出新仓库的地址，而不是 optimax-starter
+```
+
+如果通过网页创建，创建完成后执行 `git clone https://github.com/OWNER/my-console.git` 和 `cd my-console`。不要克隆模板仓库后直接向模板的 `origin` 推送业务代码。
+
+### 2. 首次启动前完成改名
+
+**以下改名都要在第一次 `docker compose up` 之前完成。** 数据卷名由 compose 项目名决定，先启动再改名，会留下归属不清的旧数据卷。
+
+| 位置 | 改为 |
+| --- | --- |
+| 根目录 `package.json` 的 `name` | `my-console` |
+| `README.md`、`PROJECT.md` 中的项目名称 | 新项目名称；保留 `AGENTS.md` 中的侧栏布局基线等规范 |
+| `compose.yaml` 顶层 `name` | `my-console-preview` |
+| `compose.yaml` 中的 `image` | `my-console-preview:local` |
+| `compose.yaml` 中 web 的端口映射 | `127.0.0.1:38150:38150` |
+| `compose.yaml` 中 api 的端口映射 | `127.0.0.1:38151:38151` |
+| api 环境变量 `PORT` / `CORS_ORIGIN` | `38151` / `http://127.0.0.1:38150` |
+| web 环境变量 `VITE_SERVER_URL` | `http://127.0.0.1:38151` |
+| api 健康检查中请求的地址 | `http://127.0.0.1:38151/` |
+| `apps/web/vite.config.ts` | `server.port` 改为 `38150`，`/console` 代理目标改为 `http://api:38151` |
+| `apps/server/src/console.ts` 中的 `const cookie` | 由 `optimax_console` 改为 `my_console_session` |
+| `scripts/verify-*.py` 中的 base URL、Origin 和临时夹具名前缀 | 改成新端口和本项目自己的前缀 |
+
+注意：
+
+- `VITE_SERVER_URL` **不决定**代理目标；`/console` 实际转发到哪里，由 `vite.config.ts` 中的 proxy 配置决定，两处都要改。
+- Cookie 不按端口隔离。如果同一台机器上的多个项目都运行在 `127.0.0.1`，Cookie 名相同时会互相覆盖登录状态，所以必须改名。
+- 可选：如果要把 workspace 包命名空间 `@optimax-starter/*` 改成自己的，必须同时修改所有 `package.json` 和源码中的 import，然后用 `bun install` 重新生成 `bun.lock`，不要手动编辑 lockfile。
+
+修改根 `package.json.name` 也会影响锁文件，完成项目名或 workspace 命名空间调整后必须重新生成并提交 `bun.lock`，否则 Docker 的 `--frozen-lockfile` 安装可能失败。主机未安装 Bun 时可在新项目根目录执行：
+
+```sh
+docker run --rm -v "$PWD:/app" -w /app oven/bun:1.3.14 \
+  bun install --lockfile-only --ignore-scripts
+```
+
+这里仅更新锁文件；完整安装与环境类型生成由后续 Docker 构建完成。
+
+### 3. 数据库隔离
+
+- 服务名 `db`，以及内部的数据库名和用户名 `starter` 都可以保持不变：每个项目有自己的容器、网络和数据卷，互不共享。
+- 隔离依赖 compose 项目名：不要通过 `-p` 或 `COMPOSE_PROJECT_NAME` 覆盖成其他项目的名称；数据卷会自动命名为 `my-console-preview_data`。不要给数据卷写显式的 `name`，也不要声明 `external`。
+- 镜像名也必须唯一，避免与其他项目互相覆盖。
+- 数据库端口不要映射到主机。
+- 不要复制旧项目的 `.env` 或数据卷。新项目运行自己的 `init-local.sh`，数据库密码会随机生成。修改 `.env` 里的密码不会改动已经初始化的数据库，所以首次启动前就要确定好名称和配置。
+
+### 4. 检查端口
+
+确认 38150 和 38151 没有被占用：
+
+```sh
+lsof -nP -iTCP:38150 -sTCP:LISTEN
+lsof -nP -iTCP:38151 -sTCP:LISTEN
+```
+
+Linux 没有 `lsof` 时可用 `ss -ltn` 检查这两个端口。上述 `lsof` 没有输出并返回状态 1 通常表示未找到监听。
+
+如果有输出，说明端口已被占用，换一对相邻且未被占用的端口，并同步修改第 2 步表格中所有相关位置。
+
+### 5. 初始化并启动
+
+```sh
+./scripts/init-local.sh
+docker compose config --quiet     # 只校验配置，不打印展开后的内容（避免把密码输出到终端）
+docker compose up -d --build
+docker compose ps                 # api 应显示 healthy
+curl -fsS http://127.0.0.1:38151/ # 应输出 OK
+```
+
+浏览器打开 <http://127.0.0.1:38150/login>，用 README 中的本地演示账户登录。演示账户只能在本地使用。
+
+### 6. 确认隔离生效
+
+```sh
+docker volume inspect my-console-preview_data --format '{{ index .Labels "com.docker.compose.project" }}'
+# 应输出 my-console-preview
+git remote get-url origin
+# 应为新仓库
+```
+
+确认第 2 步中脚本的 base URL、Origin 和夹具名都已更新后，再运行 `python3 scripts/verify-console.py`。以上步骤只是本地初始化流程，完成后并不代表可以直接上线（见下文“上线前须知”）。
 
 ## 复验
 
