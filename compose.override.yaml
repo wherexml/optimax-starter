@@ -1,0 +1,3 @@
+# The BUN_JSC_useJIT=false override is no longer used: Bun 1.3.14 on Linux arm64 still segfaulted with the JIT off, and the API now runs on Node 24 (see RUNTIME.md).
+# Kept as an empty but valid override file.
+services: {}
