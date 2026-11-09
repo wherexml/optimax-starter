@@ -85,7 +85,9 @@
 
 - EASM 工作台、用户菜单、个人设置：见 [EASM_REUSE.md](./EASM_REUSE.md)。
 
-## 筛选规则
+## 选择与筛选
+
+- 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)。
 
 - `FilterBar` 的多选和匹配方式需逐字段开启（`multi` / `operatorKey`），数据查询链路未实现相应语义的字段不得开启（资产台账当前在客户端过滤）。约定见 [FILTERS.md](./FILTERS.md)。
 

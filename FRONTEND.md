@@ -56,6 +56,13 @@ URL 状态：`/` 支持 `q`、`stage`；`/accounts` 只支持 `q`。排序、列
 
 ---
 
+### 单选下拉
+
+- 组件位于 `packages/ui/src/components/select.tsx`，从 `@optimax-starter/ui/components/select` 导入。简单的受控选择用 `SelectControl` 和 `SelectItem`，分组用 `SelectGroup` 和 `SelectLabel`。需要独立布局或定位时组合 `Select`、`SelectTrigger`、`SelectValue` 和 `SelectContent`。后台的旧导入路径仍可用。
+- 触发器用字段标签或可访问名称标识。列表贴近触发器，根据视口可用空间翻转和滚动。触发器里的长值截断，列表里完整换行。勾选表示已提交值，悬停和键盘移动只高亮选项。
+- 使用方向键和 Enter 选择，Esc 关闭并归还焦点。在 Radix Dialog 里按一次 Esc 只关闭列表。Radix 将空字符串留给占位，显式的「全部」「不关联」选项用业务域之外的非空值，并在调用处映射回原有空值。
+- 浏览器验收覆盖窄屏长选项、弹窗内键盘焦点、筛选清空及分页。多选沿用 [FILTERS.md](./FILTERS.md) 的字段约定。
+
 ## 3. 前端总原则
 
 > 团队通用红线（真实数据优先、前端隐藏入口≠权限、生产默认只读、不提交密钥等）以 [AGENTS.md 核心约束](./AGENTS.md#核心约束) 为唯一正文，本文件不再重述，只补充前端领域细则。

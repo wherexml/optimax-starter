@@ -289,7 +289,7 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 | --- | --- |
 | Button | 主按钮每个区域最多一个；危险按钮必须二次确认 |
 | Input/Textarea | 错误文案贴近字段；禁用态说明原因 |
-| Select/Combobox | 选项多时可搜索；空选项要可理解 |
+| Select/Combobox | 使用贴近触发器的轻量浮层，选中项显示勾，长选项在列表中换行。大量选项使用可搜索的组合框，空选项要可理解。参见[单选下拉](./FRONTEND.md#单选下拉)。 |
 | Dialog/AlertDialog | 标题、操作和错误态完整；说明仅在有必要解释影响时显示，不复述标题 |
 | Sheet | 适合轻量详情和筛选，不承载复杂全流程 |
 | Tabs | 用于同一对象视图切换，不用于跨业务导航 |
