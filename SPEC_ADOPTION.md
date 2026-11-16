@@ -12,19 +12,20 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 基线标识 | <!-- 例如 spec-2026.10.23-4；早期复制写「未版本化（早于 spec-2026.10.16）」 --> |
+| 基线标识 | `spec-2026.10.23-4` |
 | 来源仓库 | https://github.com/wherexml/optimax-team；历史原文使用下行 SHA 替换链接中的 main |
-| 来源修订 | <!-- optimax-team 中包含该版 spec/ 的 commit SHA；未知写「未知」 --> |
-| 采用/最近升级日期 | <!-- YYYY-MM-DD --> |
-| 核对日期与证据 | <!-- YYYY-MM-DD；核对了哪些文件、命令、页面或 workflow --> |
-| 指令正文位置 | <!-- AGENTS.md（CLAUDE.md 为固定提示 / 导入 / 符号链接）或 CLAUDE.md（AGENTS.md 为符号链接） --> |
-| 负责人 | <!-- 补充 --> |
+| 来源修订 | `aec8c890a244414d3f25546a202ffd1fd2c0ecff` |
+| 采用/最近升级日期 | 2026-11-16 |
+| 核对日期与证据 | 2026-11-16；核对 `AGENTS.md`、`PROJECT.md`、`DEPLOYMENT.md`、`cicd-spec.md`、`TESTING.md` 及 `.github/workflows/` |
+| 指令正文位置 | `AGENTS.md`（`CLAUDE.md` 指向 `AGENTS.md`） |
+| 负责人 | Steve |
 
 偏差记录：
 
 | 规范条款（文件 §） | 项目实际做法 | 理由 | 证据 | 负责人 | 复查触发条件 |
 | --- | --- | --- | --- | --- | --- |
-| <!-- 例如 FRONTEND.md §1 参考栈 --> | <!-- 补充 --> | <!-- 补充 --> | <!-- 文件路径 / 命令 / 链接 --> | <!-- 补充 --> | <!-- 基线升级 / 技术栈变更 / 进入生产 / 指定日期 --> |
+| BACKEND.md §2 默认框架建议 | 后端采用 Hono HTTP（`core/` + `modules/`）配 `@optimax-starter/api` 共享 Zod 契约，移除未使用的 tRPC 路由残留 | Starter 管理接口走同源 `/console` JSON API，Zod 契约已满足前后端单一类型源，去除空置 tRPC 降低新项目理解负担 | [contracts.ts](./packages/api/src/contracts.ts)、[console.ts](./apps/server/src/console.ts) | Steve 授权，Agent 实施 | 新项目需要强类型 RPC 流式过程时复查 |
+| FRONTEND.md UI 基础 / UI SDK 技能测试建议 | 2026-11-16 资产本地试点增加可选 UI SDK 适配，保留 Radix；Agent 发现、动作及拒绝采用真实浏览器 E2E，不新增 jsdom 单测 | Steve 明确要求按评估方案试点、只本地验收；项目默认仅 E2E、禁止实现后补单测 | [模块](./apps/web/src/features/assets/README.md)、[E2E](./scripts/e2e/README.md) | Steve 授权，Agent 实施 | 扩大模块、迁移共享组件或进入生产前复查 |
 
 规则：
 

@@ -78,6 +78,38 @@ function fromCommitted(f: FilterField, get: (k: string) => string[]): Omit<Row, 
   return { key: f.key, value: v[0] ?? "" };
 }
 
+function savedRows(key: string | undefined, committed: string, fields: FilterField[]): Omit<Row, "id">[] | null {
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw || raw.length > 10000) return null;
+    const saved = JSON.parse(raw);
+    if (saved?.version !== 1 || saved.committed !== committed || !Array.isArray(saved.rows) || saved.rows.length > fields.length) return null;
+    const seen = new Set<string>();
+    const rows: Omit<Row, "id">[] = [];
+    for (const row of saved.rows) {
+      const field = fields.find(f => f.key === row?.key);
+      if (!field || seen.has(field.key)) return null;
+      seen.add(field.key);
+      const multi = field.type === 'select' && field.multi;
+      const validValue = multi
+        ? Array.isArray(row.value) && row.value.length <= 20 && row.value.every((value: unknown) => typeof value === 'string' && value.length <= 80)
+        : typeof row.value === 'string' && row.value.length <= (field.type === 'text' ? 200 : field.type === 'date' ? 10 : 80);
+      if (!validValue) return null;
+      if (row.op !== undefined && (field.type !== 'text' || !field.operatorKey || !['contains', 'equals'].includes(row.op))) return null;
+      rows.push({ key: field.key, value: Array.isArray(row.value) ? [...row.value] : row.value, ...(row.op ? { op: row.op } : {}) });
+    }
+    return rows;
+  } catch { return null; }
+}
+
+function saveRows(key: string | undefined, committed: string, rows: Row[]) {
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify({ version: 1, committed, rows: rows.map(({ key, value, op }) => ({ key, value, ...(op ? { op } : {}) })) }));
+  } catch {}
+}
+
 function rangeError(fields: FilterField[], draft: Filters) {
   for (const f of fields) {
     if (f.type !== "date" || !f.notBefore) continue;
@@ -95,12 +127,16 @@ export function FilterBar({
   fields,
   values,
   onApply,
+  onDraftChange,
+  storageKey,
 }: {
   fields: FilterField[];
   /** Committed filters from the URL. */
   values: Filters;
   /** Commits every draft row at once. Keys not in the result are removed. */
   onApply: (next: Filters) => void;
+  onDraftChange?: (dirty: boolean, signature: string) => void;
+  storageKey?: string;
 }) {
   const base = useId();
   const counter = useRef(0);
@@ -110,32 +146,45 @@ export function FilterBar({
   const sig = signature(fields, values);
   const [rows, setRows] = useState<Row[]>(() => {
     const get = (k: string) => canon(values[k]);
+    const saved = savedRows(storageKey, sig, fields);
+    if (saved) return saved.map(row => ({ id: nextId(), ...row }));
     return fields
       .filter((f) => get(f.key).length)
       .map((f) => ({ id: nextId(), ...fromCommitted(f, get) }));
   });
   const synced = useRef(sig);
+  const savedKey = useRef(storageKey);
   useEffect(() => {
-    if (synced.current === sig) return;
+    if (synced.current === sig && savedKey.current === storageKey) return;
+    const changed = synced.current !== sig;
+    const sameKey = savedKey.current === storageKey;
     synced.current = sig;
+    savedKey.current = storageKey;
     const map = new Map(JSON.parse(sig) as [string, string[]][]);
     const get = (k: string) => map.get(k) ?? [];
-    setRows((prev) => {
-      // Keep row order. Committed rows take the URL value and operator together, blank rows stay visible,
-      // and non-blank drafts that are no longer in the URL are dropped.
-      const next = prev.flatMap((r) => {
-        const f = fieldOf(r.key);
-        if (!f) return [];
-        if (get(r.key).length) return [{ id: r.id, ...fromCommitted(f, get) }];
-        return filled(r.value) ? [] : [r];
-      });
-      for (const f of fields)
-        if (get(f.key).length && !next.some((r) => r.key === f.key))
-          next.push({ id: nextId(), ...fromCommitted(f, get) });
-      return next;
+    const saved = savedRows(storageKey, sig, fields);
+    if (saved) {
+      setRows(saved.map(row => ({ id: rows.find(previous => previous.key === row.key)?.id ?? nextId(), ...row })));
+      return;
+    }
+    const next = (sameKey ? rows : []).flatMap((r) => {
+      const f = fieldOf(r.key);
+      if (!f) return [];
+      if (get(r.key).length) return [{ id: r.id, ...fromCommitted(f, get) }];
+      return filled(r.value) ? [] : [r];
     });
+    for (const f of fields)
+      if (get(f.key).length && !next.some((r) => r.key === f.key))
+        next.push({ id: nextId(), ...fromCommitted(f, get) });
+    setRows(next);
+    if (changed) saveRows(storageKey, sig, next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig]);
+  }, [sig, storageKey]);
+
+  function changeRows(next: Row[]) {
+    setRows(next);
+    saveRows(storageKey, sig, next);
+  }
 
   const draft: Filters = {};
   for (const r of rows) {
@@ -153,6 +202,10 @@ export function FilterBar({
       draft[f.operatorKey] = "equals";
   }
   const dirty = signature(fields, draft) !== sig;
+  const draftSignature = JSON.stringify(rows.map(({ key, value, op }) => [key, value, op]));
+  useEffect(() => {
+    onDraftChange?.(dirty, draftSignature);
+  }, [dirty, draftSignature, onDraftChange]);
   const error = rangeError(fields, draft);
   const malformed = rows.some(
     (r) =>
@@ -172,25 +225,25 @@ export function FilterBar({
     const f = unused[0];
     if (!f) return;
     const row = { id: nextId(), ...blank(f) };
-    setRows((prev) => [...prev, row]);
+    changeRows([...rows, row]);
     focus(valueId(row));
   }
   function remove(index: number) {
     const rest = rows.filter((_, i) => i !== index);
-    setRows(rest);
+    changeRows(rest);
     const next = rest[index] ?? rest[index - 1];
     focus(next ? removeId(next) : addId);
   }
   function setField(id: string, key: string) {
     const f = fieldOf(key);
     if (!f) return;
-    setRows((prev) => prev.map((r) => (r.id === id ? { id, ...blank(f) } : r)));
+    changeRows(rows.map((r) => (r.id === id ? { id, ...blank(f) } : r)));
   }
   function setValue(id: string, value: string | string[]) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, value } : r)));
+    changeRows(rows.map((r) => (r.id === id ? { ...r, value } : r)));
   }
   function setOp(id: string, op: Op) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, op } : r)));
+    changeRows(rows.map((r) => (r.id === id ? { ...r, op } : r)));
   }
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -198,7 +251,7 @@ export function FilterBar({
     onApply(draft);
   }
   function clear() {
-    setRows([]);
+    changeRows([]);
     onApply({});
     focus(addId);
   }
@@ -209,6 +262,7 @@ export function FilterBar({
       aria-label="筛选"
       className="filter-bar"
       noValidate
+      autoComplete="off"
       onSubmit={submit}
     >
       {rows.map((r, i) => {
@@ -264,6 +318,10 @@ export function FilterBar({
             {f.type === "text" ? (
               <Input
                 id={valueId(r)}
+                type="search"
+                name={`filter-${f.key}`}
+                autoComplete="off"
+                data-1p-ignore="true"
                 className="filter-value h-9 w-56 max-w-full"
                 aria-label={f.ariaLabel ?? f.label}
                 placeholder={f.placeholder}
@@ -304,6 +362,9 @@ export function FilterBar({
               <Input
                 id={valueId(r)}
                 type="date"
+                name={`filter-${f.key}`}
+                autoComplete="off"
+                data-1p-ignore="true"
                 className="filter-value h-9 w-40"
                 aria-label={f.label}
                 aria-invalid={invalid || undefined}

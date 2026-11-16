@@ -9,11 +9,6 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@optimax-starter/db": "workspace:*",
-    "@trpc/client": "catalog:",
-    "@trpc/server": "catalog:",
-    "@types/pg": "catalog:",
-    "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

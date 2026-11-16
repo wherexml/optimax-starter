@@ -1,21 +1,20 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, RotateCw } from "lucide-react";
-import { useMemo, useState, useRef, type MouseEvent } from "react";
+import { Plus } from "lucide-react";
+import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
+import { type FilterField } from "@/components/filters/FilterBar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { request, type Account } from "@/console-client";
+import { useAccount } from "@/features/auth/session";
+import { parseAccountSearch } from "@/features/filters/search";
+import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { CreateAccountDialog } from "./CreateAccountDialog";
 import { EditAccountDialog } from "./EditAccountDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
-import { DataTable } from "@/components/table/DataTable";
-import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
-import { usePersistedFilters } from "@/hooks/usePersistedFilters";
-import { parseAccountSearch } from "@/features/filters/search";
-import { request, type Account } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
 
 const route = getRouteApi("/accounts");
 type Kind = "edit" | "password" | "revoke" | "disable";
@@ -73,6 +72,7 @@ export function AccountsPage() {
       void navigate({ search: parseAccountSearch(next), replace: true }),
   });
   const query = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["accounts"],
     queryFn: () => request<Account[]>("/accounts"),
     enabled: admin,
@@ -221,66 +221,35 @@ export function AccountsPage() {
       ) ?? [],
     [query.data, search, status, role],
   );
-  if (!admin)
-    return (
-      <>
-        <PageHeader title="账户管理" />
-        <p role="alert" className="text-muted-foreground">
-          需要管理员权限
-        </p>
-      </>
-    );
   const target = pending?.row;
   return (
-    <>
-      <PageHeader
-        title="账户管理"
-        actions={
-          <Button
-            ref={trigger}
-            onClick={() => {
-              setNotice("");
-              setAdding(true);
-            }}
-          >
-            <Plus size={16} />
-            新增账户
-          </Button>
-        }
-      />
-      <p role="status" className={notice ? "notice" : "m-0"}>
-        {notice}
-      </p>
-      {enable.error && (
-        <p role="alert" className="mb-3 mt-0 text-sm text-destructive">
-          {enable.error.message}
-        </p>
-      )}
-      <DataTable
-        toolbar={
-          <FilterBar
-            fields={FIELDS}
-            values={params}
-            onApply={update}
-          />
-        }
-        toolbarEnd={
-          <Button
-            size="icon"
-            className="h-9 w-9"
-            title="刷新"
-            variant="ghost"
-            aria-label="刷新账户"
-            onClick={() => query.refetch()}
-          >
-            <RotateCw size={15} />
-          </Button>
-        }
-        columns={columns}
-        data={rows}
-        isLoading={query.isLoading}
-        error={query.error?.message}
-      />
+    <ResourceTableSlot
+      title="账户管理"
+      allowed={admin}
+      actions={
+        <Button
+          ref={trigger}
+          onClick={() => {
+            setNotice("");
+            setAdding(true);
+          }}
+        >
+          <Plus size={16} />
+          新增账户
+        </Button>
+      }
+      notice={notice}
+      actionError={enable.error?.message}
+      fields={FIELDS}
+      filters={params}
+      onApplyFilters={update}
+      columns={columns}
+      data={rows}
+      isLoading={query.isLoading}
+      error={query.error?.message}
+      onRefresh={() => query.refetch()}
+      refreshLabel="刷新账户"
+    >
       {adding && (
         <CreateAccountDialog
           trigger={trigger.current}
@@ -329,6 +298,6 @@ export function AccountsPage() {
           close={(done) => void finish(done ? `已停用 ${target.name}` : undefined)}
         />
       )}
-    </>
+    </ResourceTableSlot>
   );
 }

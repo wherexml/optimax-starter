@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ProductMarkIcon } from "@/components/brand/ProductMarkIcon";
 import { cn } from "@/lib/utils";
 import { request } from "@/console-client";
 const schema = z.object({
@@ -40,41 +39,44 @@ export function LoginPage() {
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#06111d] text-white">
       <img
-        src="/login-map.png"
+        src="/login-background-4k.png"
+        data-login-background
         alt=""
         aria-hidden="true"
         className="absolute inset-0 h-full w-full object-cover object-left"
       />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,8,18,0.18)_0%,rgba(3,10,20,0.08)_38%,rgba(3,10,20,0.58)_64%,rgba(3,10,20,0.92)_100%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_50%,rgba(47,111,237,0.13),transparent_34%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,18,0.25)_0%,rgba(2,8,18,0.58)_38%,transparent_65%)]" />
 
-      <div className="relative z-10 grid min-h-screen grid-cols-1 gap-8 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-0 lg:px-12 xl:px-16">
-        <section className="flex min-h-0 flex-col lg:min-h-[420px] justify-between pb-0 lg:pb-16 xl:pb-20">
+      <div className="relative z-10 flex min-h-screen flex-col gap-8 px-6 py-6 sm:px-8 sm:py-8 lg:grid lg:grid-cols-[minmax(0,1fr)_460px] lg:gap-12 lg:px-12 xl:px-16">
+        <section className="min-w-0">
           <div className="max-w-xl">
-            <div className="border-white/12 inline-flex items-center gap-3 rounded-lg border bg-white/[0.06] px-4 py-3 shadow-lg shadow-black/20 backdrop-blur-md">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
-                <ProductMarkIcon
-                  className="h-6 w-6 text-cyan-200"
-                  aria-hidden="true"
-                />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold leading-6 tracking-normal text-white">
-                  OptiMax
-                </h1>
-              </div>
+            <div className="inline-flex items-center gap-3">
+              <img
+                data-login-logo
+                src="/brand/optimax-product-logo.png"
+                alt="OptiMax"
+                width={48}
+                height={48}
+                className="h-10 w-10 object-contain sm:h-12 sm:w-12"
+              />
+              <span aria-hidden="true" className="text-2xl font-semibold leading-none tracking-normal text-white">OptiMax</span>
             </div>
 
-            <div className="mt-14 max-w-2xl">
-              <p className="max-w-[620px] text-4xl font-semibold leading-tight tracking-normal text-white drop-shadow-2xl xl:text-5xl">
-                管理控制台
+            <div className="mt-8 max-w-[540px] lg:mt-10 xl:mt-12">
+              <h1 className="m-0 text-3xl font-semibold leading-tight tracking-normal text-white drop-shadow-2xl sm:text-4xl xl:text-5xl">
+                Optimax Starter
+              </h1>
+              <p data-login-intro className="mt-4 text-sm leading-7 text-white/85 sm:text-base sm:leading-8">
+                Optimax Starter 为企业应用提供可直接运行的管理底座，整合账户权限、资产台账、操作日志与个人设置，让团队把时间投入真正的业务。统一的界面组件、工程规范和本地运行方式，帮助开发者快速启动新项目；可选的自然语言筛选试点将 AI 接入实际操作，在保留清晰权限边界与可核对结果的同时，逐步扩展业务能力。
               </p>
             </div>
           </div>
         </section>
 
         <section className="flex items-center justify-center lg:justify-end">
-          <div className="border-white/18 w-full max-w-[420px] rounded-lg border bg-white/[0.96] p-8 text-neutral-950 shadow-2xl shadow-black/35 backdrop-blur-xl">
+          <div data-login-panel className="border-white/18 w-full max-w-[420px] rounded-lg border bg-white/[0.96] p-6 sm:p-8 text-neutral-950 shadow-2xl shadow-black/35 backdrop-blur-xl">
             <div>
               <h2 className="text-2xl font-bold tracking-normal text-neutral-950">
                 登录
@@ -84,7 +86,7 @@ export function LoginPage() {
             <form
               noValidate
               onSubmit={form.handleSubmit(submit)}
-              className="mt-8 flex flex-col gap-5"
+              className="mt-6 flex flex-col gap-4 sm:mt-8 sm:gap-5"
             >
               <div className="flex flex-col gap-2">
                 <Label htmlFor="username" className="text-sm text-neutral-700">

@@ -1,21 +1,38 @@
-"""Verify actual HTTP sessions against the running local Docker stack."""
+"""Verify actual HTTP sessions, asset CRUD/pagination and RBAC against the running local Docker stack."""
 import http.cookiejar
 import json
+import os
 import secrets
 import subprocess
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-origin = "http://127.0.0.1:38140"
+config = dict(
+    line.split("=", 1)
+    for line in (root / ".env").read_text().splitlines()
+    if "=" in line and not line.lstrip().startswith("#")
+)
+web_port = os.environ.get("WEB_PORT") or config.get("WEB_PORT", "38140")
+api_port = os.environ.get("API_PORT") or config.get("API_PORT", "38141")
+origin = os.environ.get("CORS_ORIGIN") or config.get("CORS_ORIGIN") or f"http://127.0.0.1:{web_port}"
+admin_user = os.environ.get("STARTER_ADMIN_USERNAME") or config.get("STARTER_ADMIN_USERNAME", "demo@optimax.hk")
+admin_password = os.environ.get("STARTER_ADMIN_PASSWORD") or config["STARTER_ADMIN_PASSWORD"]
+
+
 def client():
     return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
+
 def call(session, method, path, status, data=None):
-    request = urllib.request.Request(origin + "/console" + path, method=method,
+    request = urllib.request.Request(
+        origin + "/console" + path,
+        method=method,
         data=json.dumps(data).encode() if data is not None else None,
-        headers={"Origin": origin, "Content-Type": "application/json"})
+        headers={"Origin": origin, "Content-Type": "application/json"},
+    )
     try:
         response = session.open(request, timeout=10)
     except urllib.error.HTTPError as error:
@@ -24,29 +41,96 @@ def call(session, method, path, status, data=None):
         assert response.status == status, (method, path, response.status, status)
         return json.load(response)
 
-config = dict(line.split("=", 1) for line in (root / ".env").read_text().splitlines() if "=" in line)
+
+with urllib.request.urlopen(f"http://127.0.0.1:{api_port}/healthz", timeout=10) as health_res:
+    assert health_res.status == 200
+    assert json.load(health_res)["status"] == "ok"
+
 admin, member = client(), client()
+assert isinstance(call(member, "GET", "/auth/providers", 200), list)
 call(member, "GET", "/assets", 401)
-call(admin, "POST", "/login", 200, {"username":"demo@optimax.hk","password":config["STARTER_ADMIN_PASSWORD"]})
+call(admin, "POST", "/login", 200, {"username": admin_user, "password": admin_password})
+
 username = "qa_" + secrets.token_hex(8)
-credentials = {"username":username,"password":secrets.token_hex(16)}
-row = call(admin, "POST", "/accounts", 201, {**credentials,"name":"临时验收","role":"member"})
+credentials = {"username": username, "password": secrets.token_hex(16)}
+row = call(admin, "POST", "/accounts", 201, {**credentials, "name": "临时验收", "role": "member"})
+asset_name = "临时资产_" + secrets.token_hex(4)
+created_asset = None
+
 try:
-    call(member, "POST", "/login", 401, {**credentials,"password":"invalid"})
+    call(member, "POST", "/login", 401, {**credentials, "password": "invalid"})
     call(member, "POST", "/login", 200, credentials)
     assert call(member, "GET", "/assets", 200)
     call(member, "GET", "/accounts", 403)
+    call(
+        member,
+        "POST",
+        "/assets",
+        403,
+        {"name": asset_name, "domain": "采购", "owner": "平台组", "stage": "待复核"},
+    )
+
+    created_asset = call(
+        admin,
+        "POST",
+        "/assets",
+        201,
+        {"name": asset_name, "domain": "采购", "owner": "平台组", "stage": "待复核"},
+    )
+    call(
+        admin,
+        "POST",
+        "/assets",
+        409,
+        {"name": asset_name, "domain": "采购", "owner": "平台组", "stage": "待复核"},
+    )
+    paged = call(
+        member,
+        "GET",
+        "/assets/page?" + urllib.parse.urlencode({"q": asset_name, "qOp": "equals", "stage": "待复核"}),
+        200,
+    )
+    assert paged["total"] == 1 and paged["items"][0]["id"] == created_asset["id"]
+    patched_asset = call(
+        admin,
+        "PATCH",
+        f"/assets/{created_asset['id']}",
+        200,
+        {"stage": "已登记"},
+    )
+    assert patched_asset["stage"] == "已登记"
+    call(admin, "DELETE", f"/assets/{created_asset['id']}", 200, {})
+    audit_rows = call(admin, "GET", "/audit?action=asset.delete&size=20", 200)["items"]
+    assert any(item["detail"].get("entityId") == created_asset["id"] for item in audit_rows)
+
     target = "/accounts/" + str(row["id"])
-    call(member, "PATCH", target, 403, {"active":False})
-    call(admin, "PATCH", target, 200, {"active":False})
+    call(member, "PATCH", target, 403, {"active": False})
+    call(admin, "PATCH", target, 200, {"active": False})
     call(member, "GET", "/assets", 401)
     call(member, "POST", "/login", 401, credentials)
-    call(admin, "PATCH", target, 200, {"active":True})
+    call(admin, "PATCH", target, 200, {"active": True})
     call(member, "POST", "/login", 200, credentials)
     call(member, "POST", "/logout", 200, {})
     call(member, "GET", "/assets", 401)
     call(admin, "POST", "/logout", 200, {})
-    print("PASS: anonymous guard, login, assets, RBAC, disable/revoke, enable, logout")
+    print("PASS: healthz, anonymous guard, login, assets CRUD + server pagination, RBAC, disable/revoke, enable, logout")
 finally:
-    subprocess.run(["docker","compose","exec","-T","db","psql","-v","ON_ERROR_STOP=1","-U","starter","-d","starter"],cwd=root,
-        input=f"BEGIN; DELETE FROM console_audit WHERE target_id={int(row['id'])}; DELETE FROM console_session WHERE account={int(row['id'])}; DELETE FROM console_account WHERE id={int(row['id'])} AND username='{username}'; COMMIT;",text=True,check=True,stdout=subprocess.DEVNULL)
+    asset_cleanup = (
+        f"DELETE FROM console_audit WHERE detail->>'entityId'='{int(created_asset['id'])}' AND action LIKE 'asset.%'; "
+        f"DELETE FROM console_asset WHERE id={int(created_asset['id'])} AND name='{asset_name}'; "
+        if created_asset
+        else ""
+    )
+    subprocess.run(
+        ["docker", "compose", "exec", "-T", "db", "psql", "-v", "ON_ERROR_STOP=1", "-U", "starter", "-d", "starter"],
+        cwd=root,
+        input=(
+            f"BEGIN; {asset_cleanup}"
+            f"DELETE FROM console_audit WHERE target_id={int(row['id'])}; "
+            f"DELETE FROM console_session WHERE account={int(row['id'])}; "
+            f"DELETE FROM console_account WHERE id={int(row['id'])} AND username='{username}'; COMMIT;"
+        ),
+        text=True,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )

@@ -10,9 +10,9 @@
 
 | 环境 | 服务与访问入口 | 部署目标/方式 | 发布入口 | 操作边界 | 负责人 |
 | --- | --- | --- | --- | --- | --- |
-| 本地 | <!-- 补充 --> | <!-- 补充 --> | <!-- PROJECT.md 启动章节 --> | 本地授权范围 | <!-- 补充 --> |
-| 测试/演示 | <!-- 补充或未配置 --> | <!-- 补充 --> | <!-- 脚本或平台入口 --> | <!-- 按授权填写 --> | <!-- 补充 --> |
-| 生产 | <!-- 补充或未配置 --> | <!-- 补充 --> | <!-- 脚本或平台入口 --> | 默认只读；变更需明确授权 | <!-- 补充 --> |
+| 本地 | `http://127.0.0.1:${WEB_PORT:-38140}`（API `:${API_PORT:-38141}`） | Docker Compose（`compose.yaml` + `compose.override.yaml`） | `./scripts/init-local.sh` 或 `./scripts/bootstrap-project.sh` 后 `docker compose up -d` | 本地授权范围 | 项目开发者 |
+| 测试/演示 | 新项目按实际域名/内网地址填写 | Docker Compose（`compose.prod.yaml`） | `./scripts/deploy-production.sh` | 按授权填写 | 项目负责人 |
+| 生产 | 模板仓未绑定公网机器；派生项目绑定 `127.0.0.1:${PROD_PORT:-38140}` 由宿主机 Nginx/Caddy 反代 | 多阶段非 root 镜像 `Dockerfile.prod` + `compose.prod.yaml` | `./scripts/deploy-production.sh`（由 `.github/workflows/deploy-production.yml` 调用） | 默认只读；变更需明确授权 | Steve / 项目负责人 |
 
 | 项 | 必须记录的真实配置 |
 | --- | --- |
@@ -32,11 +32,23 @@
 
 | 变量名 | 消费服务/读取位置 | 用途与格式 | 必填条件/默认值 | 阶段 | 敏感性 |
 | --- | --- | --- | --- | --- | --- |
-| `<实际变量名>` | <!-- 服务 + 代码/配置路径 --> | <!-- 单位、范围、URL 结构等 --> | <!-- 总是/功能启用时；无/实际默认值 --> | 构建/运行/部署 | 公开/内部/密钥 |
+| `VITE_APP_SLUG` | `web` / `apps/web/src/config/app-config.ts` | 项目英文短标识与本地存储前缀 | 默认 `optimax-starter` | 构建/开发 | 公开 |
+| `VITE_APP_TITLE` | `web` / `apps/web/src/config/app-config.ts` | 侧栏品牌显示名称 | 默认 `OptiMax` | 构建/开发 | 公开 |
+| `VITE_ENABLE_DEMOS` | `web` / `apps/web/src/config/app-config.ts` | 控制 `/demo/*` 与侧栏 Demo 分组显隐 | 开发默认 `true`，生产固定 `false` | 构建/开发 | 公开 |
+| `WEB_PORT` / `API_PORT` | `compose.yaml`、`apps/web/vite.config.ts`、`scripts/verify-*.py` | 本地相邻五位监听端口 | 默认 `38140` / `38141` | 运行（本地） | 内部 |
+| `API_PROXY_TARGET` | `web` / `apps/web/vite.config.ts` | Vite `/console` 同源代理转发地址 | 默认 `http://api:${API_PORT}` | 运行（本地） | 内部 |
+| `PROD_PORT` | `compose.prod.yaml`、`scripts/deploy-production.sh` | 生产容器绑定宿主机回环端口 | 默认 `38140` | 部署/运行 | 内部 |
+| `CORS_ORIGIN` | `api` / `apps/server/src/core/config.ts` | 非 GET 请求 `Origin` 强校验基准 URL | 必填；本地默认 `http://127.0.0.1:38140` | 运行 | 内部 |
+| `SESSION_COOKIE_NAME` | `api` / `apps/server/src/core/config.ts` | HttpOnly Session Cookie 名称 | 本地默认 `optimax_console`；生产预检强制要求改为项目专属名 | 运行 | 内部 |
+| `STARTER_DB_PASSWORD` | `db`、`api` | PostgreSQL `starter` 库连接密码（不少于 16 位） | 必填，随机生成 | 运行 | 密钥 |
+| `STARTER_SEED_DEMO` | `api` / `apps/server/src/core/seed.ts` | 是否幂等写入演示管理员与 12 条示例资产 | 本地默认 `true`；生产强制 `false` | 运行 | 内部 |
+| `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `api` / `apps/server/src/core/seed.ts` | 本地演示管理员账号与初始密码 | 仅 `STARTER_SEED_DEMO=true` 时读取；生产拒绝 `demo@2026!` | 运行（本地） | 密钥 |
+| `SERVE_WEB_DIST` | `api` / `apps/server/src/index.ts` | 生产单容器模式下托管的前端静态产物目录 | 生产镜像默认 `/app/apps/web/dist` | 运行 | 内部 |
 
 | 同名变量 | 本地来源 | 测试来源 | 生产来源 | 修改生效方式 | 缺失/非法时行为 |
 | --- | --- | --- | --- | --- | --- |
-| `<实际变量名>` | <!-- 私有 env 文件或环境注入 --> | <!-- 平台配置项名称 --> | <!-- secret 引用名称，不写值 --> | 热加载/重启/重新构建发布 | <!-- 启动拒绝/功能禁用/有明确默认 --> |
+| `VITE_APP_*` / `VITE_ENABLE_DEMOS` | `.env` | 构建参数 | `compose.prod.yaml` build args | 本地热更/重启；生产需重新构建镜像 | 回退安全默认值 |
+| `CORS_ORIGIN` / `SESSION_COOKIE_NAME` / `STARTER_DB_PASSWORD` | `.env` | `.env.production` | 服务器私有 `.env.production`（权限 `0600`） | 重启容器生效 | `deploy-production.sh --check` 与服务启动直接拒绝 |
 
 审查时至少覆盖以下类别。下表仅为检查示例，不能直接当作项目必填变量清单：
 
@@ -69,14 +81,12 @@
 
 | 操作 | 命令/平台入口 | 前置条件 | 成功证据 | 失败处理 |
 | --- | --- | --- | --- | --- |
-| 配置预检 | <!-- 补充 --> | 必填配置可用 | 脱敏校验结果 | 停止发布 |
-| 备份与校验 | <!-- 补充 --> | 权限、空间、可恢复性 | 备份标识与校验 | 停止发布 |
-| 首次部署 | <!-- 补充 --> | 依赖、域名、配置就绪 | 版本与健康记录 | 按恢复方案处理 |
-| 增量发布 | <!-- 补充 --> | 已验证制品与旧版本 | 新版本及冒烟结果 | 回滚/暂停 |
-| 数据迁移 | <!-- 补充或不适用 --> | 备份、兼容性检查 | 迁移记录与数据检查 | 按迁移回退方案处理 |
-| 重启/滚动替换 | <!-- 补充 --> | 已授权，影响范围明确 | 服务与任务状态 | 恢复旧版本 |
-| 代码回滚 | <!-- 补充 --> | 已知成功版本、数据兼容 | 旧版本健康结果 | 保留现场并升级处理 |
-| 数据恢复 | <!-- 补充 --> | 明确授权、恢复点、停写方案 | 一致性验证 | 停止继续写入 |
+| 配置预检 | `./scripts/deploy-production.sh --check` | 存在私有 `.env.production`，已关闭演示种子与默认密码 | 输出 `PASS precheck` | 停止发布，不触碰线上容器 |
+| 备份与校验 | `deploy-production.sh` 自动执行 `pg_dump` 至 `.deploy-state/backups/` | `db` 容器在线且磁盘空间充足 | 非空 `.sql.gz` 归档及 `PASS backup_db` | 备份为空或失败立即终止构建与激活 |
+| 首次部署 / 增量发布 | `./scripts/deploy-production.sh --deploy <commit-sha>`（或 GitHub Actions `Deploy Production`） | CI `Application release gate` 通过，目标机器具备 Docker Compose v2 | `/healthz` 返回 `200`、匿名 `/console/me` 返回 `401`、`/login` 返回 SPA HTML，写入 `.deploy-state/accepted-sha` | 激活前失败不回滚健康生产；激活后冒烟失败自动回切上一 `accepted-sha` |
+| 数据迁移 | `compose.prod.yaml` 启动时自动检测 `packages/db/src/migrations/*.sql` 执行 `db:migrate:deploy` | 已通过 `bun run db:generate` 提交迁移 SQL 并完成备份 | 迁移退出码 `0` 且 `/healthz` 正常 | 回切旧镜像并按备份恢复说明人工核查 |
+| 代码回滚 | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
+| 数据恢复 | 停止 `app` 写入后用 `gunzip -c <backup.sql.gz> \| docker compose -f compose.prod.yaml exec -T db psql -U starter -d starter` | 明确授权、已确认恢复点 | 核心表行数与业务抽样核验通过 | 停止继续写入，保留原库卷快照 |
 
 ## 4. 部署步骤与脚本契约
 

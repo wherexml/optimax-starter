@@ -23,17 +23,17 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 登录方式 | <!-- 密码 / OAuth / SSO / 邀请码 / 无 --> |
-| Session 存储 | <!-- PostgreSQL / Redis / 内存 / 第三方 --> |
-| Token 传递 | <!-- HttpOnly Cookie / Bearer / 双支持 --> |
-| Session 有效期 | <!-- 例如 7 天 --> |
-| 记住我 | <!-- 例如 30 天 / 不支持 --> |
-| OAuth Provider | <!-- Google / GitHub / 企业 SSO / 无 --> |
-| 注册限制 | <!-- 邀请码 / 域名白名单 / 管理员创建 / 开放注册 --> |
-| 登录限流 | <!-- 次数、窗口、锁定时间 --> |
-| 权限模型 | <!-- RBAC / ABAC / 混合 --> |
-| 租户字段 | <!-- orgId / workspaceId / projectId / 无 --> |
-| 审计日志 | <!-- 覆盖哪些安全操作 --> |
+| 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；预留 `/console/auth/providers` 企业 SSO 发现入口 |
+| Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要） |
+| Token 传递 | HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`） |
+| Session 有效期 | 8 小时（`28800` 秒） |
+| 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
+| OAuth Provider | 默认无；通过 `AUTH_SSO_*` 环境变量预留扩展挂载位 |
+| 注册限制 | 无开放注册，仅由启用的 `admin` 在后台创建账户 |
+| 登录限流 | 应用网关/反代层按实际部署环境配置 |
+| 权限模型 | 两级 RBAC（`admin`、`member`），写操作在服务端 `ADMIN_LOCK` 事务咨询锁内二次复核操作者启用态与角色 |
+| 租户字段 | 无（单组织后台基线） |
+| 审计日志 | `console_audit` 只追加表，同事务记录账户创建/改名/改角色/启停/重置密码/撤销会话、本人资料与改密、以及资产创建/编辑/删除（绝不记录密码、哈希、令牌或本人邮箱/公司原值） |
 
 ---
 

@@ -31,17 +31,17 @@
 
 | 项 | 当前项目事实 | 证据路径 |
 | --- | --- | --- |
-| 默认分支 | <!-- main / master / release/... --> | <!-- .git / 远程仓库设置 --> |
-| CI 平台 | <!-- GitHub Actions / GitLab CI / Jenkins / 无 --> | <!-- .github/workflows/... --> |
-| CI Workflow | <!-- 名称和路径 --> | <!-- 补充 --> |
-| Deploy Workflow | <!-- 名称和路径；未配置写未配置 --> | <!-- 补充 --> |
-| 部署触发 | <!-- CI 成功后 / 手动 dispatch / tag / release --> | <!-- 补充 --> |
-| 生产环境名称 | <!-- production / prod / 未配置 --> | <!-- 平台 environment 设置 --> |
-| Actions 用量情况 | <!-- 当前套餐额度、用量 --> | <!-- 组织 Billing 页面 --> |
-| CI / AI Review Runner | <!-- hosted / self-hosted / 容器镜像 --> | <!-- 补充 --> |
-| Deploy Runner | <!-- self-hosted labels / SSH 目标 / PaaS --> | <!-- 补充 --> |
-| 部署脚本 | <!-- scripts/deploy*.sh / Makefile / 平台配置 --> | <!-- 补充 --> |
-| 部署手册 | [DEPLOYMENT.md](./DEPLOYMENT.md)：环境、变量、运行态、检查和恢复 | <!-- 真实脚本或平台入口 --> |
+| 默认分支 | `main` | `.git/HEAD` |
+| CI 平台 | GitHub Actions | `.github/workflows/` |
+| CI Workflow | `CI`（`scope` → `light` / 并行 `quality` + `api-e2e` → 汇总门禁 `check` → `Application release gate`） | [.github/workflows/ci.yml](./.github/workflows/ci.yml)、[scripts/ci-scope.mjs](./scripts/ci-scope.mjs) |
+| Deploy Workflow | `Deploy Production`（默认受 `vars.ENABLE_PRODUCTION_CD == 'true'` 保护；模板仓库自动安全跳过，派生项目接入服务器后启用） | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
+| 部署触发 | `main` 分支完整应用 CI（`Application release gate == success`）自动触发，或 `workflow_dispatch` 指定提交/回滚锚点 | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
+| 生产环境名称 | `production`（模板仓未绑定真实服务器，由派生项目在 GitHub Environment 配置） | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
+| Actions 用量情况 | PR 更新并发取消（`cancel-in-progress: true`），纯文档改动走 `light` 门禁，减少 hosted runner 分钟消耗 | [.github/workflows/ci.yml](./.github/workflows/ci.yml) |
+| CI / AI Review Runner | GitHub hosted `ubuntu-24.04` | [.github/workflows/ci.yml](./.github/workflows/ci.yml) |
+| Deploy Runner | `eligibility` 使用 `ubuntu-24.04`；实际部署 job 使用 `[self-hosted, deploy-prod]` 专属标签 | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
+| 部署脚本 | `./scripts/deploy-production.sh`（支持 `--check`、`--deploy <sha>`、`--rollback [sha]`） | [scripts/deploy-production.sh](./scripts/deploy-production.sh) |
+| 部署手册 | [DEPLOYMENT.md](./DEPLOYMENT.md)：环境、变量、运行态、检查和恢复 | [DEPLOYMENT.md](./DEPLOYMENT.md) |
 
 ---
 

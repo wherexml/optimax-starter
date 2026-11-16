@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_full:
+        description: "强制跑完整应用与容器 E2E 门禁"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # PR 更新自动取消旧任务节约额度；main 每次提交使用独立 run_id，不互相取消或吞掉待运行记录。
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: scope
+        env:
+          CI_FORCE_FULL: ${{ inputs.force_full && 'true' || 'false' }}
+        run: node scripts/ci-scope.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-scope
+          path: ${{ runner.temp }}/ci-scope.json
+          retention-days: 7
+
+  light:
+    needs: scope
+    if: needs.scope.outputs.full == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-scope
+          path: ${{ runner.temp }}
+      - name: Check repository hygiene and light changed files
+        run: |
+          git diff --check
+          ! git ls-files --error-unmatch .env .env.local .env.production >/dev/null 2>&1
+          node scripts/ci-scope.mjs --check "$RUNNER_TEMP/ci-scope.json"
+
+  quality:
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+      - name: Check tracked file boundaries and script syntax
+        run: |
+          git diff --check
+          if git ls-files | grep -E '(^|/)\.env($|\.local$|\.production$)|^evidence/|^tasks/'; then
+            echo "错误: 检测到禁止提交的环境文件或运行态目录" >&2
+            exit 1
+          fi
+          sh -n scripts/init-local.sh
+          bash -n scripts/bootstrap-project.sh
+          bash -n scripts/deploy-production.sh
+          node --check scripts/ci-scope.mjs
+          node --check scripts/gen-module.mjs
+          python3 -m py_compile scripts/verify-*.py
+      - name: CI scope regression E2E
+        env:
+          CI_SCOPE_E2E_REPORT: ${{ runner.temp }}/ci-scope-regression.json
+        run: node scripts/e2e/ci-scope-e2e.mjs
+      - name: Install workspace dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck and production build
+        env:
+          CORS_ORIGIN: http://127.0.0.1:38140
+          DATABASE_URL: postgres://starter:ci@127.0.0.1:5432/starter
+        run: |
+          bun run check-types
+          bun run build
+      - name: Dry-run module generator
+        run: node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-quality-report
+          path: ${{ runner.temp }}/ci-scope-regression.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  api-e2e:
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Initialize local stack config and validate Compose files
+        run: |
+          ./scripts/init-local.sh
+          docker compose -f compose.yaml config --quiet
+      - name: Boot isolated PostgreSQL + API + Web stack
+        run: |
+          docker compose -f compose.yaml up -d --build
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:38141/healthz >/dev/null 2>&1 && curl -fsS http://127.0.0.1:38140/login >/dev/null 2>&1; then
+              echo "Stack ready on attempt $i"
+              break
+            fi
+            if [ "$i" -eq 45 ]; then
+              echo "Stack failed to become healthy in time" >&2
+              docker compose -f compose.yaml ps >&2
+              exit 1
+            fi
+            sleep 2
+          done
+      - name: Run real HTTP, RBAC, pagination, session and transaction-rollback E2E suites
+        run: |
+          python3 scripts/verify-console.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-foundation.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-foundation.py --cleanup | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-easm-settings.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-easm-rollback.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-easm-settings.py --cleanup | tee -a "$RUNNER_TEMP/e2e-summary.log"
+      - name: Collect container diagnostics and tear down stack
+        if: always()
+        run: |
+          docker compose -f compose.yaml ps > "$RUNNER_TEMP/compose-ps.txt" || true
+          docker compose -f compose.yaml logs --no-color api web > "$RUNNER_TEMP/compose-app.log" || true
+          docker compose -f compose.yaml down -v || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-e2e-evidence
+          path: |
+            ${{ runner.temp }}/e2e-summary.log
+            ${{ runner.temp }}/compose-ps.txt
+            ${{ runner.temp }}/compose-app.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # 固定 required check 名称；被跳过的重型 job 不会绕过失败断言。
+  check:
+    needs: [scope, light, quality, api-e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require selected gates to pass
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          FULL: ${{ needs.scope.outputs.full }}
+          LIGHT_RESULT: ${{ needs.light.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          API_E2E_RESULT: ${{ needs.api-e2e.result }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          if [ "$FULL" = true ]; then
+            test "$QUALITY_RESULT" = success
+            test "$API_E2E_RESULT" = success
+          elif [ "$FULL" = false ]; then
+            test "$LIGHT_RESULT" = success
+          else
+            exit 1
+          fi
+
+  application-release:
+    name: Application release gate
+    needs: [scope, check]
+    if: always() && needs.scope.result == 'success' && needs.scope.outputs.full == 'true' && needs.check.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: echo "Full CI passed; this SHA is eligible for production deployment."

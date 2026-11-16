@@ -1,0 +1,57 @@
+name: ${STARTER_PROD_PROJECT:-optimax-starter-prod}
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: starter
+      POSTGRES_USER: starter
+      POSTGRES_PASSWORD: ${STARTER_DB_PASSWORD:?Set STARTER_DB_PASSWORD in .env.production}
+    volumes:
+      - prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U starter -d starter"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_APP_SLUG: ${VITE_APP_SLUG:-optimax-starter}
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-OptiMax}
+        VITE_ENABLE_DEMOS: "false"
+        VITE_SERVER_URL: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
+    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+    ports: ["127.0.0.1:${PROD_PORT:-38140}:38140"]
+    environment:
+      NODE_ENV: production
+      PORT: 38140
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?Set SESSION_COOKIE_NAME in .env.production}
+      STARTER_SEED_DEMO: "false"
+      SERVE_WEB_DIST: /app/apps/web/dist
+      DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+    # Uses versioned migrations when packages/db/src/migrations contains SQL, otherwise syncs schema safely.
+    command:
+      - sh
+      - -ec
+      - |
+        if ls packages/db/src/migrations/*.sql >/dev/null 2>&1; then
+          bun run --filter @optimax-starter/db db:migrate:deploy
+        else
+          bun run --filter @optimax-starter/db db:push
+        fi
+        exec node apps/server/dist/node.mjs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38140/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      start_period: 20s
+      interval: 10s
+      timeout: 3s
+      retries: 3
+volumes:
+  prod_data:

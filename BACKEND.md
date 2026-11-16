@@ -84,14 +84,14 @@ Web 框架不要只按流行度或性能跑分选择，应优先看项目形态�
 
 | 项 | 内容 |
 | --- | --- |
-| 后端语言/运行时 | <!-- Go / Node.js / Bun / Python / 其他 --> |
-| Web 框架 | <!-- Hono / NestJS / FastAPI / Django / Chi / Gin / Next API / 其他 --> |
-| 数据库 | <!-- PostgreSQL / MySQL / SQLite / 其他 --> |
-| ORM/查询方式 | <!-- Drizzle / sqlc / SQLAlchemy / 参数化 SQL / 其他 --> |
-| 缓存/队列 | <!-- Redis / BullMQ / Celery / 内存队列 / 无 --> |
-| 文件存储 | <!-- 本地 uploads / S3 / MinIO / 无 --> |
-| 后台任务 | <!-- 队列名、worker、cron、补跑入口 --> |
-| 健康覆盖范围 | <!-- 存活、就绪、依赖；实现文件 --> |
+| 后端语言/运行时 | TypeScript / Node 24（开发 `node --watch --import tsx src/node.ts`，生产编译为 `dist/node.mjs`；详见 [RUNTIME.md](./RUNTIME.md)） |
+| Web 框架 | Hono（分层见 [apps/server/README.md](./apps/server/README.md)：`core/` 底座 + `modules/` 业务子路由） |
+| 数据库 | PostgreSQL 17（仅 Compose 内部网络可访问） |
+| ORM/查询方式 | Drizzle ORM（查询构造器 + 参数化 `sql` 咨询锁；开发 `db:push`，生产优先 `db:migrate:deploy`） |
+| 缓存/队列 | 无独立 Redis/队列；资产自然语言计划短期状态保存在有界进程内存（5 分钟过期） |
+| 文件存储 | 无用户文件上传存储 |
+| 后台任务 | 启动时受 `STARTER_SEED_DEMO` 控制的幂等初始化（`core/seed.ts`），无常驻定时任务 |
+| 健康覆盖范围 | 存活 `GET /`（返回 `OK`）；就绪 `GET /healthz`（执行数据库 `SELECT 1`，返回 `{ status: "ok", db: "ok" }`，实现于 `apps/server/src/index.ts`） |
 
 ---
 
@@ -271,6 +271,8 @@ Procedure 至少分三级：
 - 外部系统失败要有重试上限和降级路径。
 
 ### 外部 API / AI
+
+Starter 当前的可选本地实现是 [资产自然语言筛选](./apps/web/src/features/assets/README.md)：`apps/server/src/asset-agent.ts` 沿用 console Session/Origin 校验，只经本机内存转发调用固定 Magpie，前后端契约共享且不写业务数据。
 
 - 所有外部调用必须有超时。
 - 关键外部调用必须有重试、熔断或明确失败展示。

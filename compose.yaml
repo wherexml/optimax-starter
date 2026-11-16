@@ -20,26 +20,37 @@ services:
     <<: *app
     depends_on:
       db: { condition: service_healthy }
-    ports: ["127.0.0.1:38141:38141"]
+    ports: ["127.0.0.1:${API_PORT:-38141}:${API_PORT:-38141}"]
     environment:
+      STARTER_ADMIN_USERNAME: ${STARTER_ADMIN_USERNAME:-demo@optimax.hk}
       STARTER_ADMIN_PASSWORD: ${STARTER_ADMIN_PASSWORD:?Run scripts/init-local.sh}
-      PORT: 38141
-      CORS_ORIGIN: http://127.0.0.1:38140
+      STARTER_SEED_DEMO: ${STARTER_SEED_DEMO:-true}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-optimax_console}
+      PORT: ${API_PORT:-38141}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:${WEB_PORT:-38140}}
+      STARTER_MAGPIE_RELAY_URL: ${STARTER_MAGPIE_RELAY_URL:-}
+      STARTER_MAGPIE_MODEL: ${STARTER_MAGPIE_MODEL:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
     # Bun only runs the short db:push step; the long-running API runs on Node 24 (see RUNTIME.md).
     command: ["sh", "-ec", "bun run db:push && cd apps/server && exec node --import tsx src/node.ts"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38141/').then(async r=>process.exit(r.ok&&(await r.text())==='OK'?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||38141)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       start_period: 20s
       interval: 10s
       timeout: 3s
       retries: 3
   web:
     <<: *app
-    ports: ["127.0.0.1:38140:38140"]
+    ports: ["127.0.0.1:${WEB_PORT:-38140}:${WEB_PORT:-38140}"]
     environment:
-      VITE_SERVER_URL: http://127.0.0.1:38141
+      WEB_PORT: ${WEB_PORT:-38140}
+      API_PORT: ${API_PORT:-38141}
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:${API_PORT:-38141}}
+      VITE_SERVER_URL: ${VITE_SERVER_URL:-http://127.0.0.1:${API_PORT:-38141}}
+      VITE_APP_SLUG: ${VITE_APP_SLUG:-optimax-starter}
+      VITE_APP_TITLE: ${VITE_APP_TITLE:-OptiMax}
+      VITE_ENABLE_DEMOS: ${VITE_ENABLE_DEMOS:-true}
     command: ["sh", "-ec", "cd apps/web && exec bun run dev"]
 volumes:
   data:

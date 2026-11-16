@@ -1,4 +1,16 @@
+@layer ui-sdk;
 @import "@optimax-starter/ui/globals.css";
+.asset-agent { max-width: 640px; margin-bottom: 12px; }
+.asset-agent-form { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--input); border-radius: 12px; background: var(--card); }
+.asset-agent-form:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.asset-agent-form input { width: 100%; min-width: 0; height: 32px; border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
+.asset-agent-form input:focus-visible { outline: none; }
+.asset-agent-form input::placeholder { color: var(--muted-foreground); }
+.asset-agent-form button { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: var(--primary); color: var(--primary-foreground); }
+.asset-agent-form button:hover { background: var(--brand-hover); }
+.asset-agent p { margin: 8px 2px 0; font-size: 13px; color: var(--muted-foreground); }
+.asset-agent p:empty { display: none; }
+.asset-agent [data-asset-agent-status="error"] { color: var(--destructive); }
 :root {
   --background: #fdfdfc;
   --foreground: #21201c;
@@ -85,18 +97,17 @@ select:focus-visible {
   white-space: nowrap;
   border-bottom: 0.5px solid var(--hairline);
 }
-.mark,
 .identity i {
   display: grid;
   place-items: center;
   flex: none;
 }
 .mark {
+  display: block;
+  flex: none;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  color: white;
-  background: var(--primary);
+  object-fit: contain;
 }
 aside nav {
   flex: 1;
@@ -140,6 +151,33 @@ aside nav a.active {
   padding: 8px;
   border-top: 0.5px solid var(--hairline);
 }
+.nav-group { margin-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+.nav-group-title { padding: 0 12px 4px; color: var(--muted-foreground); font-size: 13px; font-weight: 500; }
+.nav-children { display: flex; flex-direction: column; gap: 4px; }
+.page-tabs { --tab-accent: #2f6fed; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.page-tabs-scroll { overflow-x: auto; padding: 0; border-bottom: 1px solid var(--border); background: rgb(255 255 255 / 0.95); }
+.page-tabs [data-slot="tabs-list"] { display: flex; gap: 4px; min-width: 100%; width: max-content; }
+.page-tabs [data-slot="tabs-tab"] {
+  min-height: 40px;
+  flex: none;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms var(--ease), border-color 150ms var(--ease);
+}
+.page-tabs [data-slot="tabs-tab"]:hover { color: var(--foreground); }
+.page-tabs [data-slot="tabs-tab"][data-selected] { border-bottom-color: var(--tab-accent); color: var(--foreground); }
+.page-tabs [data-slot="tabs-tab"]:focus-visible,
+.page-tabs [data-slot="tabs-panel"]:focus-visible { outline: 2px solid var(--tab-accent); outline-offset: -2px; }
+.page-tabs [data-slot="tabs-panel"] { min-width: 0; }
+@media (max-width: 720px) { .page-tabs [data-slot="tabs-tab"] { min-height: 44px; } }
 .identity .who {
   flex: 1;
   min-width: 0;
@@ -224,9 +262,10 @@ aside nav a.active {
   width: 100%;
   max-width: 1500px;
   margin: 0 auto;
-  padding: 32px clamp(16px, 3vw, 40px) 48px;
+  padding: 16px clamp(16px, 3vw, 40px) 48px;
   box-sizing: border-box;
 }
+.page-header { min-height: 40px; margin-bottom: 12px; }
 .page {
   animation: page-in 180ms var(--ease) both;
 }
@@ -591,8 +630,9 @@ aside nav a.active {
     color: var(--foreground);
   }
   .content {
-    padding: 20px 16px 32px;
+    padding: 12px 16px 32px;
   }
+  .page-header { min-height: 44px; }
   .panel {
     padding: 16px;
   }

@@ -17,18 +17,20 @@
 
 ## 2. API 事实卡
 
+可选资产模型试点的 `/console/assets/agent/{config,plan,result}` 契约集中维护在 [资产模块](./apps/web/src/features/assets/README.md#api-契约)，继续使用现有 Cookie Session 和 JSON 错误格式。
+
 | 项 | 内容 |
 | --- | --- |
-| API 主风格 | <!-- tRPC / REST / GraphQL / 混合 --> |
-| Base URL | <!-- /api/trpc / /api/v1 / 其他 --> |
-| 认证传递 | 见 [AUTH.md](./AUTH.md#2-认证事实卡) |
-| 错误格式 | <!-- 本文件标准格式或项目差异 --> |
-| 分页方式 | <!-- cursor / page / offset --> |
-| 实时通道 | <!-- SSE / WebSocket / subscription / 无 --> |
-| 文件入口 | <!-- 上传、下载、预览路径 --> |
-| 外部入口 | <!-- Webhook / OpenAPI / 无 --> |
-| 契约生成 | <!-- shared schemas / OpenAPI / tRPC type / 无 --> |
-| requestId | <!-- 由网关生成 / 服务生成 / 未配置 --> |
+| API 主风格 | 同源 Hono REST JSON |
+| Base URL | 业务接口 `/console/*`；就绪探针 `/healthz` |
+| 认证传递 | 见 [AUTH.md](./AUTH.md#2-认证事实卡)（HttpOnly `SameSite=Strict` Cookie + 非 GET 请求 `Origin` 强校验） |
+| 错误格式 | Starter 精简格式 `{ "error": "<可读中文原因>" }` 并配精确 HTTP 状态码（`400/401/403/404/409/413/422/502/503`） |
+| 分页方式 | 页码分页 `page`（从 1 起）+ `size`（上限 100），响应 `{ items, total, page, size }`（见 `/console/audit` 与 `/console/assets/page`） |
+| 实时通道 | 无 |
+| 文件入口 | 无 |
+| 外部入口 | 无对外 Webhook；可选本地回环 Magpie 转发仅由服务端内部访问 |
+| 契约生成 | 前后端共享 Zod Schema 与 DTO：[packages/api](./packages/api/README.md) |
+| requestId | Hono 请求日志；网关层按实际反代配置注入 |
 
 ---
 

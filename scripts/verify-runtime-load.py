@@ -1,7 +1,13 @@
 """Authenticated HTTP concurrency journey against local Docker, without mutating business records."""
-import urllib.request,json,concurrent.futures,time
-BASE='http://127.0.0.1:38140'
-r=urllib.request.Request(BASE+'/console/login',data=json.dumps({'username':'demo@optimax.hk','password':'demo@2026!'}).encode(),headers={'Origin':BASE,'Content-Type':'application/json'})
+import urllib.request,json,concurrent.futures,time,os
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+CFG=dict(line.split('=',1) for line in (ROOT/'.env').read_text().splitlines() if '=' in line and not line.lstrip().startswith('#')) if (ROOT/'.env').exists() else {}
+WEB_PORT=os.environ.get('WEB_PORT') or CFG.get('WEB_PORT','38140')
+BASE=os.environ.get('CORS_ORIGIN') or CFG.get('CORS_ORIGIN') or f'http://127.0.0.1:{WEB_PORT}'
+ADMIN_USER=os.environ.get('STARTER_ADMIN_USERNAME') or CFG.get('STARTER_ADMIN_USERNAME','demo@optimax.hk')
+ADMIN_PW=os.environ.get('STARTER_ADMIN_PASSWORD') or CFG.get('STARTER_ADMIN_PASSWORD','demo@2026!')
+r=urllib.request.Request(BASE+'/console/login',data=json.dumps({'username':ADMIN_USER,'password':ADMIN_PW}).encode(),headers={'Origin':BASE,'Content-Type':'application/json'})
 with urllib.request.urlopen(r,timeout=20) as res:
  assert res.status==200
  cookie=res.headers['Set-Cookie'].split(';',1)[0]

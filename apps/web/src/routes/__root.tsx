@@ -1,3 +1,4 @@
+import { WorkspaceRefresh } from "@/features/refresh/WorkspaceRefresh";
 import {
   createRootRoute,
   Link,
@@ -5,6 +6,12 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  APP_CONFIG,
+  getSidebarNodes,
+  storageKey,
+  type NavLeafItem,
+} from "@/config/app-config";
 import { useAccount } from "@/features/auth/session";
 import { QuickNav } from "@/features/navigation/QuickNav";
 import {
@@ -15,21 +22,18 @@ import {
 import { FormDialog } from "@/components/ui/FormDialog";
 import { Button } from "@/components/ui/button";
 import {
-  Boxes,
   ChevronUp,
-  LayoutDashboard,
-  Layers3,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
-  ScrollText,
   Search,
   Settings,
   Users,
   X,
 } from "lucide-react";
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -38,7 +42,7 @@ import {
 import { request } from "../console-client";
 import "../index.css";
 
-const SIDEBAR_KEY = "optimax-starter.sidebar";
+const SIDEBAR_KEY = storageKey("sidebar");
 const MOBILE_QUERY = "(max-width: 720px)";
 const MAC =
   typeof navigator !== "undefined" &&
@@ -99,6 +103,44 @@ function Root() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   return path === "/login" ? <Outlet /> : <Shell />;
 }
+
+function SidebarLeaf({
+  item,
+  groupLabel,
+  compact,
+  onNavigate,
+}: {
+  item: NavLeafItem;
+  groupLabel?: string;
+  compact: boolean;
+  onNavigate?: () => void;
+}) {
+  const Icon = compact && item.collapsedIcon ? item.collapsedIcon : item.icon;
+  const collapsedTitle =
+    item.collapsedLabel ?? (groupLabel ? `${groupLabel} · ${item.label}` : item.label);
+  const linkProps = item.defaultSearch
+    ? {
+        search: item.defaultSearch as never,
+        activeOptions: { includeSearch: false, exact: item.exact },
+      }
+    : item.exact
+      ? { activeOptions: { exact: true } }
+      : {};
+
+  return (
+    <Link
+      to={item.to}
+      {...linkProps}
+      onClick={onNavigate}
+      title={compact && groupLabel ? collapsedTitle : item.label}
+      aria-label={compact && groupLabel ? collapsedTitle : undefined}
+    >
+      <Icon size={groupLabel && !compact ? 16 : 17} aria-hidden="true" />
+      {!(compact && groupLabel) && <span>{item.label}</span>}
+    </Link>
+  );
+}
+
 function Shell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const mobile = useMedia(MOBILE_QUERY);
@@ -188,6 +230,7 @@ function Shell() {
   const roleLabel = admin ? "管理员" : "成员";
   const initial = me.data.name.slice(0, 1);
   const rail = compact && !mobile;
+  const sidebarNodes = getSidebarNodes(admin);
   const toggleLabel = mobile ? "关闭菜单" : compact ? "展开菜单" : "折叠菜单";
   const ToggleIcon = mobile ? X : compact ? PanelLeftOpen : PanelLeftClose;
   // When a menu item navigates or opens a dialog, focus does not return to the trigger, so it cannot land in a hidden sidebar or behind the dialog.
@@ -216,10 +259,8 @@ function Shell() {
     >
       <aside id="console-sidebar" ref={aside} aria-label="侧边栏">
         <header className="brand">
-          <span className="mark">
-            <Layers3 size={19} />
-          </span>
-          <strong>OptiMax</strong>
+          <img className="mark" src={APP_CONFIG.logoSrc} alt={`${APP_CONFIG.title} Logo`} width={32} height={32} />
+          <strong>{APP_CONFIG.title}</strong>
           <button
             className="rail-toggle"
             aria-label={toggleLabel}
@@ -239,26 +280,42 @@ function Shell() {
           </button>
         </header>
         <nav id="console-nav" ref={nav} aria-label="主导航">
-          <Link to="/" activeOptions={{ exact: true }} title="工作台">
-            <LayoutDashboard size={17} />
-            <span>工作台</span>
-          </Link>
-          <Link to="/assets" title="资产台账">
-            <Boxes size={17} />
-            <span>资产台账</span>
-          </Link>
-          {admin && (
-            <>
-              <Link to="/accounts" title="账户管理">
-                <Users size={17} />
-                <span>账户管理</span>
-              </Link>
-              <Link to="/audit" title="操作日志">
-                <ScrollText size={17} />
-                <span>操作日志</span>
-              </Link>
-            </>
-          )}
+          {sidebarNodes.map((node) => {
+            if (node.kind === "item") {
+              return <SidebarLeaf key={node.to} item={node} compact={rail} />;
+            }
+            if (rail) {
+              return (
+                <Fragment key={node.label}>
+                  {node.children.map((child) => (
+                    <SidebarLeaf
+                      key={child.to}
+                      item={child}
+                      groupLabel={node.label}
+                      compact
+                      onNavigate={() => setDrawer(false)}
+                    />
+                  ))}
+                </Fragment>
+              );
+            }
+            return (
+              <div key={node.label} className="nav-group">
+                <div className="nav-group-title">{node.label}</div>
+                <div className="nav-children">
+                  {node.children.map((child) => (
+                    <SidebarLeaf
+                      key={child.to}
+                      item={child}
+                      groupLabel={node.label}
+                      compact={false}
+                      onNavigate={() => setDrawer(false)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </nav>
         <div className="nav-tools">
           <button
@@ -317,7 +374,7 @@ function Shell() {
                 <span>
                   <strong>{me.data.name}</strong>
                   <small>
-                    {me.data.username} · {roleLabel}
+                    {me.data.username} {roleLabel}
                   </small>
                 </span>
               </div>
@@ -371,9 +428,9 @@ function Shell() {
               <Menu size={18} />
             </button>
           )}
-          <div key={path} className="page">
-            <Outlet />
-          </div>
+          <WorkspaceRefresh key={path} path={path}>
+            <div className="page"><Outlet /></div>
+          </WorkspaceRefresh>
         </section>
       </main>
       <QuickNav open={quick} onOpenChange={setQuick} admin={admin} />

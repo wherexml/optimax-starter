@@ -1,32 +1,8 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  Boxes,
-  LayoutDashboard,
-  ScrollText,
-  Search,
-  Settings,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { getQuickNavEntries, type QuickNavEntry } from "@/config/app-config";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-
-type Target = "/" | "/assets" | "/accounts" | "/audit" | "/settings";
-type Entry = {
-  to: Target;
-  label: string;
-  aliases: string[];
-  admin: boolean;
-  icon: LucideIcon;
-};
-// Local routes only, following the OptiONE search-command entries. Admin entries are hidden from members; the backend still checks access.
-const ENTRIES: Entry[] = [
-  { to: "/", label: "工作台", aliases: ["dashboard", "home", "overview", "总览", "首页"], admin: false, icon: LayoutDashboard },
-  { to: "/assets", label: "资产台账", aliases: ["assets", "ledger", "inventory", "资产"], admin: false, icon: Boxes },
-  { to: "/accounts", label: "账户管理", aliases: ["accounts", "users", "members", "账户", "用户"], admin: true, icon: Users },
-  { to: "/audit", label: "操作日志", aliases: ["audit", "logs", "activity", "日志", "审计"], admin: true, icon: ScrollText },
-  { to: "/settings", label: "个人设置", aliases: ["settings", "profile", "account", "password", "security", "设置", "资料", "密码"], admin: false, icon: Settings },
-];
 
 export function QuickNav({
   open,
@@ -54,12 +30,12 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
   const id = useId();
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return ENTRIES.filter((e) => admin || !e.admin).filter(
+    return getQuickNavEntries(admin).filter(
       (e) => !q || [e.label, ...e.aliases].some((t) => t.toLowerCase().includes(q)),
     );
   }, [admin, query]);
   const current = Math.min(active, Math.max(items.length - 1, 0));
-  function go(entry: Entry) {
+  function go(entry: QuickNavEntry) {
     close();
     if (entry.to !== path) void navigate({ to: entry.to });
   }
@@ -96,10 +72,10 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
           autoFocus
           role="combobox"
           aria-label="搜索页面"
-          aria-expanded="true"
-          aria-autocomplete="list"
+          aria-expanded={true}
           aria-controls={`${id}-list`}
-          aria-activedescendant={items.length ? `${id}-${current}` : undefined}
+          aria-activedescendant={items[current] ? `${id}-${current}` : undefined}
+          placeholder="搜索页面，回车前往"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -108,28 +84,34 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
           onKeyDown={onKeyDown}
         />
       </label>
-      {items.length ? (
-        <ul role="listbox" id={`${id}-list`} aria-label="页面">
-          {items.map((entry, i) => (
-            <li
-              key={entry.to}
-              id={`${id}-${i}`}
-              role="option"
-              aria-selected={i === current}
-              onMouseMove={() => setActive(i)}
-              onClick={() => go(entry)}
-            >
-              <entry.icon size={16} aria-hidden="true" />
-              <span>{entry.label}</span>
-              {entry.to === path && <small>当前页面</small>}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p role="status" className="quick-nav-empty">
-          无匹配页面
-        </p>
-      )}
+      <div id={`${id}-list`} role="listbox" aria-label="页面列表" className="quick-nav-list">
+        {items.length === 0 ? (
+          <p className="m-0 px-2.5 py-5 text-center text-sm text-muted-foreground">
+            未找到匹配页面
+          </p>
+        ) : (
+          items.map((entry, i) => {
+            const Icon = entry.icon;
+            const selected = i === current;
+            return (
+              <button
+                key={entry.to}
+                id={`${id}-${i}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={"quick-nav-item" + (selected ? " active" : "")}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => go(entry)}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span>{entry.label}</span>
+                {entry.to === path && <small>当前</small>}
+              </button>
+            );
+          })
+        )}
+      </div>
     </DialogContent>
   );
 }

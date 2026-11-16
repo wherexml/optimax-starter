@@ -8,7 +8,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-3">
+    <header data-slot="page-header" className="page-header flex flex-wrap items-center justify-between gap-3">
       <h1 className="m-0 text-lg font-semibold leading-7 text-foreground">
         {title}
       </h1>

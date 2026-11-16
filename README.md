@@ -1,6 +1,6 @@
 # OptiMax Starter
 
-OptiMax Starter 是一个可直接运行、不含 AI 的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。
+OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的本地自然语言筛选试点](./apps/web/src/features/assets/README.md)，默认不启用、不依赖模型服务。
 
 [使用此模板创建新项目](https://github.com/wherexml/optimax-starter/generate) · [新项目初始化流程](#从-github-template-初始化新项目)
 
@@ -16,6 +16,8 @@ OptiMax Starter 是一个可直接运行、不含 AI 的管理后台脚手架：
 | `/accounts` | 账户管理 | 管理员 | 新增、编辑姓名、调整角色、重置密码、强制下线、启用/停用 |
 | `/audit` | 操作日志 | 管理员 | 按操作类型、操作人、日期筛选，服务端分页；日志只追加 |
 | `/settings` | 个人设置 | 管理员、成员 | 修改显示名称、邮箱、公司；修改密码后撤销本人全部会话 |
+
+Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)，演示二级侧栏与顶部 Tab，管理员、成员均可访问。详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)。
 
 角色只有管理员（`admin`）和成员（`member`）两种。所有写操作都在服务端再次校验权限，前端隐藏入口只用于展示。侧栏支持折叠和移动端抽屉，Cmd/Ctrl+K 打开快速导航。
 
@@ -70,43 +72,63 @@ docker compose up -d --build
 | `DATABASE_URL` | api | 由 compose 拼出的内部连接串（主机名 `db`） |
 | `PORT` | api | API 监听端口，默认 `38141` |
 | `CORS_ORIGIN` | api | 允许的前端来源，默认 `http://127.0.0.1:38140` |
-| `VITE_SERVER_URL` | web | 前端 API 基址配置，当前也供保留的 tRPC 基础代码使用；管理页面 `/console` 的代理目标在 `apps/web/vite.config.ts` 中单独配置为 `http://api:38141` |
+| `WEB_PORT` / `API_PORT` | web、api | 本地相邻五位监听端口，默认 `38140` / `38141` |
+| `API_PROXY_TARGET` | web | Vite `/console` 转发目标，Compose 内默认 `http://api:${API_PORT}`，宿主机直跑可设为 `http://127.0.0.1:${API_PORT}` |
+| `SESSION_COOKIE_NAME` | api | Session Cookie 名称，默认 `optimax_console`；新项目由 `bootstrap-project.sh` 自动改为独立名称 |
+| `VITE_APP_SLUG` / `VITE_APP_TITLE` | web | 本地存储前缀与侧栏品牌显示名称 |
+| `VITE_ENABLE_DEMOS` | web | 是否展示 `/demo/*` 与侧栏 Demo 分组（开发默认 `true`，生产固定 `false`） |
+| `STARTER_SEED_DEMO` | api | 是否幂等写入演示管理员与 12 条示例资产（开发默认 `true`，生产强制 `false`） |
+| `VITE_SERVER_URL` | web | 前端公开 API 基址配置，完整模板见 [.env.example](./.env.example) |
 
 ## 日常命令
 
 ```sh
-docker compose ps                 # 查看服务和健康状态
-docker compose logs -f api        # 跟踪 API 日志
-docker compose down               # 停止服务，保留数据卷
-docker compose up -d --build      # 修改代码或拉取更新后重建镜像
+docker compose ps                         # 查看服务和健康状态
+docker compose logs -f api                # 跟踪 API 日志
+docker compose down                       # 停止服务，保留数据卷
+docker compose up -d                      # 日常启动（自动合并 compose.override.yaml 热更新）
+docker compose up -d --build              # 修改 package.json / bun.lock 后重建镜像
+bun run gen:module vendors --label 供应商  # 一键生成新业务模块（表、Zod 契约、API、页面、验收脚本）
 ```
 
 仅在明确要清空本地数据库时才执行 `docker compose down -v`；日常停止不要加 `-v`。
 
-镜像在构建时复制源码，容器不挂载源码目录。因此修改源码或 `git pull` 之后，必须执行 `docker compose up -d --build` 才会生效。
+本地默认通过 `compose.override.yaml` 挂载 `apps/*/src` 与 `packages/*/src`（保留容器内 Linux 原生 `node_modules`），修改前后端源码即可触发 Vite HMR 与 `node --watch` 秒级热重载，无需每次执行 `--build`；仅在增删依赖或修改 `Dockerfile` 时执行 `docker compose up -d --build`。
 
 ## 目录结构（节选）
 
 ```text
 apps/
+  web/src/config/        app-config.ts（品牌、本地存储前缀、侧栏与 Cmd+K 统一导航注册表）
   web/src/routes/        路由、鉴权跳转、URL 搜索参数
   web/src/features/      auth · dashboard · assets · accounts · audit · settings · navigation · filters
-  web/src/components/    table（EASM DataTable）、filters（FilterBar）、ui（Radix 控件、FormDialog、MultiSelect）
-  server/src/            console.ts（API、Session、鉴权、日志）、node.ts（Node 入口）、password.ts
+  web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui
+  server/src/core/       config · guards（咨询锁与 RBAC）· audit · seed
+  server/src/modules/    auth · accounts · audit · assets（含服务端分页与 CRUD 示例）
 packages/
+  api/src/               contracts.ts（前后端共享 Zod 契约与 DTO）· asset-agent.ts
   db/src/schema/         console.ts：账户、会话、资产、操作日志
-scripts/                 init-local.sh 与复验脚本
-docs/images/             README 截图
-compose.yaml             web / api / db 三个服务
+scripts/                 init-local.sh · bootstrap-project.sh · gen-module.mjs · ci-scope.mjs · deploy-production.sh · verify-*.py
+.github/workflows/       ci.yml · deploy-production.yml
+compose.yaml             本地开发基础栈（配合 compose.override.yaml 热更新）
+compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段非 root 构建）
 ```
 
 ## 开发指引
 
-- 页面代码写在 `apps/web/src/features/<模块>/`；`routes/` 只负责路由、鉴权和 `validateSearch`。
-- 列表页统一使用 `components/table/DataTable` 和 `components/filters/FilterBar`。多选（`multi`）和“包含/等于”（`operatorKey`）需要逐字段开启，查询链路没有实现对应匹配语义的字段不要开启。约定见 [FILTERS.md](./FILTERS.md)。
-- 资产台账一次取回全部记录，在浏览器端筛选，适合演示规模的数据；数据量大时应改为服务端筛选和分页（操作日志已经是服务端分页）。
-- 新增 API 写在 `apps/server/src/console.ts`。管理员写操作必须在同一事务中写入操作日志，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
-- 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航 → 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。
+- 页面代码写在 `apps/web/src/features/<模块>/`；`routes/` 只负责路由、鉴权和 `validateSearch`；新增菜单只需在 `apps/web/src/config/app-config.ts` 的 `NAV_REGISTRY` 注册一处，侧栏、抽屉和 `Cmd+K` 快速导航自动同步。
+- 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页），也可以直接运行 `bun run gen:module <slug> --label <中文名>` 生成全栈骨架。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
+- 资产台账默认展示客户端筛选与管理员新增/编辑/删除闭环，后端同时提供 `/console/assets/page` 服务端分页 + 动态筛选参考实现。
+- 新增后端接口按业务域放在 `apps/server/src/modules/<模块>.ts` 并挂载到 `console.ts`；前后端输入输出 Schema 统一放在 `packages/api/`。管理员写操作必须在同一事务中调用 `audit()` / `auditResource()` 写入 `console_audit`，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
+- 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航（最多二级）→ 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。
+
+## 项目内技能
+
+仓库内置 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，用于 UI SDK 交互、组件行为、自定义 primitive 与 Agent 操作。在 Starter 目录运行时，Codex 从 `.agents/skills/` 发现技能；[AGENTS.md](./AGENTS.md#项目技能默认路由) 同时提供按任务读取的明确入口，也可输入 `$starter-ui-sdk`。从公司主仓库进入子项目的会话，按该 AGENTS 链接读取即可。
+
+技能携带上游参考与许可证，并适配现有组件、路由、导航、URL 状态和浏览器 E2E。运行时 UI SDK 仍来自 `apps/web/package.json` 的依赖；技能不会自动替换现有控件或启用模型。
+
+创建新项目时保留整个 `.agents/skills/starter-ui-sdk/`，随 AGENTS 和工程规范一起维护。无需依赖个人全局技能目录；其他客户端可按 AGENTS 链接读取，客户端原生技能发现另按其规则配置。
 
 ## 从 GitHub Template 初始化新项目
 
@@ -127,83 +149,27 @@ git remote get-url origin   # 应输出新仓库的地址，而不是 optimax-st
 
 如果通过网页创建，创建完成后执行 `git clone https://github.com/OWNER/my-console.git` 和 `cd my-console`。不要克隆模板仓库后直接向模板的 `origin` 推送业务代码。
 
-### 2. 首次启动前完成改名
+### 2. 首次启动前一键改名与隔离初始化
 
-**以下改名都要在第一次 `docker compose up` 之前完成。** 数据卷名由 compose 项目名决定，先启动再改名，会留下归属不清的旧数据卷。
-
-| 位置 | 改为 |
-| --- | --- |
-| 根目录 `package.json` 的 `name` | `my-console` |
-| `README.md`、`PROJECT.md` 中的项目名称 | 新项目名称；保留 `AGENTS.md` 中的侧栏布局基线等规范 |
-| `compose.yaml` 顶层 `name` | `my-console-preview` |
-| `compose.yaml` 中的 `image` | `my-console-preview:local` |
-| `compose.yaml` 中 web 的端口映射 | `127.0.0.1:38150:38150` |
-| `compose.yaml` 中 api 的端口映射 | `127.0.0.1:38151:38151` |
-| api 环境变量 `PORT` / `CORS_ORIGIN` | `38151` / `http://127.0.0.1:38150` |
-| web 环境变量 `VITE_SERVER_URL` | `http://127.0.0.1:38151` |
-| api 健康检查中请求的地址 | `http://127.0.0.1:38151/` |
-| `apps/web/vite.config.ts` | `server.port` 改为 `38150`，`/console` 代理目标改为 `http://api:38151` |
-| `apps/server/src/console.ts` 中的 `const cookie` | 由 `optimax_console` 改为 `my_console_session` |
-| `scripts/verify-*.py` 中的 base URL、Origin 和临时夹具名前缀 | 改成新端口和本项目自己的前缀 |
-
-注意：
-
-- `VITE_SERVER_URL` **不决定**代理目标；`/console` 实际转发到哪里，由 `vite.config.ts` 中的 proxy 配置决定，两处都要改。
-- Cookie 不按端口隔离。如果同一台机器上的多个项目都运行在 `127.0.0.1`，Cookie 名相同时会互相覆盖登录状态，所以必须改名。
-- 可选：如果要把 workspace 包命名空间 `@optimax-starter/*` 改成自己的，必须同时修改所有 `package.json` 和源码中的 import，然后用 `bun install` 重新生成 `bun.lock`，不要手动编辑 lockfile。
-
-修改根 `package.json.name` 也会影响锁文件，完成项目名或 workspace 命名空间调整后必须重新生成并提交 `bun.lock`，否则 Docker 的 `--frozen-lockfile` 安装可能失败。主机未安装 Bun 时可在新项目根目录执行：
+**必须在第一次 `docker compose up` 之前执行。** 数据卷名由 compose 项目名决定，脚本会自动扫描本机空闲的相邻五位端口（默认从 `38150/38151` 起）、替换 `package.json` 与 `compose.yaml` 项目/镜像名、生成独立 `SESSION_COOKIE_NAME`（避免同机多项目 `127.0.0.1` Cookie 互相覆盖）与随机数据库密码，并更新 `bun.lock`：
 
 ```sh
-docker run --rm -v "$PWD:/app" -w /app oven/bun:1.3.14 \
-  bun install --lockfile-only --ignore-scripts
+./scripts/bootstrap-project.sh my-console --title "我的运营台"
+# 如需正式业务项目默认隐藏 /demo/* 演示分组，可附加 --no-demos；如需指定端口可附加 --web-port 38160
 ```
 
-这里仅更新锁文件；完整安装与环境类型生成由后续 Docker 构建完成。
+另请按产品需要替换 `apps/web/index.html` 的 `<title>`、`public/brand/` 图标与 `app-config.ts` 的 `APP_CONFIG.logoSrc`（配置见 [品牌素材](./apps/web/public/brand/README.md)），并同步更新 `README.md` 与 `PROJECT.md` 中的项目说明（保留 `AGENTS.md` 中的侧栏布局基线等规范）。如需连同 workspace 包命名空间 `@optimax-starter/*` 一并替换，请批量修改各 `package.json` 与 import 后重新运行 `bun install`。
 
-### 3. 数据库隔离
-
-- 服务名 `db`，以及内部的数据库名和用户名 `starter` 都可以保持不变：每个项目有自己的容器、网络和数据卷，互不共享。
-- 隔离依赖 compose 项目名：不要通过 `-p` 或 `COMPOSE_PROJECT_NAME` 覆盖成其他项目的名称；数据卷会自动命名为 `my-console-preview_data`。不要给数据卷写显式的 `name`，也不要声明 `external`。
-- 镜像名也必须唯一，避免与其他项目互相覆盖。
-- 数据库端口不要映射到主机。
-- 不要复制旧项目的 `.env` 或数据卷。新项目运行自己的 `init-local.sh`，数据库密码会随机生成。修改 `.env` 里的密码不会改动已经初始化的数据库，所以首次启动前就要确定好名称和配置。
-
-### 4. 检查端口
-
-确认 38150 和 38151 没有被占用：
+### 3. 启动并确认隔离生效
 
 ```sh
-lsof -nP -iTCP:38150 -sTCP:LISTEN
-lsof -nP -iTCP:38151 -sTCP:LISTEN
-```
-
-Linux 没有 `lsof` 时可用 `ss -ltn` 检查这两个端口。上述 `lsof` 没有输出并返回状态 1 通常表示未找到监听。
-
-如果有输出，说明端口已被占用，换一对相邻且未被占用的端口，并同步修改第 2 步表格中所有相关位置。
-
-### 5. 初始化并启动
-
-```sh
-./scripts/init-local.sh
-docker compose config --quiet     # 只校验配置，不打印展开后的内容（避免把密码输出到终端）
+docker compose config --quiet                   # 仅校验配置，不打印密码
 docker compose up -d --build
-docker compose ps                 # api 应显示 healthy
-curl -fsS http://127.0.0.1:38151/ # 应输出 OK
-```
-
-浏览器打开 <http://127.0.0.1:38150/login>，用 README 中的本地演示账户登录。演示账户只能在本地使用。
-
-### 6. 确认隔离生效
-
-```sh
+docker compose ps                               # api 与 db 应显示 healthy
+python3 scripts/verify-console.py               # 自动读取 .env 中的端口与账号完成端到端验收
 docker volume inspect my-console-preview_data --format '{{ index .Labels "com.docker.compose.project" }}'
 # 应输出 my-console-preview
-git remote get-url origin
-# 应为新仓库
 ```
-
-确认第 2 步中脚本的 base URL、Origin 和夹具名都已更新后，再运行 `python3 scripts/verify-console.py`。以上步骤只是本地初始化流程，完成后并不代表可以直接上线（见下文“上线前须知”）。
 
 ## 复验
 
@@ -223,16 +189,14 @@ git remote get-url origin
 
 界面验收还需在浏览器完成登录、筛选增删与多选、账户权限、侧栏展开/折叠、移动端抽屉以及 Cmd/Ctrl+K 导航。完整场景见 [TESTING.md](./TESTING.md)。本机历史验收保存在被 Git 忽略的 `evidence/`；仓库只保留本文展示所需的脱敏演示截图。
 
-## 上线前须知
+## 生产部署与 CI/CD
 
-本仓库目前是本地预览形态，直接上线前至少要处理以下几点：
+仓库已内置生产构建与流水线基线（详见 [DEPLOYMENT.md](./DEPLOYMENT.md) 和 [cicd-spec.md](./cicd-spec.md)）：
 
-- web 运行的是 Vite 开发服务器，API 由 `tsx` 在运行时转译。生产环境应先构建再运行。
-- 数据库结构用 `drizzle push` 同步，没有版本化迁移。
-- 权限只有管理员和成员两种，没有多租户、OAuth/SSO 或细粒度权限。
-- 不集成任何 AI 服务。
-- 演示账户和本地 `.env` 不得带入生产；密码策略只要求 10–256 位。
-- 当前没有 `.github/workflows`，尚未配置 CI/CD；`cicd-spec.md` 是规范文档，不代表流水线已经运行。
+- **生产镜像与同源托管**：`Dockerfile.prod` 执行多阶段构建并以非 root `node` 用户运行，单容器同源托管 `apps/web/dist` 静态产物与 `/console` API；`compose.prod.yaml` 默认强制 `STARTER_SEED_DEMO=false`、`VITE_ENABLE_DEMOS=false`，并在存在 `packages/db/src/migrations/*.sql` 时优先执行版本化迁移 `db:migrate:deploy`。
+- **安全预检与部署回滚入口**：`./scripts/deploy-production.sh` 提供 `--check`（拦截弱密码、默认 Cookie 名与演示种子）、`--deploy <sha>`（在线库备份 → 镜像构建 → 激活 → `/healthz` 与 SPA 冒烟 → 写入 `accepted-sha`）与 `--rollback [<sha>]`。
+- **GitHub Actions 门禁**：`.github/workflows/ci.yml` 包含 `ci-scope` 变更分类、PR 并发取消、静态与构建检查及真实 PostgreSQL 17 容器 HTTP/事务回滚 E2E；`.github/workflows/deploy-production.yml` 默认受仓库变量 `ENABLE_PRODUCTION_CD=true` 保护（未配置自托管 `[self-hosted, deploy-prod]` runner 时自动安全跳过，不会排队卡死）。
+- **业务项目仍需按需评估**：当前角色为两级 RBAC（`admin` / `member`），多租户隔离、企业 SSO（已预留 `/console/auth/providers` 扩展位）及更严格密码复杂度按具体产品需求补齐。
 
 ## 文档导航
 

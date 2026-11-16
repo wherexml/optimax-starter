@@ -57,6 +57,8 @@ coverage
 tmp
 temp
 
-# Local acceptance recordings and task state (curated screenshots live in docs/images)
+# Local acceptance recordings, sprint process notes and task state (curated screenshots live in docs/images)
 /evidence/
 /tasks/
+/docs/sprint/
+/docs/sprints/

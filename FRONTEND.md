@@ -32,14 +32,14 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 前端目录 | `apps/web`；`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,assets,accounts}` |
-| 技术栈 | React + Vite、TanStack Router / Query / Table、React Hook Form + Zod |
-| 包管理器 | Bun |
-| API 代理方式 | Vite 代理同源 `/console` 到 API；数据库 Session Cookie，不在前端保存 token |
-| UI 组件库 | shadcn 风格 Radix 控件（`components/ui/{dialog,select,form,input,button}`），不使用原生 HTML dialog |
-| 图表/地图库 | 无；登录页为静态地图图片 |
-| 是否允许 mock | 否；12 条资产是服务端写入数据库的演示数据，页面只读 API |
-| AI 服务 | 无 |
+| 前端目录 | `apps/web`；`src/config/app-config.ts` 集中维护品牌、存储前缀与侧栏/`Cmd+K` 导航注册表，`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,dashboard,assets,accounts,audit,settings,navigation,navigation-demo,refresh,filters}` |
+| 技术栈 | React + Vite、TanStack Router / Query / Table、React Hook Form + Zod（共享契约见 [packages/api](./packages/api/README.md)） |
+| 包管理器 | Bun 1.3.14 |
+| API 代理方式 | Vite 代理同源 `/console` 到 `API_PROXY_TARGET`（生产单容器由 Hono `SERVE_WEB_DIST` 同源托管）；数据库 Session Cookie，不在前端保存 token |
+| UI 组件库 | shadcn 风格 Radix 控件、共享 `@optimax-starter/ui`（`Select`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
+| 图表/地图库 | 无；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
+| 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
+| AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选本地 Magpie 试点；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
 
 ### 移植来源：复制与适配
 
@@ -163,6 +163,10 @@ AppShell
 
 ---
 
+### UI SDK 开发入口
+
+前端交互、UI SDK 控件、自定义 primitive 或 Agent 操作先读项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，按任务进入当前安装版本的文档和现有实现。普通表单、表格、弹窗继续复用共享组件；仅纯样式/文案修改沿用本文与 DESIGN。技能中的项目适配同时覆盖页面路由、统一导航注册、URL 状态、Agent 动作边界和 E2E，不依赖个人全局技能目录。
+
 ## 6. 路由规范
 
 - 路由路径要稳定、可分享、可刷新。
@@ -181,9 +185,13 @@ AppShell
 | `/` | `features/assets/AssetsPage`（资产台账） | 登录（成员只读、管理员） | `/console` 资产 API；URL 参数 `q`、`stage` | `http://127.0.0.1:38140/` |
 | `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | 管理员（后端鉴权） | `/console` 账户 API；URL 参数 `q` | `http://127.0.0.1:38140/accounts` |
 
+### 页面顶部与共享标题
+
+六个业务页面共用 `components/ui/page-header.tsx` 和 `index.css` 的 `.content` / `.page-header`；尺寸正文见 [DESIGN 页面标题区](./DESIGN.md#页面标题区)。禁止页面另加重复顶部 padding 或标题下 margin。只有右侧页内 Tab 沿用 World Model 下划线样式，侧栏及全局主题保持 Starter。
+
 ### 页内导航与标签行为
 
-> 本 starter 的项目规则；视觉、位置与键盘语义见 [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签)。当前页面没有页内标签，以下要求适用于新增页面。
+> 本 starter 的项目规则；二级侧栏上限、顶部 Tab 位置与键盘语义见 [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签)。可操作实现见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)。
 
 - **状态与深链**：当前标签写入 URL 搜索参数 `tab`，取稳定的英文值（例如 `/reports?tab=drafts`），不用中文显示名。路由 `validateSearch` 只接受白名单值；缺省或非法时显示默认标签，并用 `replace: true` 改正 URL。切换标签同样使用 `replace: true`，与现有搜索参数一致。
 - **默认标签**：没有 `tab` 参数时打开最常用的视图，不把上次选择当默认值。
@@ -289,6 +297,8 @@ Store 规则：
 ---
 
 ## 10. 组件规范
+
+内容加载与主动刷新统一使用共享 [ContentRefresh / PageSkeleton](./packages/ui/README.md)。侧栏和页面 Tab 放在边界外；首次读取跟随当前活动查询，工具栏刷新跟随实际 Promise。保留内容挂载及原有错误/空状态，后台更新、表单提交不覆盖整页。接入示例为 `features/refresh/WorkspaceRefresh.tsx`，不要在页面另写旋转图标、假进度或固定加载时长。
 
 ### 组件类型
 

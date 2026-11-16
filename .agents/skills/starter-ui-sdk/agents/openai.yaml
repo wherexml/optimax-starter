@@ -1,0 +1,6 @@
+interface:
+  display_name: "UI SDK · Starter"
+  short_description: "在 Starter 中复用组件、接入 UI SDK 行为与 Agent 操作，并完成路由和 E2E 验收"
+  default_prompt: "使用 $starter-ui-sdk 按 Starter 规范实现界面交互，接好路由、URL 状态与需要的 Agent 动作，并验证结果。"
+policy:
+  allow_implicit_invocation: true

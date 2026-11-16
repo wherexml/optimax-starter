@@ -1,16 +1,22 @@
-import type {
-  AccountSearch,
-  AssetSearch,
-  AssetStage,
-  AuditSearch,
-} from "@/console-client";
+import {
+  ASSET_STAGES,
+  AUDIT_ACTIONS,
+  AUDIT_ACTION_LABELS,
+  type AccountSearch,
+  type AssetSearch,
+  type AssetStage,
+  type AuditSearch,
+} from "@optimax-starter/api";
+
+export { AUDIT_ACTIONS, AUDIT_ACTION_LABELS };
 
 // URL search parsers shared by route validation and saved-filter restore, so both accept the same values.
 const text = (v: unknown, max = 200) =>
   typeof v === "string" && v.trim() && v.length <= max ? v : undefined;
 
 const MAX_ITEMS = 20;
-const STAGES: readonly string[] = ["已登记", "待复核"];
+const STAGES: readonly string[] = ASSET_STAGES;
+
 // Normalizes a scalar or array value: trimmed, unique, sorted, at most MAX_ITEMS entries.
 // Objects, nested arrays and over-long strings are dropped, never thrown.
 function list(v: unknown, max: number): string[] {
@@ -28,9 +34,11 @@ function list(v: unknown, max: number): string[] {
   }
   return [...out].sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
+
 // One value stays scalar so existing URLs keep their shape; two or more become an array.
 const scalarOrList = <T extends string>(a: T[]): T | T[] | undefined =>
   a.length === 0 ? undefined : a.length === 1 ? a[0]! : a;
+
 export const asList = <T extends string>(v: T | T[] | undefined): T[] =>
   v === undefined ? [] : Array.isArray(v) ? v : [v];
 
@@ -60,26 +68,6 @@ export function parseAccountSearch(v: Record<string, unknown>): AccountSearch {
   };
 }
 
-export const AUDIT_ACTIONS = [
-  "account.create",
-  "account.update",
-  "account.role",
-  "account.status",
-  "account.password_reset",
-  "account.revoke",
-  "profile.update",
-  "profile.password_change",
-] as const;
-export const AUDIT_ACTION_LABELS: Record<string, string> = {
-  "account.create": "新增账户",
-  "account.update": "修改姓名",
-  "account.role": "调整角色",
-  "account.status": "变更状态",
-  "account.password_reset": "重置密码",
-  "account.revoke": "强制下线",
-  "profile.update": "修改本人资料",
-  "profile.password_change": "修改本人密码",
-};
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function parseAuditSearch(v: Record<string, unknown>): AuditSearch {

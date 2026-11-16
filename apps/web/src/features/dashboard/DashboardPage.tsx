@@ -1,3 +1,4 @@
+import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 // Structural port of skylance-easm pages/Index.tsx:
 // - Four DashboardStatCards (each value is the drilldown link, with subtitle links below).
 // - A 2:1 main grid: the left list replaces TenantSecurityList; the right column is RecentActivityList for admins
@@ -51,19 +52,23 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
 };
 
 export function DashboardPage() {
+  const runRefresh = useContentRefresh();
   const me = useAccount();
   const admin = me.data?.role === "admin";
   const assets = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["assets"],
     queryFn: () => request<Asset[]>("/assets"),
   });
   // 成员不发起账户与日志请求。
   const accounts = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["accounts"],
     queryFn: () => request<Account[]>("/accounts"),
     enabled: admin,
   });
   const recent = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["audit", "recent"],
     queryFn: () => request<AuditPage>(`/audit?size=${ACTIVITY_SIZE}`),
     enabled: admin,
@@ -82,13 +87,10 @@ export function DashboardPage() {
             title="刷新"
             aria-label="刷新工作台"
             disabled={fetching}
-            onClick={() => {
-              void assets.refetch();
-              if (admin) {
-                void accounts.refetch();
-                void recent.refetch();
-              }
-            }}
+            onClick={() => void runRefresh(() => Promise.all([
+              assets.refetch(),
+              ...(admin ? [accounts.refetch(), recent.refetch()] : []),
+            ]))}
           >
             <RotateCw size={15} className={fetching ? "animate-spin" : undefined} />
           </Button>

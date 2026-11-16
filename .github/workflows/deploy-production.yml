@@ -1,0 +1,130 @@
+name: Deploy Production
+
+# 对标 cicd-spec.md 与 duanju 持续部署规范：
+# 1. 仅在 main 分支完整应用 CI（Application release gate == success）通过或手动 dispatch 时评估发布资格；
+#    纯文档 light 提交自动跳过部署，不推进线上版本。
+# 2. 模板仓库及尚未登记生产部署机的派生仓库默认未开启 ENABLE_PRODUCTION_CD，eligibility 安全跳过而不会卡队列；
+#    接入自有服务器时：为目标机器配置专属 [self-hosted, deploy-prod] runner，准备私有 .env.production，
+#    并在仓库 Settings -> Variables -> Actions 中设置 ENABLE_PRODUCTION_CD=true。
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: "部署目标 commit SHA 或分支（workflow_run 自动触发时忽略）"
+        required: false
+        default: "main"
+        type: string
+      rollback_commit:
+        description: "手动回滚：填写上一已验收 commit SHA（填写后忽略 target_ref）"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  eligibility:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main' &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      deploy: ${{ steps.gate.outputs.deploy }}
+    steps:
+      - uses: actions/github-script@v7
+        id: gate
+        env:
+          CD_ENABLED: ${{ vars.ENABLE_PRODUCTION_CD }}
+        with:
+          script: |
+            if (process.env.CD_ENABLED !== 'true') {
+              core.info('ENABLE_PRODUCTION_CD is not set to true; skipping self-hosted deployment.');
+              core.setOutput('deploy', 'false');
+              await core.summary.addRaw('Production CD skipped: set repository variable `ENABLE_PRODUCTION_CD=true` after registering `[self-hosted, deploy-prod]` runner.').write();
+              return;
+            }
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('deploy', 'true');
+              return;
+            }
+            const run = context.payload.workflow_run;
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              ...context.repo,
+              run_id: run.id,
+              filter: 'latest',
+              per_page: 100,
+            });
+            const gates = jobs.filter(job => job.name === 'Application release gate');
+            if (gates.length !== 1 || !['success', 'skipped'].includes(gates[0].conclusion)) {
+              throw new Error('Missing or unsuccessful upstream Application release gate; refusing deployment.');
+            }
+            const deploy = gates[0].conclusion === 'success';
+            core.setOutput('deploy', String(deploy));
+            await core.summary.addRaw(
+              deploy
+                ? `Application deployment eligible for SHA \`${run.head_sha}\`.`
+                : 'Light CI run: application deployment skipped; accepted production SHA unchanged.'
+            ).write();
+
+  deploy:
+    name: Deploy production
+    needs: eligibility
+    if: needs.eligibility.outputs.deploy == 'true'
+    runs-on: [self-hosted, deploy-prod]
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Select target revision
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_REF: ${{ inputs.target_ref }}
+          INPUT_ROLLBACK: ${{ inputs.rollback_commit }}
+        run: |
+          if [ -n "$INPUT_ROLLBACK" ]; then
+            target="$INPUT_ROLLBACK"
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
+            target="$RUN_HEAD_SHA"
+          else
+            target="${INPUT_REF:-main}"
+          fi
+          case "$target" in
+            ""|*[!A-Za-z0-9._/-]*)
+              echo "非法目标版本: $target" >&2
+              exit 1
+              ;;
+          esac
+          echo "ref=$target" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.rollback_commit && 'main' || steps.target.outputs.ref }}
+          persist-credentials: false
+
+      - name: Execute deployment or rollback entrypoint
+        env:
+          INPUT_ROLLBACK: ${{ inputs.rollback_commit }}
+          DEPLOY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          if [ -n "$INPUT_ROLLBACK" ]; then
+            ./scripts/deploy-production.sh --rollback "$INPUT_ROLLBACK"
+          else
+            SHA="$(git rev-parse HEAD)"
+            ./scripts/deploy-production.sh --deploy "$SHA" --deploy-id "$DEPLOY_ID"
+          fi

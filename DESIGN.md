@@ -18,7 +18,7 @@
 | 品牌色 | 主按钮蓝 #3E63DD，选中底色 #EDF2FE，键盘焦点 #8DA4EF，页面暖砂灰 #FDFDFC。主题变量统一在 `apps/web/src/index.css` |
 | 组件库 | shadcn 风格 Radix 控件（Dialog、Select）、EASM FormDialog、EASM DataTable + ColumnSettings + 分页、TanStack Table；不使用原生 HTML dialog |
 | 图标库 | Lucide |
-| 图表/地图库 | 无；登录页使用 RiskOps 全屏 login-risk-map.png 与渐变遮罩 |
+| 图表/地图库 | 无；登录页使用 imagegen 新绘背景与渐变遮罩，品牌素材及实际像素尺寸见 [登录模块](./apps/web/src/features/auth/README.md) |
 | 设计红线 | 主题色和界面文案遵循 AGENTS.md「设计原则」 |
 
 ---
@@ -101,7 +101,16 @@
 3. 内容区：页面标题、状态摘要、主操作、筛选、主体内容、反馈状态。
 4. 详情承载：优先用独立详情页；轻量查看用抽屉；复杂编辑用专页。
 
+### 登录页品牌
+
+登录页复用现有 OptiMax 产品 Logo，不添加包裹 Logo 的边框或底板。标题为 `Optimax Starter`；154 字价值介绍是 Steve 本次明确要求的登录页例外，不扩展到业务页。只有背景图由 imagegen 生成，Logo 不重绘；素材来源、实际尺寸、提示词和导出方式见 [登录模块](./apps/web/src/features/auth/README.md)。
+
+浏览器标签与内页使用 [Starter SVG 变体](./apps/web/public/brand/README.md)，保留四瓣品牌特征、中心改为向前切口；SVG 为可编辑路径，并提供同款 PNG/ICO。内页侧栏图标为 32px，无额外底板或外框，加载与内容刷新使用同一 `APP_CONFIG.logoSrc`。标签标题为 `Optimax Starter`；登录页品牌保留现有 OptiMax Logo，侧栏原有布局与浅色样式不变。
+
 ### 页面标题区
+
+- 页面顶部统一收紧：桌面内容区上内边距 16px，手机 12px；共享 PageHeader 最小高度分别为 40px / 44px，标题到首块内容间距 12px。带操作按钮的标题行使用同一组件，不另加外边距。
+- 页内 Tab 与面板间距 12px；资产自然语言输入区到下方表格间距同为 12px。顶部节奏由共享样式维护，不逐页叠加留白。
 
 标题区必须回答四件事：
 
@@ -255,7 +264,7 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 | `spacing[4]` | `16px` | 默认组件间距 |
 | `spacing[6]` | `24px` | 页面边距、卡片默认内边距 |
 | `spacing[8]` | `32px` | 大区块间距 |
-| `sidebarWidth` | `240px` | 桌面侧栏 |
+| `sidebarWidth` | `240px` | Starter 浅色桌面侧栏 |
 | `sidebarCollapsedWidth` | `64px` | 折叠侧栏 |
 | `headerHeight` | `56px` | 顶部栏 |
 
@@ -317,7 +326,13 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 
 ### 页内导航与标签
 
-> 本节是本 starter 的项目规则，不修改团队规范正文。本 starter 当前页面没有页内标签；下文“参考示例”来自 RiskOps，只用于说明出处，不代表本项目已实现。行为、URL 与验收见 [FRONTEND.md 页内导航与标签行为](./FRONTEND.md#页内导航与标签行为)。
+> 本节是本 starter 的项目规则，不修改团队规范正文。项目已提供 [二级侧栏与顶部 Tab Demo](./apps/web/src/features/navigation-demo/README.md)；只有右侧顶部 Tab 样式沿用 World Model，侧栏保持 Starter 原样。行为、URL 与验收见 [FRONTEND.md 页内导航与标签行为](./FRONTEND.md#页内导航与标签行为)。
+
+**层级上限**
+
+- 左侧导航最多二级，从最外层入口为第一级开始计数；第三级及更深层级移到内容区顶部多 Tab，不再增加侧栏缩进层级。图标栏与移动端遵循相同信息结构。
+- Tab 位于页面标题下、筛选和表格上方。独立页面使用路由链接，同一上下文的平级视图使用页内 Tabs；更深结构先重组为平级视图，避免多行嵌套 Tab。一个视图不加 Tab。
+- 本地 Demo：`/demo/navigation?tab=pending`。侧栏为「Demo → 资产视图」二级；「全部资产 / 已登记 / 待复核」放在内容区顶部，读取真实资产接口，支持刷新与深链。
 
 **选择导航方式**
 
@@ -325,29 +340,30 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 | --- | --- | --- |
 | 跨业务模块、一级入口 | 侧栏菜单 | 用户切换的是任务 |
 | 同一模块内各自独立的页面，需要单独 URL、权限或返回路径 | 路由链接（侧栏子项或标题区链接） | 刷新、分享后应停在该页 |
-| 同一对象或同一列表的平级视图，共用标题和上下文 | 页内标签（Radix Tabs） | 切换后当前对象不变 |
+| 同一对象或同一列表的平级视图，共用标题和上下文 | 页内标签（新 Demo 使用 UI SDK Tabs，既有 Radix 保留） | 切换后当前对象不变 |
 
 - 不用页内标签做跨模块导航；只有一个面板时不做标签；平级面板超过 6 个时先重组信息结构。
 - **位置**：页面标题下方、面板工具（搜索、筛选、面板操作）上方。标签只控制下方面板；面板专属工具放进面板，整页主操作留在标题区。
 - **文案**：中文短名词，2–4 字，例如“已发布 / 模板 / 草稿”；不加副标题或说明，不配装饰图标；与菜单、页面标题中的同一概念同名。计数只在辅助决策时以独立数字显示。
-- **尺寸**：Trigger 14px、水平内边距 12px、最小高度 44px（满足 §14）、标签间距 4px、圆角 6px。标签条与面板之间用 16px 间距，或用 0.5px `--slate-6` 分隔线，二选一。
+- **尺寸**：沿用 World Model 的下划线形态：Trigger 14px、水平内边距 12px、桌面高度 40px、触控端最小高度 44px、标签间距 4px、圆角 0。标签条不额外增加上下内边距，底部 1px 分隔线，与面板间距 12px。
 
 | 状态 | 背景 | 文字 | 说明 |
 | --- | --- | --- | --- |
-| 默认 | 透明 | `--slate-11` | — |
-| 悬停 | `--slate-4` | `--slate-12` | 只过渡 `background-color`，`250ms ease-out` |
-| 选中 | `--blue-3` | `--blue-11`，字重 600 | 与导航选中态同一主题色 |
+| 默认 | 透明 | `--muted-foreground` | 底边透明 |
+| 悬停 | 透明 | `--foreground` | 只过渡文字与底边颜色 |
+| 选中 | 透明 | `--foreground`，字重 500 | 2px `--tab-accent` 蓝色下划线，无圆角填充和阴影 |
 | 禁用 | 透明 | `--slate-8` | 有权限但暂不可用时显示并用 tooltip 说明原因；无权限的标签不显示 |
-| 键盘焦点 | — | — | `focus-visible` 下 2px `--blue-8` 焦点环，不得只移除 outline |
+| 键盘焦点 | — | — | `focus-visible` 下 2px `--tab-accent` 焦点环（与背景对比至少 3:1），不得只移除 outline |
 
 - **窄屏溢出**：外层 `overflow-x-auto`，内层 `w-max min-w-full`；标签不换行、不缩字号、不截断；选中项滚入可视区；不把选中项收进“更多”菜单；页面本身不出现横向滚动。
-- **键盘语义**：使用 Radix `tablist` / `tab` / `tabpanel`。Tab 键进入当前选中标签，再按 Tab 进入面板；←/→ 切换，Home/End 到首尾；默认自动激活，面板加载代价高时用 `activationMode="manual"`，以 Enter/Space 激活。
+- **键盘语义**：由 Tabs 组件提供 `tablist` / `tab` / `tabpanel`。Tab 键进入当前选中标签，再按 Tab 进入面板；←/→ 切换，Home/End 到首尾；默认自动激活，面板加载代价高时使用手动激活（UI SDK `activation="manual"`，Radix `activationMode="manual"`），以 Enter/Space 激活。
 
-**参考示例（RiskOps，非本 starter 实现）**
+**样式来源（World Model，2026-11-16 核对源码）**
 
-- `optimax-riskops/src/components/ui/tabs.tsx`：Radix Root/List/Trigger/Content；List 为 `h-9` 的 muted 背景条、`p-1`；Trigger `px-3 text-sm`；选中项 `bg-background` 配前景文字，带焦点环。本 starter 规则在此基础上将最小高度提高到 44px，选中态改用蓝色 Token。
-- `optimax-riskops/src/pages/risk/EventDetail.tsx`：标签条使用 `overflow-x-auto` 与 `w-max min-w-full` 处理溢出。
-- `optimax-riskops/src/pages/reports/ReportCenter.tsx`：已发布 / 模板 / 草稿三个平级面板。
+- 侧栏不采用 World Model 样式：保留 Starter 的 240px 浅色底、灰色文字和浅蓝选中背景，折叠、底部搜索、用户菜单与手机抽屉沿用原行为。
+- `../optimax-worldmodel-demo/src/pages/governance/GovernanceTabs.tsx`：透明背景、2px 蓝色下划线、前景色选中文字，无胶囊或浮起白块。
+- `../optimax-worldmodel-demo/src/index.css`：World 的 `brand` 为 `#2f6fed`，仅在 `.page-tabs` 中映射为 `--tab-accent`；Starter 全局 `--primary` 保持 `#3e63dd`，不引入第二套组件库。UI SDK 继续提供键盘、ARIA 和 Agent 行为。
+- 新增页面级 Tab 不得退回圆角分段控件。World 项目保持只读，实际契约以本节和 Starter Demo 为准。
 
 **可选模式：多页标签条**
 

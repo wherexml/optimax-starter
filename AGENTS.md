@@ -7,9 +7,9 @@
 | 项 | 当前项目 |
 | --- | --- |
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
-| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数：`login.tsx`、`__root.tsx`（外壳与菜单）、`index.tsx`（工作台）、`assets.tsx`（台账）、`accounts.tsx`（账户）、`audit.tsx`（操作日志）；页面实现在 `apps/web/src/features/{auth,dashboard,assets,accounts,audit,settings,navigation,filters}/` |
-| 共享界面 | `apps/web/src/components/table/`（DataTable、ColumnSettings、DataTablePagination）、`apps/web/src/components/ui/`（FormDialog 与 Radix 控件）；来源与改动见 [FRONTEND.md §2](./FRONTEND.md#2-前端事实卡)；主题变量在 `apps/web/src/index.css` |
-| 服务与数据 | `apps/server/src/console.ts`、`packages/db/src/schema/console.ts` |
+| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md) |
+| 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、`apps/web/src/components/ui/`、共享刷新与骨架屏 [packages/ui](./packages/ui/README.md)；来源见 [FRONTEND.md §2](./FRONTEND.md#2-前端事实卡)；主题变量在 `apps/web/src/index.css` |
+| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module` |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
 | 验证入口 | [TESTING.md](./TESTING.md) |
 | 生产边界 | 默认只读；部署细节见 [DEPLOYMENT.md](./DEPLOYMENT.md) |
@@ -33,6 +33,8 @@
 - 删除标语、辅助文本和次要标签。如果某个屏幕需要它们才能有意义，就修复布局。
 - 始终做出最佳决策，以提升这三者：用户体验 (UX)、开发者体验 (DX) 和代理体验 (AX)，同时不破坏任何东西。
 - 不使用绿色或紫色作为主题色。品牌、导航选中态、主按钮与焦点环使用统一的主题色。
+- 左侧导航最多二级；第三级及更深层级移到内容区顶部多 Tab。计数、选型与可操作 Demo 见 [导航规范](./DESIGN.md#页内导航与标签)。
+- 侧栏保留 Starter 浅色样式；World Model 样式只用于右侧页内 Tab。各页顶部与标题间距统一使用共享 PageHeader 和内容区样式，见 [页面标题区](./DESIGN.md#页面标题区)。
 
 ## 侧栏布局基线（强制）
 
@@ -56,6 +58,7 @@
 | 首次接手、定位模块、本地启动 | [PROJECT.md](./PROJECT.md) | 目录、技术栈、启动顺序、五位端口、业务入口 |
 | 非简单任务规划、交付、文档维护 | [WORKFLOW.md](./WORKFLOW.md) | 完成标准、实施步骤、收尾与文档归属 |
 | 页面、交互、前端状态或组件变更 | [FRONTEND.md](./FRONTEND.md) + [DESIGN.md](./DESIGN.md) | 前端实现与界面规范 |
+| 新增或调整前端交互、UI SDK、自定义 primitive、Agent 操作 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) + [FRONTEND.md](./FRONTEND.md) + [DESIGN.md](./DESIGN.md) | 先选复用组件或 SDK，再接路由、URL、业务状态与 E2E；具体入口由技能按场景路由 |
 | 页内标签、页面间导航或多页标签条 | [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签) + [FRONTEND.md 页内导航与标签行为](./FRONTEND.md#页内导航与标签行为) | 选用方式、样式、URL、权限、草稿与验收用例 |
 | UI、PPT、报表或视觉输出 | [DESIGN.md](./DESIGN.md) | 文案、Radix 配色、字号、对齐、视觉验收；生成图片使用 imagegen skill |
 | 后端、数据库、队列、Worker | [BACKEND.md](./BACKEND.md) | 分层、数据、任务、日志、健康检查 |
@@ -67,6 +70,12 @@
 | 测试设计、改动验收、结果报告 | [TESTING.md](./TESTING.md) | 策略、真实命令、场景、证据及结果状态 |
 | 分支、PR、多人协作 | [collaboration-spec.md](./collaboration-spec.md) | 合并流程、审查与分支保护 |
 | 初始化、升级规范、规则冲突 | [SPEC_ADOPTION.md](./SPEC_ADOPTION.md) | 团队初始化/升级流程入口、基线、来源修订及偏差记录 |
+
+## 项目技能默认路由
+
+- 前端交互、键盘/焦点行为、UI SDK 和 Agent 操作默认先读取项目内 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)。在 Starter 目录工作时可原生发现，自动调用已开启，也可显式使用 `$starter-ui-sdk`；父目录会话按本文件链接读取。
+- 纯布局、颜色、文案按 FRONTEND / DESIGN 处理；纯后端任务按上表进入对应规范。读取技能不代表自动迁移全部控件或启用模型。
+- 全局 `ui-sdk` 与项目技能可能同时存在；本项目按上述明确路径读取适配版，不依赖个人主目录。技能负责开发流程，已安装 SDK 文档负责当前 API。
 
 ## 继续深入的规则
 
@@ -87,9 +96,13 @@
 
 ## 选择与筛选
 
+- 资产自然语言筛选是可选的本地 Magpie/UI SDK 试点，入口与契约见 [资产模块](./apps/web/src/features/assets/README.md)。UI SDK 的文档、组件/primitive 选型与验收统一按项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) 路由。禁止把模型凭证写入前端、源码、证据或 Docker 环境。
+
 - 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)。
 
 - `FilterBar` 的多选和匹配方式需逐字段开启（`multi` / `operatorKey`），数据查询链路未实现相应语义的字段不得开启（资产台账当前在客户端过滤）。约定见 [FILTERS.md](./FILTERS.md)。
+
+- 资产筛选的空条件行、顺序与未应用草稿需在刷新后恢复；搜索框只对自身设置密码管理器忽略标记，不修改登录/密码框。持久化与 URL 优先级见 [FILTERS.md 刷新恢复](./FILTERS.md#刷新恢复与输入语义)。
 
 ## API 运行时
 
@@ -97,4 +110,4 @@
 
 ## 新项目初始化
 
-- 从 GitHub Template 初始化新项目：首次启动前按 README 中“从 GitHub Template 初始化新项目”一节完成改名、换端口和更换 Cookie 名，并保留侧栏布局基线。
+- 从 GitHub Template 初始化新项目：首次启动前执行 `./scripts/bootstrap-project.sh <project-slug> --title "项目名称"`（详见 README“从 GitHub Template 初始化新项目”），自动完成改名、分配空闲五位端口、隔离 Cookie 名与刷新 `bun.lock`，并保留侧栏布局基线。

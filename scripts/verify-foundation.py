@@ -1,7 +1,11 @@
-import http.cookiejar,urllib.request,urllib.error,json,secrets,subprocess
+import http.cookiejar,urllib.request,urllib.error,json,secrets,subprocess,os
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-ORIGIN='http://127.0.0.1:38140'
+CFG=dict(line.split("=",1) for line in (ROOT/".env").read_text().splitlines() if "=" in line and not line.lstrip().startswith("#")) if (ROOT/".env").exists() else {}
+WEB_PORT=os.environ.get("WEB_PORT") or CFG.get("WEB_PORT","38140")
+ORIGIN=os.environ.get("CORS_ORIGIN") or CFG.get("CORS_ORIGIN") or f"http://127.0.0.1:{WEB_PORT}"
+ADMIN_USER=os.environ.get("STARTER_ADMIN_USERNAME") or CFG.get("STARTER_ADMIN_USERNAME","demo@optimax.hk")
+ADMIN_PW=os.environ.get("STARTER_ADMIN_PASSWORD") or CFG.get("STARTER_ADMIN_PASSWORD","demo@2026!")
 def client():
  return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 def call(s, method, path, code=200, data=None):
@@ -10,7 +14,7 @@ def call(s, method, path, code=200, data=None):
  except urllib.error.HTTPError as e:resp=e
  with resp:
   body=resp.read().decode();assert resp.status==code,(method,path,resp.status,code,body[:200]);return json.loads(body) if resp.headers.get("Content-Type","").startswith("application/json") else body
-def login(s,user='demo@optimax.hk',password='demo@2026!'):
+def login(s,user=ADMIN_USER,password=ADMIN_PW):
  return call(s,'POST','/login',data={'username':user,'password':password})
 def no_secrets(value, generated_password):
  if isinstance(value,dict):
@@ -20,7 +24,7 @@ def no_secrets(value, generated_password):
   for item in value:no_secrets(item,generated_password)
  else:assert generated_password not in str(value)
 
-import sys,os,datetime
+import sys,datetime
 from urllib.parse import urlencode
 STATE=Path("/tmp/optimax-foundation-fixture.json")
 def sql(statement):
@@ -81,8 +85,8 @@ finally:
 one=call(a,"GET","/audit?size=2&page=1");two=call(a,"GET","/audit?size=2&page=2")
 assert len(one["items"])==len(two["items"])==2
 assert not {r["id"] for r in one["items"]}&{r["id"] for r in two["items"]}
-filtered=call(a,"GET","/audit?"+urlencode({"action":"account.role","actor":"demo@optimax.hk","size":100}))
-assert filtered["items"] and all(r["action"]=="account.role" and r["actorUsername"]=="demo@optimax.hk" for r in filtered["items"])
+filtered=call(a,"GET","/audit?"+urlencode({"action":"account.role","actor":ADMIN_USER,"size":100}))
+assert filtered["items"] and all(r["action"]=="account.role" and r["actorUsername"]==ADMIN_USER for r in filtered["items"])
 today=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).date().isoformat()
 assert call(a,"GET","/audit?"+urlencode({"start":today,"end":today}))["total"]>0
 for query in ("start=2026-02-30","start=2026-11-06&end=2026-11-05","page=0","action=invalid"):

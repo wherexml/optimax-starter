@@ -1,3 +1,31 @@
-# The BUN_JSC_useJIT=false override is no longer used: Bun 1.3.14 on Linux arm64 still segfaulted with the JIT off, and the API now runs on Node 24 (see RUNTIME.md).
-# Kept as an empty but valid override file.
-services: {}
+# 本地开发热更新覆盖层（docker compose up 默认自动合并；CI 与生产显式指定 -f compose.yaml 不加载本文件）。
+# 仅挂载源码与静态目录，保留容器内部 Linux 原生 node_modules（如 @node-rs/argon2）不被宿主机覆盖。
+services:
+  api:
+    volumes:
+      - ./apps/server/src:/app/apps/server/src
+      - ./packages/api/src:/app/packages/api/src
+      - ./packages/db/src:/app/packages/db/src
+    command:
+      - sh
+      - -ec
+      - |
+        ([ -f apps/server/src/env.ts ] && [ -f packages/db/src/env.ts ]) || bun run env:generate
+        bun run db:push
+        cd apps/server
+        exec node --watch --import tsx src/node.ts
+  web:
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/public:/app/apps/web/public
+      - ./apps/web/index.html:/app/apps/web/index.html
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
+      - ./packages/api/src:/app/packages/api/src
+      - ./packages/ui/src:/app/packages/ui/src
+    command:
+      - sh
+      - -ec
+      - |
+        [ -f apps/web/src/env.ts ] || bun run --filter web env:generate
+        cd apps/web
+        exec bun run dev

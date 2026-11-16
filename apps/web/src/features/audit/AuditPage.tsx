@@ -1,28 +1,28 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type ColumnDef } from "@tanstack/react-table";
-import { RotateCw } from "lucide-react";
+import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
+import { type FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
-import { DataTable } from "@/components/table/DataTable";
-import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
-import type { Filters } from "@/hooks/usePersistedFilters";
+import { request, type AuditEntry, type AuditPage as Page } from "@/console-client";
+import { useAccount } from "@/features/auth/session";
 import {
   AUDIT_ACTIONS,
   AUDIT_ACTION_LABELS,
   parseAuditSearch,
 } from "@/features/filters/search";
-import { useAccount } from "@/features/auth/session";
-import { request, type AuditEntry, type AuditPage as Page } from "@/console-client";
+import type { Filters } from "@/hooks/usePersistedFilters";
 
 const route = getRouteApi("/audit");
 const SIZES = [20, 50, 100];
-const ACTION_LABELS = AUDIT_ACTION_LABELS;
+const ACTION_LABELS: Record<string, string> = AUDIT_ACTION_LABELS;
 const FIELD_LABELS: Record<string, string> = {
   name: "姓名",
   email: "邮箱",
   company: "公司",
+  domain: "业务域",
+  owner: "责任团队",
+  stage: "登记状态",
 };
 const ROLE: Record<string, string> = { admin: "管理员", member: "成员" };
 // 与服务端日期筛选一致，按 UTC+8 显示。
@@ -45,12 +45,18 @@ function value(action: string, v: unknown) {
 function describe(row: AuditEntry) {
   const d = row.detail ?? {};
   const parts: string[] = [];
-  if ("from" in d || "to" in d)
+  if ("from" in d || "to" in d) {
     parts.push(`${value(row.action, d.from)} → ${value(row.action, d.to)}`);
+  }
   if (typeof d.role === "string") parts.push(`角色：${ROLE[d.role] ?? d.role}`);
+  if (typeof d.domain === "string") parts.push(`业务域：${d.domain}`);
+  if (typeof d.stage === "string") parts.push(`状态：${d.stage}`);
   if (typeof d.sessions === "number") parts.push(`撤销会话 ${d.sessions} 个`);
-  if (Array.isArray(d.fields))
-    parts.push(`字段：${d.fields.map((f) => FIELD_LABELS[String(f)] ?? String(f)).join("、")}`);
+  if (Array.isArray(d.fields)) {
+    parts.push(
+      `字段：${d.fields.map((f) => FIELD_LABELS[String(f)] ?? String(f)).join("、")}`,
+    );
+  }
   return parts.join("；") || "—";
 }
 function Who({ name, username }: { name: string | null; username: string | null }) {
@@ -121,6 +127,7 @@ export function AuditPage() {
     end: params.end,
   };
   const query = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["audit", params],
     queryFn: () => {
       const qs = new URLSearchParams(
@@ -156,58 +163,34 @@ export function AuditPage() {
     { key: "start", label: "开始日期", type: "date", notAfter: "end" },
     { key: "end", label: "结束日期", type: "date", notBefore: "start" },
   ];
-  if (!admin)
-    return (
-      <>
-        <PageHeader title="操作日志" />
-        <p role="alert" className="text-muted-foreground">
-          需要管理员权限
-        </p>
-      </>
-    );
   return (
-    <>
-      <PageHeader title="操作日志" />
-      <DataTable
-        toolbar={
-          <FilterBar
-            fields={fields}
-            values={filters}
-            onApply={setFilters}
-          />
-        }
-        toolbarEnd={
-          <Button
-            size="icon"
-            className="h-9 w-9"
-            title="刷新"
-            variant="ghost"
-            aria-label="刷新操作日志"
-            onClick={() => query.refetch()}
-          >
-            <RotateCw size={15} />
-          </Button>
-        }
-        columns={columns}
-        data={query.data?.items ?? []}
-        isLoading={query.isPending}
-        error={query.error?.message}
-        pagination={{
-          pageIndex: page - 1,
-          pageSize: size,
-          total: query.data?.total ?? 0,
-          sizes: SIZES,
-          onChange: (p) =>
-            void navigate({
-              search: parseAuditSearch({
-                ...filters,
-                page: p.pageIndex + 1,
-                size: p.pageSize,
-              }),
-              replace: true,
+    <ResourceTableSlot
+      title="操作日志"
+      allowed={admin}
+      fields={fields}
+      filters={filters}
+      onApplyFilters={setFilters}
+      columns={columns}
+      data={query.data?.items ?? []}
+      isLoading={query.isPending}
+      error={query.error?.message}
+      onRefresh={() => query.refetch()}
+      refreshLabel="刷新操作日志"
+      pagination={{
+        pageIndex: page - 1,
+        pageSize: size,
+        total: query.data?.total ?? 0,
+        sizes: SIZES,
+        onChange: (p) =>
+          void navigate({
+            search: parseAuditSearch({
+              ...filters,
+              page: p.pageIndex + 1,
+              size: p.pageSize,
             }),
-        }}
-      />
-    </>
+            replace: true,
+          }),
+      }}
+    />
   );
 }

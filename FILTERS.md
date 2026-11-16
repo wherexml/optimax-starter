@@ -8,9 +8,18 @@
   - 弹层内有“全选”和“清空”；上下方向键在复选框间移动；Esc 只关闭弹层，焦点回到按钮。
   - 弹层通过 Portal 渲染、按钮为 `type=button`，在弹层内按 Enter 或勾选都不会提交筛选表单。
   - 已选但不在当前选项里的值（例如深链中已不存在的业务域）会以斜体列出，可以取消勾选。
-- `hooks/usePersistedFilters.ts`：按“账户 + 页面”保存 `persist` 中列出的键。数组按值复制、比较时与顺序无关；`q`/`qOp` 不保存也不恢复；进入页面时 URL 中已有的筛选优先。
+- `hooks/usePersistedFilters.ts`：按“账户 + 页面”保存 `persist` 中列出的键。资产页保存 `q/qOp/stage/domain`；其他页面仍沿用自己的键列表。数组按值复制、比较时与顺序无关；进入页面时 URL 中已有的筛选优先。
 
 ## 资产台账（`/assets`）
+
+可选的 [自然语言筛选](./apps/web/src/features/assets/README.md) 复用下述 URL、动态条件列表和过滤语义。FilterBar 的 `onDraftChange(dirty, signature)` 报告当前草稿供冲突检查，模型不得覆盖未应用更改。`usePersistedFilters` 返回实际应用的 Promise（如有），供调用方等待路由完成。
+
+### 刷新恢复与输入语义
+
+- 资产页为 FilterBar 提供按账户隔离的 `storageKey`，保存条件行的顺序、空行、原始输入、多选和匹配方式。其他页面不传此属性时，继续沿用既有行为。
+- 草稿键为 `<VITE_APP_SLUG>.filter-drafts.v1:<accountId>:assets`（默认前缀 `optimax-starter`，新项目由 `bootstrap-project.sh` 自动隔离），快照包含版本和已应用条件签名。刷新或重新进入同一已应用条件时恢复草稿，仍需点击“应用筛选”才改变查询结果。
+- 新的显式 URL 优先；不同已应用条件的旧草稿不会覆盖它。已应用筛选的恢复过程中不保存空初始画面，避免覆盖待恢复快照。清空会保存空布局；损坏缓存回退到 URL；存储不可用时筛选仍可正常使用。
+- 文本筛选与自然语言输入采用 `type="search"`、稳定 `name`、`autocomplete="off"` 和首次渲染即存在的 `data-1p-ignore`，遵循 [1Password 官方约定](https://www.1password.dev/web/compatible-website-design#ignore-offers-to-save-or-fill-specific-fields)。忽略标记仅用于筛选输入，登录和密码表单保留各自的自动填充语义。
 
 | 键 | 类型 | 语义 |
 | --- | --- | --- |
@@ -20,7 +29,7 @@
 | `domain` | string 或 string[] | 多个值为“或”；选中的业务域如果数据里不存在，结果为 0 条，不会变成不限 |
 
 - 不同字段之间为“且”；某字段未选任何值时不加限制。
-- 数据流：`GET /console/assets` 返回全部记录，在浏览器端过滤；服务端和数据库都没有改动。
+- 数据流：`/assets` 页面默认调用 `GET /console/assets` 取回全部记录并在浏览器端过滤；大数据量模块可改用 `GET /console/assets/page`（服务端 SQL 同等实现多选 OR、跨字段 AND 与 `contains`/`equals`）。
 - 解析（`parseAssetSearch`）：
   - 单值和数组都接受，去空格、去重、排序，最多 20 项，`domain` 每项不超过 80 字符；
   - 有限数字会转成字符串保留：路由会把纯数字的查询值（如 `?domain=123`）解析成 number，这样它们仍能匹配；对象、嵌套数组、布尔值、null、非有限数字和超长字符串直接丢弃，不报错；

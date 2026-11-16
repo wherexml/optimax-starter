@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
+import { storageKey } from "@/config/app-config";
 
 export type FilterValue = string | string[] | undefined;
 export type Filters = Record<string, FilterValue>;
-const PREFIX = "optimax-starter.filters.v1";
+const PREFIX = storageKey("filters.v1");
 
 const present = (v: FilterValue) => (Array.isArray(v) ? v.length > 0 : Boolean(v));
 // Copies arrays so a saved snapshot never shares a reference with render state.
@@ -48,14 +49,6 @@ function save(key: string, value: Filters) {
   }
 }
 
-/**
- * Saves each account's dropdown filters per page in localStorage. Adapted from EASM usePersistedFilters.
- * - When the page opens, filters already in the URL win and are saved. Otherwise the account's saved filters are restored once.
- * - After that, only filter changes are saved. Clearing all saves {}, so the page stays cleared after reload.
- * - Only keys listed in persist are saved. q and its operator qOp are never saved or restored.
- * - Array values are saved and compared by value.
- * Returns update(next); route all filter changes through it.
- */
 export function usePersistedFilters({
   scope,
   accountId,
@@ -69,7 +62,7 @@ export function usePersistedFilters({
   values: Filters;
   persist: readonly string[];
   parse: (raw: Record<string, unknown>) => Filters;
-  apply: (next: Filters) => void;
+  apply: (next: Filters) => void | Promise<void>;
 }) {
   const key = accountId ? `${PREFIX}:${accountId}:${scope}` : null;
   const decided = useRef<string | null>(null);
@@ -101,6 +94,6 @@ export function usePersistedFilters({
 
   return (next: Filters) => {
     restoring.current = null;
-    latest.current.apply(next);
+    return latest.current.apply(next);
   };
 }
