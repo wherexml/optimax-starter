@@ -12,7 +12,7 @@ export const accountFields = {
   active: accounts.active,
 };
 
-// Own profile only; the admin account list does not expose email or company.
+// Profile fields returned to the signed-in user (/me) and admin account management (/accounts).
 export const profileFields = {
   ...accountFields,
   email: accounts.email,

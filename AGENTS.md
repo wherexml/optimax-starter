@@ -7,8 +7,8 @@
 | 项 | 当前项目 |
 | --- | --- |
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
-| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md) |
-| 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、`apps/web/src/components/ui/`、共享刷新与骨架屏 [packages/ui](./packages/ui/README.md)；来源见 [FRONTEND.md §2](./FRONTEND.md#2-前端事实卡)；主题变量在 `apps/web/src/index.css` |
+| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
+| 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量在 `apps/web/src/index.css` |
 | 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module` |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
 | 验证入口 | [TESTING.md](./TESTING.md) |
@@ -86,6 +86,8 @@
 
 ## 已集成的复用模块
 
+快速导航的布局与键盘验收见 [navigation](./apps/web/src/features/navigation/README.md)。
+
 操作日志、组合筛选、快速导航三个模块已集成，详见 [REUSE.md](./REUSE.md)。修改账户写接口时，必须在同一事务里写入 `console_audit`。
 
 筛选必须保留 EASM 的动态条件列表：添加、删除、切换字段、统一应用，不得退回固定输入框加标签。具体契约见 [FRONTEND.md](./FRONTEND.md)。上游选型比较见 [UPSTREAM_OPTIONS.md](./UPSTREAM_OPTIONS.md)。
@@ -96,9 +98,9 @@
 
 ## 选择与筛选
 
-- 资产自然语言筛选是可选的本地 Magpie/UI SDK 试点，入口与契约见 [资产模块](./apps/web/src/features/assets/README.md)。UI SDK 的文档、组件/primitive 选型与验收统一按项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) 路由。禁止把模型凭证写入前端、源码、证据或 Docker 环境。
+- 资产自然语言筛选是可选的服务端模型/UI SDK 能力，入口与契约见 [资产模块](./apps/web/src/features/assets/README.md)，模型接入、队列与开源来源见 [服务端 AI 模块](./apps/server/src/core/ai/README.md)。新客户端不依赖 Magpie 运行。UI SDK 选型与验收按项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) 路由。模型凭证值不得进入前端、源码、证据或 Docker 环境；移植代码保留来源与许可，并随交付物分发。
 
-- 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)。
+- 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)；三段式表单弹窗与标准化输入控件见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)。
 
 - `FilterBar` 的多选和匹配方式需逐字段开启（`multi` / `operatorKey`），数据查询链路未实现相应语义的字段不得开启（资产台账当前在客户端过滤）。约定见 [FILTERS.md](./FILTERS.md)。
 

@@ -297,13 +297,13 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 | 组件 | 规则 |
 | --- | --- |
 | Button | 主按钮每个区域最多一个；危险按钮必须二次确认 |
-| Input/Textarea | 错误文案贴近字段；禁用态说明原因 |
-| Select/Combobox | 使用贴近触发器的轻量浮层，选中项显示勾，长选项在列表中换行。大量选项使用可搜索的组合框，空选项要可理解。参见[单选下拉](./FRONTEND.md#单选下拉)。 |
-| Dialog/AlertDialog | 标题、操作和错误态完整；说明仅在有必要解释影响时显示，不复述标题 |
+| Input/Textarea | 高度、圆角、`0.5px` 边框与焦点态统一；标签到输入控件固定 `8px` 间距（`flex flex-col gap-2`）；复合前后缀、密码显隐/随机生成、只读复制、步进数值与多标签输入统一复用 `@optimax-starter/ui`；错误贴近字段，禁用态就近说明原因。参见[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
+| Select/Combobox | 使用贴近触发器的轻量浮层，选中项显示勾，长选项在列表中换行。大量选项使用可搜索的 `Combobox`，多选使用 `MultiSelect`，2–4 项互斥模式可用 `SegmentedControl`。参见[单选下拉](./FRONTEND.md#单选下拉)与[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
+| Dialog/AlertDialog | 采用标准三段式（固定 Header + `0.5px` 分隔线、独立滚动 Body `px-6 py-5`、固定 Footer + 置顶未保存拦截条）；说明仅在有必要解释影响时显示，不复述标题。样板见 `/demo/forms?dialog=create` |
 | Sheet | 适合轻量详情和筛选，不承载复杂全流程 |
 | Tabs | 用于同一对象视图切换，不用于跨业务导航 |
 | Table | 支持加载、空、错误、分页或滚动 |
-| Toast | 只做轻反馈，不承载复杂错误解释 |
+| Toast | 全局固定右下角堆叠轻反馈（桌面 24px 边距、手机 16px 双侧贴齐，Top Layer 置于弹窗之上，支持悬停展开与 F6/Esc 键盘操作），不挤占页面内容流，不承载复杂错误解释 |
 | Tooltip | 图标按钮、缩略状态、专业术语必须提供 |
 
 ### 业务组件

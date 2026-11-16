@@ -35,6 +35,16 @@ services:
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?Set SESSION_COOKIE_NAME in .env.production}
       STARTER_SEED_DEMO: "false"
       SERVE_WEB_DIST: /app/apps/web/dist
+      STARTER_AI_BASE_URL: ${STARTER_AI_BASE_URL:-}
+      STARTER_AI_MODEL: ${STARTER_AI_MODEL:-}
+      STARTER_AI_API_KEY_FILE: ${STARTER_AI_API_KEY_FILE:-}
+      STARTER_AI_CA_FILE: ${STARTER_AI_CA_FILE:-}
+      STARTER_AI_TOKEN_FIELD: ${STARTER_AI_TOKEN_FIELD:-}
+      STARTER_AI_TIMEOUT_MS: ${STARTER_AI_TIMEOUT_MS:-}
+      STARTER_AI_CONCURRENCY: ${STARTER_AI_CONCURRENCY:-}
+      STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
+      STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
+      STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
     # Uses versioned migrations when packages/db/src/migrations contains SQL, otherwise syncs schema safely.
     command:

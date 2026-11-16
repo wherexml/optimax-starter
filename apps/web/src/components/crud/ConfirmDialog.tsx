@@ -1,10 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { FormDialog } from "@/components/ui/FormDialog";
+import type { ButtonProps } from "@/components/ui/button";
 
 export function ConfirmDialog({
   title,
   description,
   submitText,
+  submitVariant = "destructive",
   action,
   close,
   trigger,
@@ -12,6 +14,7 @@ export function ConfirmDialog({
   title: string;
   description: string;
   submitText: string;
+  submitVariant?: ButtonProps["variant"];
   action: () => Promise<unknown>;
   close: (done?: boolean) => void;
   trigger: HTMLElement | null;
@@ -24,6 +27,7 @@ export function ConfirmDialog({
       description={description}
       size="sm"
       submitText={submitText}
+      submitVariant={submitVariant}
       loading={run.isPending}
       onSubmit={() => run.mutate()}
       onCloseAutoFocus={(e) => {
@@ -37,7 +41,7 @@ export function ConfirmDialog({
       }}
     >
       {run.error ? (
-        <p role="alert" className="m-0 text-sm text-destructive">
+        <p role="alert" className="m-0 text-xs font-medium leading-[18px] text-destructive">
           {run.error.message}
         </p>
       ) : null}

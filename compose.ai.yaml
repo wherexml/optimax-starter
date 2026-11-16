@@ -1,0 +1,10 @@
+# Opt-in development overlay. The private file's contents never enter environment variables.
+services:
+  api:
+    environment:
+      STARTER_AI_API_KEY_FILE: /run/secrets/starter_ai_key
+    secrets:
+      - starter_ai_key
+secrets:
+  starter_ai_key:
+    file: ${STARTER_AI_SECRET_FILE:?Set the path of your existing private API key file}

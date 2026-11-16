@@ -303,7 +303,6 @@ import {
   type ${singularPascal}Record,
 } from "@optimax-starter/api/${slug}";
 import { FormDialog } from "@/components/ui/FormDialog";
-import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -312,7 +311,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -367,6 +366,18 @@ export function ${pascal}FormDialog({
       submitText={editing ? "保存修改" : "保存"}
       loading={save.isPending}
       formId="${slug}-form"
+      unsaved={
+        confirming
+          ? {
+              onKeepEditing: () => {
+                setConfirming(false);
+                form.setFocus("name");
+              },
+              onDiscard: () => close(),
+              discardText: "放弃改动",
+            }
+          : null
+      }
       onCloseAutoFocus={(e) => {
         if (trigger?.isConnected) {
           e.preventDefault();
@@ -392,9 +403,14 @@ export function ${pascal}FormDialog({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>名称</FormLabel>
+                <FormLabel required>名称</FormLabel>
                 <FormControl>
-                  <Input {...field} autoComplete="off" autoFocus />
+                  <ClearableInput
+                    {...field}
+                    autoComplete="off"
+                    autoFocus
+                    onClear={() => form.setValue("name", "", { shouldDirty: true })}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -405,9 +421,13 @@ export function ${pascal}FormDialog({
             name="category"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>分类</FormLabel>
+                <FormLabel required>分类</FormLabel>
                 <FormControl>
-                  <Input {...field} autoComplete="off" />
+                  <ClearableInput
+                    {...field}
+                    autoComplete="off"
+                    onClear={() => form.setValue("category", "", { shouldDirty: true })}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -418,9 +438,13 @@ export function ${pascal}FormDialog({
             name="owner"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>负责人</FormLabel>
+                <FormLabel required>负责人</FormLabel>
                 <FormControl>
-                  <Input {...field} autoComplete="off" />
+                  <ClearableInput
+                    {...field}
+                    autoComplete="off"
+                    onClear={() => form.setValue("owner", "", { shouldDirty: true })}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -431,7 +455,7 @@ export function ${pascal}FormDialog({
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>状态</FormLabel>
+                <FormLabel required>状态</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
                     <SelectTrigger aria-label="状态">
@@ -450,19 +474,6 @@ export function ${pascal}FormDialog({
               </FormItem>
             )}
           />
-          {confirming && (
-            <div role="alert" className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm sm:col-span-2">
-              <span>有未保存的改动，确定放弃吗？</span>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(false)}>
-                  继续编辑
-                </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={() => close()}>
-                  放弃改动
-                </Button>
-              </div>
-            </div>
-          )}
         </form>
       </Form>
     </FormDialog>
@@ -487,6 +498,7 @@ import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
 import { useAccount } from "@/features/auth/session";
 import type { Filters } from "@/hooks/usePersistedFilters";
@@ -523,7 +535,6 @@ export function ${pascal}Page() {
   const navigate = route.useNavigate();
   const page = params.page ?? 1;
   const size = params.size ?? SIZES[0]!;
-  const [notice, setNotice] = useState("");
   const [pending, setPending] = useState<
     { kind: "create" } | { kind: "edit" | "delete"; row: ${singularPascal}Record } | null
   >(null);
@@ -597,7 +608,6 @@ export function ${pascal}Page() {
                 size="sm"
                 onClick={(e) => {
                   returnFocus.current = e.currentTarget;
-                  setNotice("");
                   setPending({ kind: "edit", row });
                 }}
               >
@@ -609,7 +619,6 @@ export function ${pascal}Page() {
                 className="text-destructive hover:text-destructive"
                 onClick={(e) => {
                   returnFocus.current = e.currentTarget;
-                  setNotice("");
                   setPending({ kind: "delete", row });
                 }}
               >
@@ -631,7 +640,6 @@ export function ${pascal}Page() {
             ref={createTrigger}
             onClick={() => {
               returnFocus.current = createTrigger.current;
-              setNotice("");
               setPending({ kind: "create" });
             }}
           >
@@ -640,7 +648,6 @@ export function ${pascal}Page() {
           </Button>
         ) : undefined
       }
-      notice={notice}
       fields={FIELDS}
       filters={filters}
       onApplyFilters={(next) =>
@@ -676,7 +683,7 @@ export function ${pascal}Page() {
           trigger={returnFocus.current}
           close={(msg) => {
             setPending(null);
-            if (msg) setNotice(msg);
+            if (msg) toast.success(msg);
           }}
         />
       )}
@@ -686,7 +693,7 @@ export function ${pascal}Page() {
           trigger={returnFocus.current}
           close={(msg) => {
             setPending(null);
-            if (msg) setNotice(msg);
+            if (msg) toast.success(msg);
           }}
         />
       )}
@@ -702,7 +709,7 @@ export function ${pascal}Page() {
             setPending(null);
             if (done) {
               await cache.invalidateQueries({ queryKey: ["${slug}"] });
-              setNotice(\`已删除 \${name}\`);
+              toast.success(\`已删除 \${name}\`);
             }
           }}
         />

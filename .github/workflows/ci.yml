@@ -178,9 +178,37 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  ai-client-e2e:
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run isolated model-client HTTP E2E (scripted vendor)
+        run: python3 scripts/e2e/ai-client/run.py
+      - name: Clean up interrupted isolated stack
+        if: always()
+        run: |
+          if [ -d evidence/ai-client-port/runtime ]; then
+            python3 scripts/e2e/ai-client/run.py --cleanup
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-client-e2e-evidence
+          path: |
+            evidence/ai-client-port/runs/**/results.json
+            evidence/ai-client-port/runs/**/fixture-trace.json
+            evidence/ai-client-port/runs/**/logs-redacted.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 固定 required check 名称；被跳过的重型 job 不会绕过失败断言。
   check:
-    needs: [scope, light, quality, api-e2e]
+    needs: [scope, light, quality, api-e2e, ai-client-e2e]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -192,11 +220,13 @@ jobs:
           LIGHT_RESULT: ${{ needs.light.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           API_E2E_RESULT: ${{ needs.api-e2e.result }}
+          AI_CLIENT_E2E_RESULT: ${{ needs.ai-client-e2e.result }}
         run: |
           test "$SCOPE_RESULT" = success
           if [ "$FULL" = true ]; then
             test "$QUALITY_RESULT" = success
             test "$API_E2E_RESULT" = success
+            test "$AI_CLIENT_E2E_RESULT" = success
           elif [ "$FULL" = false ]; then
             test "$LIGHT_RESULT" = success
           else

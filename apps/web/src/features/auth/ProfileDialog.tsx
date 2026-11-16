@@ -1,17 +1,23 @@
+import { useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { User } from "lucide-react";
+import { useForm } from "react-hook-form";
+
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
+  FieldCharCount,
+  FieldLabelRow,
   Form,
+  FormControl,
   FormField,
   FormItem,
-  FormControl,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/input-group";
+import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
 
 const schema = z.object({
@@ -32,20 +38,32 @@ export function ProfileDialog({
     resolver: zodResolver(schema),
     defaultValues: { name },
   });
+  const { isDirty } = form.formState;
+  const [confirming, setConfirming] = useState(false);
+  const currentName = form.watch("name");
   const cache = useQueryClient();
+
+  const keepEditing = () => {
+    setConfirming(false);
+    form.setFocus("name");
+  };
+
   const save = useMutation({
     mutationFn: (values: Values) =>
       request("/me", "PATCH", { name: values.name.trim() }),
     onSuccess: async () => {
       await cache.invalidateQueries();
+      toast.success("显示名称已更新");
       close();
     },
     onError: (error) =>
       form.setError("name", { message: error.message }, { shouldFocus: true }),
   });
+
   const submit = form.handleSubmit((values) =>
     values.name.trim() === name ? close() : save.mutate(values),
   );
+
   return (
     <FormDialog
       open
@@ -54,6 +72,14 @@ export function ProfileDialog({
       submitText="保存"
       loading={save.isPending}
       formId="profile-name"
+      unsaved={
+        confirming
+          ? {
+              onKeepEditing: keepEditing,
+              onDiscard: () => close(),
+            }
+          : null
+      }
       onCloseAutoFocus={(e) => {
         if (trigger?.isConnected) {
           e.preventDefault();
@@ -61,7 +87,10 @@ export function ProfileDialog({
         }
       }}
       onOpenChange={(open) => {
-        if (!open && !save.isPending) close();
+        if (open || save.isPending) return;
+        if (confirming) keepEditing();
+        else if (isDirty) setConfirming(true);
+        else close();
       }}
     >
       <Form {...form}>
@@ -71,9 +100,19 @@ export function ProfileDialog({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>姓名</FormLabel>
+                <FieldLabelRow>
+                  <FormLabel required>姓名</FormLabel>
+                  <FieldCharCount current={currentName.length} max={80} />
+                </FieldLabelRow>
                 <FormControl>
-                  <Input {...field} autoFocus autoComplete="name" />
+                  <ClearableInput
+                    {...field}
+                    autoFocus
+                    maxLength={80}
+                    autoComplete="name"
+                    startIcon={<User />}
+                    onClear={() => form.setValue("name", "", { shouldDirty: true })}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

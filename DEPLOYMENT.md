@@ -277,3 +277,21 @@ API 冒烟应覆盖：
 ## API 运行时
 
 - 预览环境用 Node 24 运行 API，并配置了重启策略和健康检查；说明见 [RUNTIME.md](./RUNTIME.md)。
+
+## 可选服务端模型 API
+
+新客户端直连 OpenAI-compatible API，不需要 Magpie。默认不配置时不影响应用启动；环境变量与边界见 [core/ai](./apps/server/src/core/ai/README.md#配置)，根 `.env.example` 只保存非敏感模板。
+
+将 `STARTER_AI_BASE_URL`、`STARTER_AI_MODEL` 配为明确的供应商 Base URL 和模型。密钥值来自已有私有文件，`STARTER_AI_SECRET_FILE` 仅填该文件的宿主机路径。不要把密钥值写入 `.env`、Docker environment、前端或仓库。可选开发挂载入口：
+
+```sh
+docker compose -f compose.yaml -f compose.override.yaml -f compose.ai.yaml up -d --build api web
+```
+
+`compose.ai.yaml` 将文件只读挂载为 `/run/secrets/starter_ai_key`，只对 API 服务可见；未选择该 overlay 时默认不要求文件存在。生产配置对应 `compose.prod.yaml` 加 `compose.ai.prod.yaml`，后者挂载到 `app` 服务。本段提供配置入口，不授予生产发布权限。
+
+现有 `deploy-production.sh` 默认只加载 `compose.prod.yaml`；实际启用生产模型时，需要在经授权的发布配置中持久化该 secret 挂载，不能仅临时启动 overlay 后依赖默认发布脚本保留它。
+
+生产镜像以 `node` 用户运行，挂载的文件必须对容器内该用户可读；使用受控 uid/gid 或密钥管理服务映射权限，不通过全局放宽文件权限解决。轮换文件或修改配置后重启 API，首次读取后配置缓存在进程中。新增来源和完整 MIT 许可随镜像位于 `/app/third_party/`。
+
+HTTPS 默认采用系统信任。内部 CA 可通过额外的只读 secret 挂载并设置 `STARTER_AI_CA_FILE`；不关闭证书验证。明文 HTTP 仅在开发/测试通过 `STARTER_AI_ALLOW_HTTP_HOSTS` 显式允许，生产拒绝。URL 禁止 userinfo、query、fragment；供应商要求 query 参数的接口暂不支持。

@@ -1,0 +1,44 @@
+{
+  "component": "Magpie",
+  "upstreamRepository": "https://github.com/yetone/magpie",
+  "commit": "58cf764533743a84b93a8b2cbff61fde27350856",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 yetone",
+  "licenseFile": "third_party/licenses/magpie-MIT.txt",
+  "upstreamLicenseUrl": "https://github.com/yetone/magpie/blob/58cf764533743a84b93a8b2cbff61fde27350856/LICENSE",
+  "notes": "Small TypeScript ports of selected functions only. No Go code, Go libraries (gjson, lazyre) or other Magpie files are included. Magpie is not needed at runtime. Third-party material listed in Magpie's THIRD_PARTY_NOTICES was not ported.",
+  "ports": [
+    {
+      "upstreamPath": "internal/provider/token_field.go",
+      "upstreamSha256": "cd5e338bf2aba197db2ed07422d89bc69a7d42d387462ab6d1b0dfa79fd8c450",
+      "functions": ["MaxTokensField / CompletionTokField", "OpenAIHost", "tokenFieldAsked", "TokenFieldWanted", "WithTokenField"],
+      "targetPath": "apps/server/src/core/ai/token-field.ts",
+      "targetSymbols": ["MAX_TOKENS / MAX_COMPLETION_TOKENS", "isOpenAIHost", "TOKEN_FIELD_ASKED", "tokenFieldWanted", "withTokenField"],
+      "modifications": "Object key rename instead of gjson byte splicing; same regex. Added TokenFieldCache (bounded, TTL, keyed by endpoint + model). The caller in apps/server/src/core/ai/client.ts only corrects on HTTP 400/422 with a JSON error message, skips quota/rate/context-length codes and the field already sent, and corrects at most once per call."
+    },
+    {
+      "upstreamPath": "internal/gateway/kept_error.go",
+      "upstreamSha256": "3e6a2f3d9954e13559d55f4632bcc7bedf8a4175520c47d7648e026477159e6b",
+      "functions": ["errorShape", "writeKeptError (error object and error.message string check only)"],
+      "targetPath": "apps/server/src/core/ai/errors.ts",
+      "targetSymbols": ["readVendorError", "ErrorShape"],
+      "modifications": "Shape (openai / anthropic / gemini / unknown) is read from the response body rather than a configured protocol. The vendor body is never passed through: setErrorField, tooLong, saysBusy and message rewriting are not ported. Callers receive a fixed Chinese message, a stable code and numeric/enum metadata only (classifyStatus, aiErrorResponse are Starter's own)."
+    },
+    {
+      "upstreamPath": "internal/gateway/retry_after_cap.go",
+      "upstreamSha256": "b8f2f406573f9a00eaf7a4e70dce88d22ec46481603a8dd6125ac243bf539f65",
+      "functions": ["capRetryAfter (seconds and HTTP-date parsing)"],
+      "targetPath": "apps/server/src/core/ai/errors.ts",
+      "targetSymbols": ["parseRetryAfter"],
+      "modifications": "Parsing only; no cap and no settings dependency. The advised wait is returned rounded up to whole seconds and kept in the Retry-After header and retryAfter field."
+    },
+    {
+      "upstreamPath": "internal/gateway/concurrency.go",
+      "upstreamSha256": "3c7074b0118b2df82e0f52c10278df00dc3653be2063ce9f97adacdb2ee510fe",
+      "functions": ["lanes.take", "lane.grant", "lanes.releaser", "lanes.drop", "errQueueFull / errQueueWait"],
+      "targetPath": "apps/server/src/core/ai/queue.ts",
+      "targetSymbols": ["AiQueue.acquire", "AiQueue.grant", "AiQueue.releaser", "AiQueue.count", "queue_full / queue_timeout"],
+      "modifications": "One lane for the configured endpoint; no account routing, laneMate, waitMate, RPM, rests or status endpoint. Queue length and wait are always bounded; per-actor limit on active plus waiting requests (actor_limit); AbortSignal instead of context; release is idempotent; per-actor counters are deleted at zero."
+    }
+  ]
+}

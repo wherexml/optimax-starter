@@ -146,7 +146,7 @@ export function ColumnSettings({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 max-h-[500px] overflow-auto">
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
           <h4 className="font-semibold text-sm">
             {translations.dragToReorder || "Drag to Reorder"}
           </h4>

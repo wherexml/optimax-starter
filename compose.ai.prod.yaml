@@ -1,0 +1,10 @@
+# Opt-in production configuration only; using this file does not authorize a deployment.
+services:
+  app:
+    environment:
+      STARTER_AI_API_KEY_FILE: /run/secrets/starter_ai_key
+    secrets:
+      - starter_ai_key
+secrets:
+  starter_ai_key:
+    file: ${STARTER_AI_SECRET_FILE:?Set the path of your existing private API key file}

@@ -1,17 +1,19 @@
+import { useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
   Form,
+  FormControl,
   FormField,
   FormItem,
-  FormControl,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { request, type Account } from "@/console-client";
 
 const schema = z
@@ -38,14 +40,31 @@ export function ResetPasswordDialog({
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirm: "" },
   });
+  const values = form.watch();
+  const dirty = Boolean(values.password || values.confirm);
+  const [confirming, setConfirming] = useState(false);
+
+  const keepEditing = () => {
+    setConfirming(false);
+    form.setFocus("password");
+  };
+
   const reset = useMutation({
-    mutationFn: (values: Values) =>
+    mutationFn: (v: Values) =>
       request(`/accounts/${account.id}/password`, "POST", {
-        password: values.password,
+        password: v.password,
       }),
     onSuccess: () => close(`已重置 ${account.name} 的密码，并撤销其全部会话`),
     onError: (error) => form.setError("root", { message: error.message }),
   });
+
+  const match =
+    values.password && values.confirm
+      ? values.password === values.confirm
+        ? "ok"
+        : "bad"
+      : null;
+
   return (
     <FormDialog
       open
@@ -55,6 +74,14 @@ export function ResetPasswordDialog({
       submitText="重置密码"
       loading={reset.isPending}
       formId="reset-password"
+      unsaved={
+        confirming
+          ? {
+              onKeepEditing: keepEditing,
+              onDiscard: () => close(),
+            }
+          : null
+      }
       onCloseAutoFocus={(e) => {
         if (trigger?.isConnected) {
           e.preventDefault();
@@ -62,7 +89,10 @@ export function ResetPasswordDialog({
         }
       }}
       onOpenChange={(open) => {
-        if (!open && !reset.isPending) close();
+        if (open || reset.isPending) return;
+        if (confirming) keepEditing();
+        else if (dirty) setConfirming(true);
+        else close();
       }}
     >
       <Form {...form}>
@@ -72,30 +102,67 @@ export function ResetPasswordDialog({
           onSubmit={form.handleSubmit((v) => reset.mutate(v))}
           className="grid gap-4 sm:grid-cols-2"
         >
-          {(["password", "confirm"] as const).map((key) => (
-            <FormField
-              key={key}
-              control={form.control}
-              name={key}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{key === "password" ? "新密码" : "确认新密码"}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      autoComplete="new-password"
-                      autoFocus={key === "password"}
-                      placeholder={key === "password" ? "至少 10 位" : undefined}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel required>新密码</FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    {...field}
+                    autoFocus
+                    toggleLabel="新密码"
+                    autoComplete="new-password"
+                    placeholder="至少 10 位"
+                    onGenerate={(generated) => {
+                      form.setValue("password", generated, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.setValue("confirm", generated, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel required>确认新密码</FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    {...field}
+                    toggleLabel="确认新密码"
+                    autoComplete="new-password"
+                    placeholder="再次输入新密码"
+                  />
+                </FormControl>
+                {match && (
+                  <p
+                    className="settings-match"
+                    data-state={match}
+                    aria-live="polite"
+                  >
+                    {match === "ok" ? "两次输入一致" : "两次输入不一致"}
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
           {form.formState.errors.root && (
-            <p role="alert" className="m-0 text-sm text-destructive sm:col-span-2">
+            <p
+              role="alert"
+              className="m-0 text-xs font-medium leading-[18px] text-destructive sm:col-span-2"
+            >
               {form.formState.errors.root.message}
             </p>
           )}

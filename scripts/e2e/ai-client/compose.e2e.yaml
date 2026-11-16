@@ -1,0 +1,106 @@
+# Isolated E2E stack for the AI client port. Start it only through scripts/e2e/ai-client/run.py.
+# Project name, image tag, ports (38460/38461/38462), Cookie name and volume differ from
+# optimax-starter-preview; this file never references the repository .env.
+# The "fixture" service is a scripted OpenAI-compatible vendor SIMULATOR, not a real model.
+# Inside this network only, the alias api.openai.com resolves to the simulator (TLS with a
+# throwaway test CA) so official-host token defaults can be checked without real traffic.
+name: optimax-starter-aie2e
+
+x-app: &app
+  build:
+    context: ../../..
+    dockerfile: Dockerfile
+  image: optimax-starter-aie2e:local
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: starter
+      POSTGRES_USER: starter
+      POSTGRES_PASSWORD: ${AIE2E_DB_PASSWORD:?run scripts/e2e/ai-client/run.py}
+    volumes:
+      - aie2e_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U starter -d starter"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  fixture:
+    image: node:24.10.0-bookworm-slim
+    command: ["node", "/fixture/fixture.mjs"]
+    environment:
+      FIXTURE_PORT: "38462"
+      FIXTURE_TLS_PORT: "38463"
+      FIXTURE_EXPECTED_KEY_FILE: /run/secrets/fixture_expected_key
+      FIXTURE_TLS_DIR: /run/fixture-tls
+    volumes:
+      - ./fixture.mjs:/fixture/fixture.mjs:ro
+      - ${AIE2E_RUNTIME_DIR:?run scripts/e2e/ai-client/run.py}/tls:/run/fixture-tls:ro
+    secrets:
+      - fixture_expected_key
+    ports: ["127.0.0.1:38462:38462"]
+    networks:
+      default:
+        aliases: [api.openai.com, host.docker.internal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38462/__fixture/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    <<: *app
+    depends_on:
+      db: { condition: service_healthy }
+      fixture: { condition: service_healthy }
+    ports: ["127.0.0.1:38461:38461"]
+    # Per-profile AI settings written by run.py (no secrets; the key is only a mounted file).
+    env_file:
+      - ${AIE2E_RUNTIME_DIR:?run scripts/e2e/ai-client/run.py}/ai.env
+    environment:
+      NODE_ENV: development
+      STARTER_ADMIN_USERNAME: aie2e_admin
+      STARTER_ADMIN_PASSWORD: ${AIE2E_ADMIN_PASSWORD:?run scripts/e2e/ai-client/run.py}
+      STARTER_SEED_DEMO: "true"
+      SESSION_COOKIE_NAME: optimax_aie2e
+      PORT: "38461"
+      CORS_ORIGIN: http://127.0.0.1:38460
+      DATABASE_URL: postgres://starter:${AIE2E_DB_PASSWORD}@db:5432/starter
+    secrets:
+      - starter_ai_key
+      - e2e_ca
+    command: ["sh", "-ec", "bun run db:push && cd apps/server && exec node --import tsx src/node.ts"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38461/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      start_period: 20s
+      interval: 5s
+      timeout: 3s
+      retries: 6
+
+  web:
+    <<: *app
+    depends_on:
+      api: { condition: service_started }
+    ports: ["127.0.0.1:38460:38460"]
+    environment:
+      WEB_PORT: "38460"
+      API_PORT: "38461"
+      API_PROXY_TARGET: http://api:38461
+      VITE_SERVER_URL: http://127.0.0.1:38461
+      VITE_APP_SLUG: optimax-aie2e
+      VITE_APP_TITLE: OptiMax
+      VITE_ENABLE_DEMOS: "false"
+    command: ["sh", "-ec", "cd apps/web && exec bun run dev"]
+
+secrets:
+  starter_ai_key:
+    file: ${AIE2E_RUNTIME_DIR:?run scripts/e2e/ai-client/run.py}/secrets/starter_ai_key
+  fixture_expected_key:
+    file: ${AIE2E_RUNTIME_DIR:?run scripts/e2e/ai-client/run.py}/secrets/starter_ai_key
+  e2e_ca:
+    file: ${AIE2E_RUNTIME_DIR:?run scripts/e2e/ai-client/run.py}/tls/ca.pem
+
+volumes:
+  aie2e_data:

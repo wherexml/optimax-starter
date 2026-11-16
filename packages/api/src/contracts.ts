@@ -120,6 +120,21 @@ export interface AuthProviderInfo {
   loginPath: string;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const optionalEmailSchema = z
+  .string()
+  .trim()
+  .max(254, "邮箱最多 254 个字符")
+  .refine((v) => v === "" || EMAIL_RE.test(v), "邮箱格式不正确")
+  .optional();
+
+export const optionalCompanySchema = z
+  .string()
+  .trim()
+  .max(120, "公司或团队最多 120 个字符")
+  .optional();
+
 export const credentialsSchema = z.object({
   username: z.string().trim().min(1, "请输入账户名").max(64, "账户名最多 64 个字符"),
   password: z.string().min(1, "请输入密码").max(256, "密码最多 256 位"),
@@ -129,6 +144,8 @@ export const accountCreateSchema = credentialsSchema.extend({
   name: z.string().trim().min(1, "请输入姓名").max(80, "姓名最多 80 个字符"),
   password: z.string().min(10, "密码至少 10 位").max(256, "密码最多 256 位"),
   role: z.enum(ROLE_VALUES),
+  email: optionalEmailSchema,
+  company: optionalCompanySchema,
 });
 export type AccountCreateInput = z.infer<typeof accountCreateSchema>;
 
@@ -137,9 +154,18 @@ export const accountPatchSchema = z
     active: z.boolean().optional(),
     role: z.enum(ROLE_VALUES).optional(),
     name: z.string().trim().min(1, "请输入姓名").max(80, "姓名最多 80 个字符").optional(),
+    email: optionalEmailSchema,
+    company: optionalCompanySchema,
   })
   .strict()
-  .refine((v) => v.active !== undefined || v.role !== undefined || v.name !== undefined);
+  .refine(
+    (v) =>
+      v.active !== undefined ||
+      v.role !== undefined ||
+      v.name !== undefined ||
+      v.email !== undefined ||
+      v.company !== undefined,
+  );
 export type AccountPatchInput = z.infer<typeof accountPatchSchema>;
 
 export const passwordResetSchema = z
@@ -148,19 +174,12 @@ export const passwordResetSchema = z
   })
   .strict();
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 // strict(): role, active, username and id are rejected, so a profile update cannot escalate privileges.
 export const profileInputSchema = z
   .object({
     name: z.string().trim().min(1).max(80).optional(),
-    email: z
-      .string()
-      .trim()
-      .max(254)
-      .refine((v) => v === "" || EMAIL_RE.test(v))
-      .optional(),
-    company: z.string().trim().max(120).optional(),
+    email: optionalEmailSchema,
+    company: optionalCompanySchema,
   })
   .strict()
   .refine((v) => v.name !== undefined || v.email !== undefined || v.company !== undefined);

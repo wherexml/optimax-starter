@@ -32,25 +32,25 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 前端目录 | `apps/web`；`src/config/app-config.ts` 集中维护品牌、存储前缀与侧栏/`Cmd+K` 导航注册表，`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,dashboard,assets,accounts,audit,settings,navigation,navigation-demo,refresh,filters}` |
+| 前端目录 | `apps/web`；`src/config/app-config.ts` 集中维护品牌、存储前缀与侧栏/`Cmd+K` 导航注册表，`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,dashboard,assets,accounts,audit,settings,navigation,navigation-demo,forms-demo,refresh,filters}` |
 | 技术栈 | React + Vite、TanStack Router / Query / Table、React Hook Form + Zod（共享契约见 [packages/api](./packages/api/README.md)） |
 | 包管理器 | Bun 1.3.14 |
 | API 代理方式 | Vite 代理同源 `/console` 到 `API_PROXY_TARGET`（生产单容器由 Hono `SERVE_WEB_DIST` 同源托管）；数据库 Session Cookie，不在前端保存 token |
-| UI 组件库 | shadcn 风格 Radix 控件、共享 `@optimax-starter/ui`（`Select`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
+| UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
 | 图表/地图库 | 无；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
 | 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
-| AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选本地 Magpie 试点；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
+| AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/server/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
 
 ### 移植来源：复制与适配
 
 | 本项目文件 | 来源 | 保留（复制） | 适配 |
 | --- | --- | --- | --- |
 | `features/auth/LoginPage.tsx` | `optimax-riskops/src/pages/Login.tsx` | 全屏 `login-risk-map.png`、渐变遮罩、品牌 SVG、右侧登录卡布局 | 账号字段为用户名；调用本项目 Cookie 登录 API；配色用本项目蓝色主题 Token；省略原页面不可用的重置密码入口和营销文案（原页面没有第三方登录） |
-| `components/ui/FormDialog.tsx` | `skylance-easm/easm-webui/src/components/dialogs/FormDialog.tsx` | Radix Dialog 外壳、标题/可选描述/内容/底部操作结构、提交中 loading | 可选外部 `formId` 关联提交按钮；`onCloseAutoFocus` 透传用于焦点归还；未单独设置 0.5px 边框 |
-| `components/ui/{dialog,form,input,select,button}.tsx` | shadcn/Radix 基础控件 | Radix 焦点陷阱、Esc 关闭、键盘选择；Form 字段级错误与 aria 关联 | 颜色与焦点环映射到 `index.css` 蓝色主题 |
+| `packages/ui/src/components/form-dialog.tsx`（`components/ui/FormDialog.tsx` 重导出） | `skylance-easm/easm-webui/src/components/dialogs/FormDialog.tsx` | Radix Dialog 外壳、标题/可选描述/内容/底部操作结构、提交中 loading | 升级为标准三段式（固定 Header + 0.5px 分隔线、独立滚动 Body `px-6 py-5`、固定 Footer + 置顶未保存拦截条 `UnsavedChangesBanner`）；外部 `formId` 关联提交、`onCloseAutoFocus` 焦点归还 |
+| `packages/ui/src/components/{dialog,field,label,input,input-group,password-input,number-input,tag-input,textarea,select,combobox,multi-select,segmented-control,switch,checkbox,button}.tsx` | shadcn/Radix 基础控件沉淀至共享 UI 包 | Radix 焦点陷阱、Esc 关闭、键盘导航与可访问语义 | 统一 `h-10` 高度、`0.5px` 边框、同心圆角与蓝色主题焦点环；`apps/web/src/components/ui/*` 保留重导出兼容，React Hook Form 桥接在 `apps/web/src/components/ui/form.tsx` |
 | `components/table/DataTable.tsx` | `skylance-easm/easm-webui/src/components/DataTable/DataTable.tsx` | TanStack Table 渲染、`aria-sort` 排序表头、骨架加载行、空态、80 行以上虚拟滚动、列宽调整代码（默认关闭） | 工具栏由页面传入；列设置并入工具栏；客户端排序与分页（每页 8 / 20 / 100）；新增 `error` 错误态；仅可排序列渲染为按钮 |
 | `components/table/{ColumnSettings,DataTablePagination}.tsx` | EASM DataTable 配套组件 | 列显隐、列顺序、分页交互 | 中文文案；至少保留一列可见 |
-| `features/accounts/*`、`features/assets/AssetsPage.tsx` | 本项目编写 | — | 组合上述组件；新增账户使用 React Hook Form + Zod，服务端错误回显到字段或表单，成功后失效 `accounts` 缓存、把焦点还给触发按钮并在页面 `role="status"` 区域提示已创建；有未保存内容时 Esc、取消或点遮罩不直接关闭，先显示“继续编辑 / 放弃更改”；查询错误进入 DataTable `error`，启停错误单独显示；后端最终鉴权 |
+| `features/accounts/*`、`features/assets/AssetsPage.tsx` | 本项目编写 | — | 组合上述组件；新增账户使用 React Hook Form + Zod，服务端错误回显到字段或表单，成功后失效 `accounts` 缓存、把焦点还给触发按钮并在右下角全局通知提示已创建；有未保存内容时 Esc、取消或点遮罩不直接关闭，先显示“继续编辑 / 放弃更改”；查询错误进入 DataTable `error`，启停错误通过右下角错误通知提示；后端最终鉴权 |
 
 URL 状态：`/` 支持 `q`、`stage`；`/accounts` 只支持 `q`。排序、列显隐、页码与每页条数保存在 TanStack Table 状态中，列顺序为 DataTable 组件状态，刷新后均重置。
 
@@ -62,6 +62,36 @@ URL 状态：`/` 支持 `q`、`stage`；`/accounts` 只支持 `q`。排序、列
 - 触发器用字段标签或可访问名称标识。列表贴近触发器，根据视口可用空间翻转和滚动。触发器里的长值截断，列表里完整换行。勾选表示已提交值，悬停和键盘移动只高亮选项。
 - 使用方向键和 Enter 选择，Esc 关闭并归还焦点。在 Radix Dialog 里按一次 Esc 只关闭列表。Radix 将空字符串留给占位，显式的「全部」「不关联」选项用业务域之外的非空值，并在调用处映射回原有空值。
 - 浏览器验收覆盖窄屏长选项、弹窗内键盘焦点、筛选清空及分页。多选沿用 [FILTERS.md](./FILTERS.md) 的字段约定。
+
+### 表单弹窗与输入控件
+
+- **沉淀位置与导入约定**：标准化弹窗与输入基础组件统一维护在 `packages/ui/src/components/`，推荐从 `@optimax-starter/ui/components/<name>` 导入；`apps/web/src/components/ui/*` 作为兼容层重导出，React Hook Form 绑定层保留在 `apps/web/src/components/ui/form.tsx`。新增业务模块（含 `bun run gen:module`）必须直接复用这套组件，禁止在页面内手写密码显隐按钮、未保存提示框或自定义边框输入框。
+- **三段式弹窗布局（`Dialog` + `FormDialog`）**：
+  - 遮罩使用轻量暖灰透明色 `rgb(33 32 28 / 0.42)`，容器采用 `12px` 外圆角与 `0.5px` 边框，内嵌控件统一 `8px`（`rounded-md`）同心圆角。
+  - **固定头部（`DialogHeader`）**：`px-6 py-4 pr-14`，主标题固定 `18px / 28px`（`font-semibold`），带内容区时底边设 `0.5px` 分隔线；右上关闭按钮（`36×36px`）与主标题光学水平居中对齐。
+  - **独立滚动主体（`[data-slot="form-dialog-body"]`）**：`px-6 py-5`（上下各 `20px`，使弹窗标题到首排字段标签保持约 `36px` 呼吸空间），长表单仅在主体内部滚动，不滚走标题与底部按钮；复杂表单按业务域使用 `FormSection` 分组（组间 `20px` + `0.5px` 分隔线，组内默认双列栅格 `gap-4`）。
+  - **固定底部（`DialogFooter` + `UnsavedChangesBanner`）**：`px-6 py-3.5` + 顶边 `0.5px` 分隔线，左侧 `footerStart` 承载必填提示或辅助动作，右侧为「取消 + 主操作」；存在未保存草稿时按 `Esc`、点遮罩或取消，统一通过 `FormDialog` 的 `unsaved` 属性在底部按钮上方固定弹出「继续编辑 / 放弃更改」，不随滚动隐藏，关闭后通过 `onCloseAutoFocus` 归还触发按钮焦点。
+- **字段间距与字号红线**：
+  - **禁止在字段容器上使用 `space-y-*`**：Tailwind CSS v4 的 `space-y-*` 将 `margin-block-end` 施加在前序子元素上，遇到默认行内 `<label>` 会导致标签与输入框间距塌陷为 `0px`。统一使用 `FormItem` / `FieldLayout`（`flex flex-col gap-2`，保证标签行到控件固定 `8px` 间距）与 `Label`（`inline-flex items-center gap-1.5 leading-5`，支持 `required` 星号与 `optional` 选填标记）。
+  - 弹窗内严格保持 3 档字号：弹窗标题 `18px`，分组标题/标签/输入正文/按钮 `14px`，字数统计（`FieldCharCount`）/辅助原因（`FieldHint`）/字段错误（`FormMessage`）`12px`。
+- **共享输入控件选型表**：
+
+| 控件 | 导入路径 | 适用场景与交互约定 |
+| --- | --- | --- |
+| `Input` / `InputGroup` | `@optimax-starter/ui/components/{input,input-group}` | 单行文本，以及带协议前缀（如 `https://`）、图标、单位后缀的复合输入；焦点环与 `aria-invalid` 红框统一作用于组合外框 |
+| `ClearableInput` | `@optimax-starter/ui/components/input-group` | 高频可编辑文本/邮箱/搜索输入，非空时显示一键清空按钮并归还焦点 |
+| `CopyableInput` | `@optimax-starter/ui/components/input-group` | 账户名、回调地址等只读标识，浅灰底色保持高可读性并提供一键复制反馈 |
+| `PasswordInput` | `@optimax-starter/ui/components/password-input` | 登录密码、初始密码、接入密钥；内置显隐切换（`aria-pressed`）及可选 `onGenerate`（基于 `crypto.getRandomValues` 随机生成） |
+| `NumberInput` | `@optimax-starter/ui/components/number-input` | 周期、并发、配额等整数输入；支持步进加减、上下方向键、最小/最大钳制与单位后缀 |
+| `Select` / `Combobox` | `@optimax-starter/ui/components/{select,combobox}` | 少量固定枚举用 `Select`；多选项或需关键字检索用 `Combobox`（弹窗内按一次 `Esc` 仅收起浮层，不关闭弹窗） |
+| `MultiSelect` | `@optimax-starter/ui/components/multi-select` | 多值枚举选择，超过 6 项默认展示搜索框，保留全选与清空 |
+| `SegmentedControl` | `@optimax-starter/ui/components/segmented-control` | 2–4 个互斥模式切换（`role="radiogroup"`，方向键移动），减少下拉点击 |
+| `TagInput` | `@optimax-starter/ui/components/tag-input` | 白名单域名、IP/CIDR、多标签录入；支持回车/逗号/批量粘贴拆分、单项校验与 `Backspace` 删除，不拦截 `Tab` 键移出焦点 |
+| `Textarea` | `@optimax-starter/ui/components/textarea` | 多行备注与说明，配合 `FieldLabelRow` + `FieldCharCount` 显示字数上限 |
+| `SwitchField` / `Checkbox` | `@optimax-starter/ui/components/{switch,checkbox}` | 策略开关行（含简短影响说明）与显式复选确认项 |
+
+- **只读与禁用态**：只读使用 `readOnly` 或 `CopyableInput`；因联动条件不可编辑的控件设置 `disabled` 时，必须在紧邻的 `FieldHint` 说明不可用原因（见 [复杂表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)，入口 `/demo/forms?dialog=create`）。
+- **浏览器验收**：运行 `scripts/e2e/forms-dialog.mjs` 覆盖「新增/编辑账户」真实持久化（含可选邮箱与公司、审计不记敏感原值）及 `/demo/forms` 复杂弹窗的三段式间距、独立滚动、12 类控件交互、浮层 `Esc` 隔离、脏改动拦截与窄屏无横向溢出。
 
 ## 3. 前端总原则
 
@@ -182,8 +212,13 @@ AppShell
 | 路径 | 页面 | 权限 | 数据来源 | 验收入口 |
 | --- | --- | --- | --- | --- |
 | `/login` | `features/auth/LoginPage` | 公开；已有 Session 时仍可访问，不自动跳转 | `/console` 登录 API，设置 Session Cookie | `http://127.0.0.1:38140/login` |
-| `/` | `features/assets/AssetsPage`（资产台账） | 登录（成员只读、管理员） | `/console` 资产 API；URL 参数 `q`、`stage` | `http://127.0.0.1:38140/` |
-| `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | 管理员（后端鉴权） | `/console` 账户 API；URL 参数 `q` | `http://127.0.0.1:38140/accounts` |
+| `/` | `features/dashboard/DashboardPage`（工作台） | 登录（成员、管理员） | `/console/assets`、`/console/accounts`、`/console/audit` | `http://127.0.0.1:38140/` |
+| `/assets` | `features/assets/AssetsPage`（资产台账） | 登录（成员只读、管理员可写） | `/console/assets`；URL 参数 `q`、`qOp`、`stage`、`domain` | `http://127.0.0.1:38140/assets` |
+| `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | 管理员（后端鉴权） | `/console/accounts`；URL 参数 `q`、`status`、`role` | `http://127.0.0.1:38140/accounts` |
+| `/audit` | `features/audit/AuditPage`（操作日志） | 管理员（后端鉴权） | `/console/audit` 服务端分页；URL 参数 `action`、`actor`、`start`、`end`、`page`、`size` | `http://127.0.0.1:38140/audit` |
+| `/settings` | `features/settings/SettingsPage`（个人设置） | 登录（成员、管理员） | `/console/me`、`/console/me/password` | `http://127.0.0.1:38140/settings` |
+| `/demo/navigation` | `features/navigation-demo/NavigationDemoPage` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets`；URL 参数 `tab` | `http://127.0.0.1:38140/demo/navigation?tab=pending` |
+| `/demo/forms` | `features/forms-demo/FormsDemoPage` + `ComplexFormDialog` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets` 候选源 + 页内策略状态 + 右下角通知速查；可选参数 `dialog=create\|edit` | `http://127.0.0.1:38140/demo/forms?dialog=create` |
 
 ### 页面顶部与共享标题
 
@@ -226,10 +261,10 @@ AppShell
 
 | 项 | 内容 |
 | --- | --- |
-| API 客户端文件 | <!-- src/lib/trpc.ts / src/lib/api-client.ts --> |
-| QueryClient 文件 | <!-- src/lib/query-client.ts --> |
-| 代理配置文件 | <!-- vite.config / next.config / 无 --> |
-| 错误展示方式 | <!-- toast / inline / modal --> |
+| API 客户端文件 | `apps/web/src/console-client.ts` |
+| QueryClient 文件 | `apps/web/src/main.tsx` |
+| 代理配置文件 | `apps/web/vite.config.ts`（开发代理 `/console` → `API_PROXY_TARGET`；生产由 Hono `SERVE_WEB_DIST` 同源托管） |
+| 错误展示方式 | 列表与面板加载失败采用内联重试态，表单校验与冲突贴近字段显示，写操作结果与动作异常采用右下角全局 `Toaster`（`components/ui/toast.tsx`） |
 
 ### 请求规范
 
@@ -468,6 +503,7 @@ Store 规则：
 - 筛选保存：`hooks/usePersistedFilters.ts` 把下拉筛选按“账户 ID + 页面”存入 `localStorage`，键为 `optimax-starter.filters.v1:<账户ID>:<页面>`；文本搜索 `q` 不保存。进入页面时，URL 里已有筛选就以 URL 为准并保存；没有时只恢复一次已保存的值。清空后保存 `{}`，刷新后仍为空。存储内容无效或存储不可用时忽略，只用 URL。
 - 操作日志：`/audit` 仅管理员可见，可按操作类型、操作人、开始/结束日期筛选（含结束当天，按 UTC+8）。日志由服务端分页（每页 20/50/100），表格通过 `DataTable` 的 `pagination` 参数接入。
 - 快速导航：按 Cmd/Ctrl+K 或点侧栏底部、用户信息正上方的“搜索”打开（展开、折叠和移动端抽屉中位置相同）。只跳转本地页面，可用中文名或英文别名搜索；方向键选择、Enter 跳转、Esc 关闭，关闭后焦点回到打开前的位置。输入法组合输入期间不触发快捷键。成员看不到账户管理和操作日志。
+- 快速导航的布局、滚动和验收入口见 [navigation](./apps/web/src/features/navigation/README.md)。样式使用 `.quick-nav-list` / `.quick-nav-item`，不绑定 `ul/li` 等具体标签。
 
 ## EASM 工作台与个人设置
 

@@ -28,7 +28,7 @@
 | 分页方式 | 页码分页 `page`（从 1 起）+ `size`（上限 100），响应 `{ items, total, page, size }`（见 `/console/audit` 与 `/console/assets/page`） |
 | 实时通道 | 无 |
 | 文件入口 | 无 |
-| 外部入口 | 无对外 Webhook；可选本地回环 Magpie 转发仅由服务端内部访问 |
+| 外部入口 | 无对外 Webhook 或通用模型代理；模型供应商仅由服务端受信配置访问，见 [AI 模块](./apps/server/src/core/ai/README.md) |
 | 契约生成 | 前后端共享 Zod Schema 与 DTO：[packages/api](./packages/api/README.md) |
 | requestId | Hono 请求日志；网关层按实际反代配置注入 |
 

@@ -18,7 +18,7 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     data-slot="select-trigger"
     className={cn(
-      "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border border-input bg-background px-2.5 py-2 text-left text-sm hover:bg-muted/50 data-[state=open]:border-ring data-[placeholder]:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:min-w-0 [&>span]:truncate",
+      "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border-[0.5px] border-input bg-card px-3 py-2 text-left text-sm leading-5 text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30 data-[state=open]:border-primary data-[placeholder]:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-75 aria-[invalid=true]:border-destructive [&>span]:min-w-0 [&>span]:truncate",
       className,
     )}
     {...props}

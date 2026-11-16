@@ -1,6 +1,6 @@
 # OptiMax Starter
 
-OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的本地自然语言筛选试点](./apps/web/src/features/assets/README.md)，默认不启用、不依赖模型服务。
+OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的自然语言筛选](./apps/web/src/features/assets/README.md)，默认不启用；服务端可直连 OpenAI-compatible API，不依赖 Magpie 运行，移植代码的来源和许可见 [AI 模块](./apps/server/src/core/ai/README.md)。
 
 [使用此模板创建新项目](https://github.com/wherexml/optimax-starter/generate) · [新项目初始化流程](#从-github-template-初始化新项目)
 
@@ -17,7 +17,7 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | `/audit` | 操作日志 | 管理员 | 按操作类型、操作人、日期筛选，服务端分页；日志只追加 |
 | `/settings` | 个人设置 | 管理员、成员 | 修改显示名称、邮箱、公司；修改密码后撤销本人全部会话 |
 
-Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)，演示二级侧栏与顶部 Tab，管理员、成员均可访问。详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)。
+Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)（二级侧栏与顶部 Tab，详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)）、[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），管理员、成员均可访问。
 
 角色只有管理员（`admin`）和成员（`member`）两种。所有写操作都在服务端再次校验权限，前端隐藏入口只用于展示。侧栏支持折叠和移动端抽屉，Cmd/Ctrl+K 打开快速导航。
 
@@ -102,7 +102,7 @@ apps/
   web/src/config/        app-config.ts（品牌、本地存储前缀、侧栏与 Cmd+K 统一导航注册表）
   web/src/routes/        路由、鉴权跳转、URL 搜索参数
   web/src/features/      auth · dashboard · assets · accounts · audit · settings · navigation · filters
-  web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui
+  web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui（共享弹窗/输入/右下角通知）
   server/src/core/       config · guards（咨询锁与 RBAC）· audit · seed
   server/src/modules/    auth · accounts · audit · assets（含服务端分页与 CRUD 示例）
 packages/

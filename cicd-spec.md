@@ -33,7 +33,7 @@
 | --- | --- | --- |
 | 默认分支 | `main` | `.git/HEAD` |
 | CI 平台 | GitHub Actions | `.github/workflows/` |
-| CI Workflow | `CI`（`scope` → `light` / 并行 `quality` + `api-e2e` → 汇总门禁 `check` → `Application release gate`） | [.github/workflows/ci.yml](./.github/workflows/ci.yml)、[scripts/ci-scope.mjs](./scripts/ci-scope.mjs) |
+| CI Workflow | `CI`（`scope` → `light` / 并行 `quality` + `api-e2e` + `ai-client-e2e` → 汇总门禁 `check` → `Application release gate`）；模型客户端使用独立数据库和脚本供应商，证据不上传 runtime 凭证 | [.github/workflows/ci.yml](./.github/workflows/ci.yml)、[scripts/ci-scope.mjs](./scripts/ci-scope.mjs) |
 | Deploy Workflow | `Deploy Production`（默认受 `vars.ENABLE_PRODUCTION_CD == 'true'` 保护；模板仓库自动安全跳过，派生项目接入服务器后启用） | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
 | 部署触发 | `main` 分支完整应用 CI（`Application release gate == success`）自动触发，或 `workflow_dispatch` 指定提交/回滚锚点 | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |
 | 生产环境名称 | `production`（模板仓未绑定真实服务器，由派生项目在 GitHub Environment 配置） | [.github/workflows/deploy-production.yml](./.github/workflows/deploy-production.yml) |

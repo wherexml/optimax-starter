@@ -8,6 +8,7 @@ import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import { type FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { request, type Account } from "@/console-client";
 import { useAccount } from "@/features/auth/session";
 import { parseAccountSearch } from "@/features/filters/search";
@@ -53,7 +54,6 @@ export function AccountsPage() {
     cache = useQueryClient(),
     admin = me.data?.role === "admin";
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState("");
   const [pending, setPending] = useState<Pending>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -83,20 +83,22 @@ export function AccountsPage() {
       request("/accounts/" + row.id, "PATCH", { active: true }),
     onSuccess: async (_d, row) => {
       await refresh();
-      setNotice(`已启用 ${row.name}`);
+      toast.success(`已启用 ${row.name}`);
+    },
+    onError: (err) => {
+      toast.error("启用账户失败", { description: err.message });
     },
   });
   function open(kind: Kind, row: Account, e: MouseEvent<HTMLElement>) {
     returnFocus.current = e.currentTarget;
-    setNotice("");
     enable.reset();
     setPending({ kind, row });
   }
-  async function finish(message?: string) {
+  async function finish(message?: string, description?: string) {
     setPending(null);
     if (!message) return;
     await refresh();
-    setNotice(message);
+    toast.success(message, description ? { description } : undefined);
   }
   const columns: ColumnDef<Account>[] = [
     {
@@ -196,10 +198,7 @@ export function AccountsPage() {
                     size="sm"
                     aria-label={`启用 ${row.name}`}
                     disabled={enable.isPending}
-                    onClick={() => {
-                      setNotice("");
-                      enable.mutate(row);
-                    }}
+                    onClick={() => enable.mutate(row)}
                   >
                     启用
                   </Button>
@@ -227,19 +226,11 @@ export function AccountsPage() {
       title="账户管理"
       allowed={admin}
       actions={
-        <Button
-          ref={trigger}
-          onClick={() => {
-            setNotice("");
-            setAdding(true);
-          }}
-        >
+        <Button ref={trigger} onClick={() => setAdding(true)}>
           <Plus size={16} />
           新增账户
         </Button>
       }
-      notice={notice}
-      actionError={enable.error?.message}
       fields={FIELDS}
       filters={params}
       onApplyFilters={update}
@@ -255,7 +246,7 @@ export function AccountsPage() {
           trigger={trigger.current}
           close={(createdName) => {
             setAdding(false);
-            if (createdName) setNotice(`已创建账户 ${createdName}`);
+            if (createdName) toast.success(`已创建账户 ${createdName}`);
           }}
         />
       )}
@@ -271,7 +262,12 @@ export function AccountsPage() {
         <ResetPasswordDialog
           account={target}
           trigger={returnFocus.current}
-          close={(message) => void finish(message)}
+          close={(message) =>
+            void finish(
+              message ? `已重置 ${target.name} 的密码` : undefined,
+              message ? "现有在线会话已全部失效" : undefined,
+            )
+          }
         />
       )}
       {pending?.kind === "revoke" && target && (
@@ -295,7 +291,12 @@ export function AccountsPage() {
           action={() =>
             request(`/accounts/${target.id}`, "PATCH", { active: false })
           }
-          close={(done) => void finish(done ? `已停用 ${target.name}` : undefined)}
+          close={(done) =>
+            void finish(
+              done ? `已停用 ${target.name}` : undefined,
+              done ? "现有在线会话已立即失效" : undefined,
+            )
+          }
         />
       )}
     </ResourceTableSlot>

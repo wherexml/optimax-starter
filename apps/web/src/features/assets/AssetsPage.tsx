@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { storageKey } from "@/config/app-config";
 import { request, type Asset } from "@/console-client";
 import { useAccount } from "@/features/auth/session";
@@ -38,7 +39,6 @@ export function AssetsPage() {
   const cache = useQueryClient();
   const admin = me.data?.role === "admin";
   const [pending, setPending] = useState<PendingAction>(null);
-  const [notice, setNotice] = useState("");
   const createTrigger = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -128,7 +128,6 @@ export function AssetsPage() {
   const openRowAction = useCallback(
     (kind: "edit" | "delete", row: Asset, e: MouseEvent<HTMLElement>) => {
       returnFocus.current = e.currentTarget;
-      setNotice("");
       setPending({ kind, row });
     },
     [],
@@ -179,7 +178,6 @@ export function AssetsPage() {
             ref={createTrigger}
             onClick={() => {
               returnFocus.current = createTrigger.current;
-              setNotice("");
               setPending({ kind: "create" });
             }}
           >
@@ -188,7 +186,6 @@ export function AssetsPage() {
           </Button>
         ) : undefined
       }
-      notice={notice}
       fields={fields}
       filters={params}
       onApplyFilters={update}
@@ -220,7 +217,7 @@ export function AssetsPage() {
           trigger={returnFocus.current}
           close={(msg) => {
             setPending(null);
-            if (msg) setNotice(msg);
+            if (msg) toast.success(msg);
           }}
         />
       )}
@@ -230,7 +227,7 @@ export function AssetsPage() {
           trigger={returnFocus.current}
           close={(msg) => {
             setPending(null);
-            if (msg) setNotice(msg);
+            if (msg) toast.success(msg);
           }}
         />
       )}
@@ -246,7 +243,7 @@ export function AssetsPage() {
             setPending(null);
             if (done) {
               await cache.invalidateQueries({ queryKey: ["assets"] });
-              setNotice(`已删除资产 ${name}`);
+              toast.success(`已删除资产 ${name}`);
             }
           }}
         />

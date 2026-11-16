@@ -9,8 +9,9 @@ import {
   type AssetInput,
 } from "@optimax-starter/api";
 import { FormDialog } from "@/components/ui/FormDialog";
-import { Button } from "@/components/ui/button";
 import {
+  FieldCharCount,
+  FieldLabelRow,
   Form,
   FormControl,
   FormField,
@@ -18,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,8 @@ export function AssetFormDialog({
   });
   const { isDirty } = form.formState;
   const [confirming, setConfirming] = useState(false);
+  const nameValue = form.watch("name");
+
   const keepEditing = () => {
     setConfirming(false);
     form.setFocus("name");
@@ -64,7 +67,11 @@ export function AssetFormDialog({
         : request<Asset>("/assets", "POST", values),
     onSuccess: async (_data, values) => {
       await cache.invalidateQueries({ queryKey: ["assets"] });
-      close(editing ? `已更新资产 ${values.name.trim()}` : `已登记资产 ${values.name.trim()}`);
+      close(
+        editing
+          ? `已更新资产 ${values.name.trim()}`
+          : `已登记资产 ${values.name.trim()}`,
+      );
     },
     onError: (error) =>
       form.setError(
@@ -84,6 +91,15 @@ export function AssetFormDialog({
       submitText={editing ? "保存修改" : "保存资产"}
       loading={save.isPending}
       formId="asset-form"
+      unsaved={
+        confirming
+          ? {
+              onKeepEditing: keepEditing,
+              onDiscard: () => close(),
+              discardText: "放弃改动",
+            }
+          : null
+      }
       onCloseAutoFocus={(e) => {
         if (trigger?.isConnected) {
           e.preventDefault();
@@ -109,13 +125,18 @@ export function AssetFormDialog({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>资产名称</FormLabel>
+                <FieldLabelRow>
+                  <FormLabel required>资产名称</FormLabel>
+                  <FieldCharCount current={nameValue.length} max={80} />
+                </FieldLabelRow>
                 <FormControl>
-                  <Input
+                  <ClearableInput
                     {...field}
                     autoComplete="off"
                     autoFocus
+                    maxLength={80}
                     placeholder="例如：采购门户"
+                    onClear={() => form.setValue("name", "", { shouldDirty: true })}
                   />
                 </FormControl>
                 <FormMessage />
@@ -127,12 +148,14 @@ export function AssetFormDialog({
             name="domain"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>业务域</FormLabel>
+                <FormLabel required>业务域</FormLabel>
                 <FormControl>
-                  <Input
+                  <ClearableInput
                     {...field}
                     autoComplete="off"
+                    maxLength={40}
                     placeholder="例如：采购、履约、运营"
+                    onClear={() => form.setValue("domain", "", { shouldDirty: true })}
                   />
                 </FormControl>
                 <FormMessage />
@@ -144,12 +167,14 @@ export function AssetFormDialog({
             name="owner"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>责任团队</FormLabel>
+                <FormLabel required>责任团队</FormLabel>
                 <FormControl>
-                  <Input
+                  <ClearableInput
                     {...field}
                     autoComplete="off"
+                    maxLength={60}
                     placeholder="例如：平台组"
+                    onClear={() => form.setValue("owner", "", { shouldDirty: true })}
                   />
                 </FormControl>
                 <FormMessage />
@@ -161,7 +186,7 @@ export function AssetFormDialog({
             name="stage"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>登记状态</FormLabel>
+                <FormLabel required>登记状态</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
                     <SelectTrigger aria-label="登记状态">
@@ -181,30 +206,12 @@ export function AssetFormDialog({
             )}
           />
           {rootError && (
-            <p role="alert" className="m-0 text-sm text-destructive sm:col-span-2">
+            <p
+              role="alert"
+              className="m-0 text-xs font-medium leading-[18px] text-destructive sm:col-span-2"
+            >
               {rootError}
             </p>
-          )}
-          {confirming && (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm sm:col-span-2"
-            >
-              <span>有未保存的改动，确定放弃吗？</span>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={keepEditing}>
-                  继续编辑
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => close()}
-                >
-                  放弃改动
-                </Button>
-              </div>
-            </div>
           )}
         </form>
       </Form>

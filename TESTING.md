@@ -9,12 +9,16 @@
 | 项 | 当前事实 |
 | --- | --- |
 | 静态检查命令 | `bun run check-types`、`bun run build`、`git diff --check`、`node scripts/e2e/ci-scope-e2e.mjs`（CI `quality` job 同步执行） |
-| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md) |
+| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md)（含 `forms-dialog.mjs`、`navigation-demo.mjs`、`page-layout.mjs`、`filter-state.mjs`） |
 | 测试环境及安全数据 | 本地 Docker Compose 独立预览库（`http://127.0.0.1:38140` / `:38141`），仅使用本地演示账号与脚本自动清理的随机 `qa_*` 临时夹具 |
 | 证据目录 | 本地 git 忽略的 `evidence/<task>/`；CI 运行产物上传至 GitHub Actions Artifacts（保留 7 天） |
 | 隔离测试 | 默认仅用真实进程/HTTP/浏览器 E2E；新增 `scripts/e2e/ci-scope-e2e.mjs` 在编写 `ci-scope.mjs` 前先运行失败断言再实现通过 |
 
 ### 页面验收清单
+
+独立模型客户端：`python3 scripts/e2e/ai-client/run.py --keep`，覆盖真实应用 HTTP、隔离 PostgreSQL、参数兼容、安全错误和并发取消；浏览器复验与清理见 [ai-client](./scripts/e2e/ai-client/README.md)。该套件仅模拟供应商，不能作为真实模型理解能力通过的证据，结果在 `evidence/ai-client-port/`。
+
+2026-11-16 最终本地验收：HTTP 494 断言、浏览器 12 断言通过；类型、生产镜像构建、镜像内完整 MIT / 来源清单、源码摘要及配置 overlay 检查通过。重跑过最终大写错误码契约；详情与截图/URL 见 [验收记录](./evidence/ai-client-port/acceptance.md)。远端 CI/CD 和生产发布未执行。
 
 | 场景编号与名称 | URL | 操作 | 预期 |
 | --- | --- | --- | --- |
@@ -176,3 +180,26 @@
   - Python HTTP 全套（`verify-console.py` 含 `/healthz`、资产 CRUD、服务端分页与审计闭环，`verify-foundation.py` + `--cleanup`，`verify-easm-settings.py` + `verify-easm-rollback.py` + `--cleanup`，以及 `verify-runtime-load.py` 8 并发 1,200 请求 `0.7s`）全部 PASS（见 [python-http-e2e.log](./evidence/starter-optimization/python-http-e2e.log)）。
   - Ego Browser 真实浏览器验收：`page-layout.mjs` 28 项 PASS、`navigation-demo.mjs` 22 项 PASS、`filter-state.mjs` 13 项 PASS、新增资产弹窗脏改动拦截/创建/编辑/删除二次确认/操作日志展示 5 项 PASS，合计 **68 项浏览器断言 PASS**，桌面与移动端截图已实际核验且临时验收资产已清理（见 [验收记录](./evidence/starter-optimization/acceptance.md)）。
 - **边界状态**：仅本地修改与验证；未执行 `git commit`、`git push`，未触发远端 GitHub Actions 或生产服务器发布。
+
+
+### 2026-11-16：三段式表单弹窗、共享输入组件库与复杂表单 Demo
+
+- **共享组件沉淀（`@optimax-starter/ui`）**：将 `Dialog`、`FormDialog`（含固定 Header + `0.5px` 分隔线、独立滚动 Body `px-6 py-5`、固定 Footer + 置顶未保存拦截条 `UnsavedChangesBanner`）、`FieldLayout` / `FormSection`、`Label`、`Input` / `InputGroup` / `ClearableInput` / `CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch` / `SwitchField`、`Checkbox` 统一沉淀至 `packages/ui/src/components/*`，`apps/web/src/components/ui/*` 重导出兼容，并写入 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) 与 [DESIGN.md](./DESIGN.md)。
+- **间距与焦点修复**：消除 Tailwind CSS v4 `space-y-*` 在默认行内 `<label>` 上的边距塌陷，所有表单项实测标签到输入控件间距稳定为 `8px`；消除复合输入容器内层 `<input>` 的双重焦点轮廓；弹窗严格控制在 `12px / 14px / 18px` 三档字号。
+- **业务弹窗与复杂样板**：升级 `CreateAccountDialog`、`EditAccountDialog`（接入可选 `email`、`company` 持久化及同事务审计字段名脱敏记录）、`ResetPasswordDialog`、`AssetFormDialog`、`ProfileDialog`、`SettingsPage` 及 `gen-module.mjs` 模板；新增 `/demo/forms?dialog=create` 复杂采集接入策略弹窗与全套共享控件速查页。
+- **验证结果**：
+  - 静态与构建：`bun run check-types`、`bun run build`、`docker compose up -d --build`、`git diff --check` 全部退出 `0`。
+  - HTTP 与事务回滚：`verify-console.py`（新增账户可选 `email`/`company` 更新及审计隐私脱敏校验）、`verify-foundation.py` + `--cleanup`、`verify-easm-settings.py` + `verify-easm-rollback.py` + `--cleanup`、`ci-scope-e2e.mjs` 全部 PASS。
+  - 真实浏览器 E2E（Ego Browser）：`forms-dialog.mjs` **17 项 PASS**、`navigation-demo.mjs` **22 项 PASS**、`page-layout.mjs` **28 项 PASS**，桌面与 375px 手机截图均已实际核验，临时 `qa_dlg_*` 账户已清理（见 [验收记录](./evidence/forms-dialog/acceptance.md)）。
+- **边界状态**：仅本地修改与验证；未提交、未推送、未执行生产发布。
+
+
+### 2026-11-16：右下角全局堆叠通知（`@optimax-starter/ui/components/toast`）
+
+- **同类项目调研与落地**：对比工作区内 `optione`（Sonner 右下角命令式通知与首行图标对齐）、`optimax-worldmodel-demo` / `industry-model`（COSS 右下角立体卡片堆叠与悬停纵向展开）、`optimax-riskops`（显式关闭与剪贴板反馈）后，基于项目已内置的 `@ui-sdk/react/toast`（`0.1.0-beta.3`）沉淀 `@optimax-starter/ui/components/toast`（`apps/web/src/components/ui/toast.tsx` 与 `sonner.tsx` 统一导出），在 `routes/__root.tsx` 全局挂载一次并在退出登录时自动清空。
+- **体验与业务闭环升级**：移除 `ResourceTableSlot`、`AccountsPage`、`AssetsPage`、`SettingsPage`、`FormsDemoPage` 与 `gen-module.mjs` 中原先导致列表下移 `34px` 的页内 `.notice` 文本，统一改为右下角全局通知（跨路由不丢失、桌面 `24px` 边距、手机 `16px` 对称边距）；打通 Top Layer 与共享 Radix `Dialog` 的焦点与 `Escape` 协同（弹窗开启时复制/提示置顶可交互，`F6` 聚焦通知、`Escape` 仅收起通知而不关闭弹窗）；在 `/demo/forms` 新增「全局通知速查（右下角堆栈）」一键实测面板。
+- **验证结果**：
+  - 静态与构建：`bun run check-types`、`bun run build`、`git diff --check`、`node scripts/e2e/ci-scope-e2e.mjs` 全部退出 `0`。
+  - HTTP E2E：`python3 scripts/verify-console.py` PASS。
+  - 真实浏览器 E2E（Ego Browser）：新增 `scripts/e2e/notifications.mjs` **12 项 PASS**，回归 `forms-dialog.mjs` **17 项 PASS**、`page-layout.mjs` **28 项 PASS**、`navigation-demo.mjs` **22 项 PASS**（合计 **79 项浏览器断言 PASS**，含 `agent.snapshot()` 无空通知区泄漏）。5 张桌面与手机产品截图已实际查看核验，临时 `qa_ntf_*` / `qa_dlg_*` 账户已清理（见 [验收记录](./evidence/global-notifications/acceptance.md)）。
+- **边界状态**：仅本地修改与验证；未提交、未推送、未执行生产发布。

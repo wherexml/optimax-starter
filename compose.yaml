@@ -30,6 +30,19 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:${WEB_PORT:-38140}}
       STARTER_MAGPIE_RELAY_URL: ${STARTER_MAGPIE_RELAY_URL:-}
       STARTER_MAGPIE_MODEL: ${STARTER_MAGPIE_MODEL:-}
+      # Server-side model client; empty = disabled. The key is a read-only file mounted by an
+      # override (e.g. a Compose secret at /run/secrets/...); only its path is set here.
+      STARTER_AI_BASE_URL: ${STARTER_AI_BASE_URL:-}
+      STARTER_AI_MODEL: ${STARTER_AI_MODEL:-}
+      STARTER_AI_API_KEY_FILE: ${STARTER_AI_API_KEY_FILE:-}
+      STARTER_AI_CA_FILE: ${STARTER_AI_CA_FILE:-}
+      STARTER_AI_ALLOW_HTTP_HOSTS: ${STARTER_AI_ALLOW_HTTP_HOSTS:-}
+      STARTER_AI_TOKEN_FIELD: ${STARTER_AI_TOKEN_FIELD:-}
+      STARTER_AI_TIMEOUT_MS: ${STARTER_AI_TIMEOUT_MS:-}
+      STARTER_AI_CONCURRENCY: ${STARTER_AI_CONCURRENCY:-}
+      STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
+      STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
+      STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
     # Bun only runs the short db:push step; the long-running API runs on Node 24 (see RUNTIME.md).
     command: ["sh", "-ec", "bun run db:push && cd apps/server && exec node --import tsx src/node.ts"]

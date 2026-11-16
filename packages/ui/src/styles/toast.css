@@ -1,0 +1,353 @@
+/* Bottom-right global notification stack (@optimax-starter/ui/components/toast) */
+
+[data-slot="toast-region"] {
+  position: fixed;
+  inset: auto;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  width: min(368px, calc(100vw - 32px));
+  height: var(--toast-front-height, 0px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  overflow: visible;
+  pointer-events: none;
+}
+
+[data-slot="toast-region"][data-side="top"] {
+  top: 24px;
+  bottom: auto;
+}
+
+[data-slot="toast-region"][data-align="start"] {
+  left: 24px;
+  right: auto;
+}
+
+[data-slot="toast-region"][data-align="center"] {
+  left: 50%;
+  right: auto;
+  translate: -50% 0;
+}
+
+[data-slot="toast-region"][data-expanded] {
+  height: calc(var(--toast-stack-height, 0px) + max(0, var(--toast-count, 1) - 1) * 10px);
+  pointer-events: auto;
+}
+
+[data-slot="toast-list"] {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-slot="toast"] {
+  --toast-y: calc(var(--toast-index, 0) * -10px);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: calc(100 - var(--toast-index, 0));
+  box-sizing: border-box;
+  height: var(--toast-height);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0.5px solid var(--hairline, var(--border));
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--card-foreground, var(--foreground));
+  box-shadow:
+    0 10px 28px rgb(33 32 28 / 0.1),
+    0 2px 6px rgb(33 32 28 / 0.05);
+  pointer-events: auto;
+  user-select: none;
+  transform-origin: 50% 100%;
+  translate: var(--toast-swipe-x, 0px) calc(var(--toast-y) + var(--toast-swipe-y, 0px));
+  scale: calc(1 - var(--toast-index, 0) * 0.04);
+  transition-property: translate, scale, opacity, height, border-color;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+[data-slot="toast-region"][data-side="top"] [data-slot="toast"] {
+  top: 0;
+  bottom: auto;
+  --toast-y: calc(var(--toast-index, 0) * 10px);
+  transform-origin: 50% 0%;
+}
+
+[data-slot="toast"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+[data-slot="toast"][data-type="error"] {
+  border-color: color-mix(in srgb, var(--destructive, #ce2c31) 36%, var(--hairline, var(--border)));
+}
+
+[data-slot="toast"][data-type="warning"] {
+  border-color: color-mix(in srgb, var(--warning-foreground, #ab6400) 34%, var(--hairline, var(--border)));
+}
+
+[data-slot="toast"]:not([data-front], [data-expanded]) {
+  height: var(--toast-front-height);
+  background: color-mix(
+    in srgb,
+    var(--card) calc(100% - var(--toast-index, 0) * 2.5%),
+    var(--foreground)
+  );
+}
+
+[data-slot="toast"]:not([data-front], [data-expanded]) .om-toast-body {
+  opacity: 0;
+}
+
+[data-slot="toast"][data-expanded] {
+  --toast-y: calc(-1 * (var(--toast-offset, 0px) + var(--toast-index, 0) * 10px));
+  scale: 1;
+}
+
+[data-slot="toast-region"][data-side="top"] [data-slot="toast"][data-expanded] {
+  --toast-y: calc(var(--toast-offset, 0px) + var(--toast-index, 0) * 10px);
+}
+
+[data-slot="toast"][data-starting-style] {
+  transition: none;
+}
+
+[data-slot="toast"][data-starting-style][data-front] {
+  --toast-y: calc(100% + 20px);
+  opacity: 0;
+}
+
+[data-slot="toast-region"][data-side="top"] [data-slot="toast"][data-starting-style][data-front] {
+  --toast-y: calc(-100% - 20px);
+}
+
+[data-slot="toast"][data-starting-style]:not([data-front]) {
+  opacity: 0;
+}
+
+[data-slot="toast"][data-ending-style] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-slot="toast"][data-ending-style]:not([data-expanded]) {
+  --toast-y: calc(100% + 16px);
+}
+
+[data-slot="toast"][data-ending-style][data-expanded] {
+  scale: 0.97;
+}
+
+[data-slot="toast"][data-ending-style][data-swipe-direction="right"] {
+  translate: calc(var(--toast-swipe-x, 0px) + 110%) calc(var(--toast-y) + var(--toast-swipe-y, 0px));
+}
+
+[data-slot="toast"][data-ending-style][data-swipe-direction="left"] {
+  translate: calc(var(--toast-swipe-x, 0px) - 110%) calc(var(--toast-y) + var(--toast-swipe-y, 0px));
+}
+
+[data-slot="toast"][data-ending-style][data-swipe-direction="down"] {
+  translate: var(--toast-swipe-x, 0px) calc(var(--toast-y) + var(--toast-swipe-y, 0px) + 110%);
+}
+
+[data-slot="toast"][data-ending-style][data-swipe-direction="up"] {
+  translate: var(--toast-swipe-x, 0px) calc(var(--toast-y) + var(--toast-swipe-y, 0px) - 110%);
+}
+
+[data-slot="toast"][data-swiping] {
+  transition: none;
+}
+
+.om-toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  transition: opacity 160ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.om-toast-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 2px;
+  color: var(--primary);
+}
+
+[data-slot="toast"][data-type="info"] .om-toast-icon {
+  color: var(--accent-foreground, var(--primary));
+}
+
+[data-slot="toast"][data-type="warning"] .om-toast-icon {
+  color: var(--warning-foreground, #ab6400);
+}
+
+[data-slot="toast"][data-type="error"] .om-toast-icon {
+  color: var(--destructive, #ce2c31);
+}
+
+.om-toast-spin {
+  animation: om-toast-spin 0.9s linear infinite;
+}
+
+@keyframes om-toast-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.om-toast-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.om-toast-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.om-toast-description {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+.om-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin: -2px -4px -2px 2px;
+}
+
+.om-toast-action,
+.om-toast-cancel {
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    border-color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.om-toast-action {
+  border: 0.5px solid color-mix(in srgb, var(--primary) 28%, var(--hairline, var(--border)));
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.om-toast-action:hover {
+  background: color-mix(in srgb, var(--primary) 14%, var(--accent));
+}
+
+.om-toast-cancel {
+  border: 0.5px solid var(--hairline, var(--border));
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.om-toast-cancel:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.om-toast-action[data-pending],
+.om-toast-cancel[data-pending],
+.om-toast-close[data-pending] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.om-toast-close {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    background-color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.om-toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.om-toast-close:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+@media (pointer: coarse) {
+  .om-toast-close::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-slot="toast-region"] {
+    right: 16px;
+    left: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+  }
+
+  [data-slot="toast-region"][data-side="top"] {
+    top: 12px;
+    bottom: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="toast"],
+  .om-toast-body,
+  .om-toast-action,
+  .om-toast-cancel,
+  .om-toast-close {
+    transition: none !important;
+  }
+
+  .om-toast-spin {
+    animation: none !important;
+  }
+}

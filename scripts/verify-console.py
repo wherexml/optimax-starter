@@ -105,6 +105,25 @@ try:
 
     target = "/accounts/" + str(row["id"])
     call(member, "PATCH", target, 403, {"active": False})
+    call(admin, "PATCH", target, 400, {"email": "invalid-email"})
+    patched_account = call(
+        admin,
+        "PATCH",
+        target,
+        200,
+        {"email": "qa_member@example.invalid", "company": "安全运营中心"},
+    )
+    assert (
+        patched_account["email"] == "qa_member@example.invalid"
+        and patched_account["company"] == "安全运营中心"
+    )
+    account_audits = call(admin, "GET", "/audit?action=account.update&size=20", 200)["items"]
+    raw_audit = json.dumps(account_audits, ensure_ascii=False)
+    assert "qa_member@example.invalid" not in raw_audit and "安全运营中心" not in raw_audit
+    assert any(
+        item["targetId"] == row["id"] and item["detail"].get("fields") == ["email", "company"]
+        for item in account_audits
+    )
     call(admin, "PATCH", target, 200, {"active": False})
     call(member, "GET", "/assets", 401)
     call(member, "POST", "/login", 401, credentials)

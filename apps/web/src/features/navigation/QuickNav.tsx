@@ -1,6 +1,6 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import { useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { getQuickNavEntries, type QuickNavEntry } from "@/config/app-config";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
@@ -35,6 +35,9 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
     );
   }, [admin, query]);
   const current = Math.min(active, Math.max(items.length - 1, 0));
+  useEffect(() => {
+    document.getElementById(`${id}-${current}`)?.scrollIntoView({ block: "nearest" });
+  }, [current, id, items]);
   function go(entry: QuickNavEntry) {
     close();
     if (entry.to !== path) void navigate({ to: entry.to });
@@ -58,6 +61,7 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
       scrollable={false}
       aria-describedby={undefined}
       className="quick-nav gap-2 p-3"
+      closeClassName="right-3 top-3 size-11"
       onCloseAutoFocus={(e) => {
         if (returnTo instanceof HTMLElement && returnTo.isConnected) {
           e.preventDefault();
@@ -75,7 +79,7 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
           aria-expanded={true}
           aria-controls={`${id}-list`}
           aria-activedescendant={items[current] ? `${id}-${current}` : undefined}
-          placeholder="搜索页面，回车前往"
+          placeholder="搜索页面"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);

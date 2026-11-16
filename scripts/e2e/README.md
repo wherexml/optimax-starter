@@ -1,5 +1,13 @@
 # 浏览器 E2E
 
+## 快速导航
+
+在已登录的本地 Starter Ego TaskSpace 中调用 `quick-nav.mjs` 的 `verifyQuickNav(task, { evidenceDir })`。覆盖展开/折叠侧栏、快捷键打开、方向键循环、中文和英文别名过滤、Enter/点击跳转、空结果、Esc 焦点恢复、375px 手机与低高度视口的滚动可见性。只读业务数据，输出 `results.json` 及带 URL 的三张产品截图。详见 [navigation](../../apps/web/src/features/navigation/README.md)。
+
+## 独立模型客户端
+
+不依赖 Magpie 的 HTTP 与真实浏览器验收见 [ai-client](./ai-client/README.md)，覆盖 token 字段兼容、错误分类、并发/FIFO/取消，以及真实资产筛选和回执。使用独立 `38460/38461/38462/38463` 测试栈，供应商为明确标记的模拟器；产出 JSON、脱敏追踪、截图和 URL。
+
 ## 内页产品 Logo
 
 在已登录的本地 Starter Ego TaskSpace 中调用 `product-brand.mjs` 的 `verifyProductBrand(task, { evidenceDir })`。默认地址 `http://127.0.0.1:38140`，覆盖六个内页、展开/折叠/刷新、手机抽屉与登录品牌保留。刷新仅在本任务标签页暂缓真实 API 请求，释放后返回真实数据；不写业务数据。输出 `results.json`、五张产品截图及对应 URL。
@@ -19,6 +27,14 @@
 ## 二级导航与顶部 Tab
 
 在已登录的 Starter Ego TaskSpace 中调用 `navigation-demo.mjs` 的 `verifyNavigationDemo(task, { evidenceDir, pageLabel: 'p1' })`。默认地址 `http://127.0.0.1:38140`，只读取真实本地资产。结果包含 `results.json` 和带 URL 的桌面、折叠、手机抽屉与手机内容截图。覆盖二级上限、Tab 切换/键盘/URL/刷新、Agent 实际操作、快速导航和窄屏。
+
+## 三段式表单弹窗与输入控件
+
+在已登录的 Starter Ego TaskSpace 中调用 `forms-dialog.mjs` 的 `verifyFormsDialog(task, { evidenceDir, pageLabel: 'p1' })`。覆盖 `/accounts` 的「新增/编辑账户」弹窗（三段式头部与内容间距、字段标签到输入框 `8px` 固定间距、密码随机生成与显隐切换、未保存拦截、可选邮箱/公司持久化与只读账户名复制）以及 `/demo/forms?dialog=create` 复杂弹窗（固定头尾与独立滚动主体、`Combobox` 弹窗内 `Esc` 隔离、`SegmentedControl` 动态禁用原因、`NumberInput` 步进、`TagInput` 格式校验与回车生成标签、375px 手机布局无横向溢出）。测试中创建的临时验收账户需在验收结束后清理。
+
+## 全局通知（右下角堆栈）
+
+在已登录的 Starter Ego TaskSpace 中调用 `notifications.mjs` 的 `verifyNotifications(task, { evidenceDir, pageLabel: 'p1' })`。覆盖 `/accounts` 真实创建账户后的右下角 `24px` 贴边定位与表格零位移、跨路由（`/accounts` → `/assets`）持久展示、模态弹窗（`EditAccountDialog`）开启期间 Top Layer 置顶渲染与 `F6` 聚焦 / `Escape` 独立关闭通知（不误关弹窗）、`/demo/forms` 的 `toast.promise` 加载转成功、操作按钮回调、4 条通知折叠立体栈与悬停展开，以及 `375×812` 手机视口 `16px` 边距无横向溢出。测试中创建的 `qa_ntf_*` 临时账户需在验收后清理。
 
 ## 筛选输入与刷新状态
 

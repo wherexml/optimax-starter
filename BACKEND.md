@@ -272,7 +272,7 @@ Procedure 至少分三级：
 
 ### 外部 API / AI
 
-Starter 当前的可选本地实现是 [资产自然语言筛选](./apps/web/src/features/assets/README.md)：`apps/server/src/asset-agent.ts` 沿用 console Session/Origin 校验，只经本机内存转发调用固定 Magpie，前后端契约共享且不写业务数据。
+Starter 的可选实现是 [资产自然语言筛选](./apps/web/src/features/assets/README.md)：`apps/server/src/asset-agent.ts` 沿用 console Session/Origin 校验，通过 [core/ai](./apps/server/src/core/ai/README.md) 直连配置的 OpenAI-compatible API，提供 token 字段兼容、安全错误分类和有界单进程 FIFO。前后端契约共享且不写业务数据，默认关闭，不依赖 Magpie；原本地 relay 仅作可选兼容。
 
 - 所有外部调用必须有超时。
 - 关键外部调用必须有重试、熔断或明确失败展示。

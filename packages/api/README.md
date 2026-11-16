@@ -4,7 +4,7 @@
 
 ## 文件职责
 
-- [contracts.ts](./src/contracts.ts)：核心实体类型（`Account`、`Asset`、`AuditEntry`、`PaginatedResult<T>`、`AuthProviderInfo`）、审计动作枚举 `AUDIT_ACTIONS` 与标签 `AUDIT_ACTION_LABELS`，以及登录、账户、个人资料、资产写入的严格 Zod Schema（`strict()` 防提权与多余字段注入）。
+- [contracts.ts](./src/contracts.ts)：核心实体类型（`Account`、`Asset`、`AuditEntry`、`PaginatedResult<T>`、`AuthProviderInfo`）、审计动作枚举 `AUDIT_ACTIONS` 与标签 `AUDIT_ACTION_LABELS`，以及登录、账户（含可选 `email` / `company` 校验）、个人资料、资产写入的严格 Zod Schema（`strict()` 防提权与多余字段注入）。
 - [asset-agent.ts](./src/asset-agent.ts)：资产自然语言筛选的参数白名单与请求校验，详见 [资产模块](../../apps/web/src/features/assets/README.md)。
 
 ## 扩展约定

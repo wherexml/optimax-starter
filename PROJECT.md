@@ -14,10 +14,10 @@
 | 端口 | 本地默认 web `127.0.0.1:38140`，api `127.0.0.1:38141`（由 `.env` 中 `WEB_PORT` / `API_PORT` 驱动），db 仅在 Compose 内部可访问 |
 | API 运行时 | Node 24（本地开发 `node --watch --import tsx src/node.ts`，生产 `node apps/server/dist/node.mjs`）；Bun 执行包管理、前端开发与数据库迁移/同步 |
 | 数据库 | PostgreSQL 17，Drizzle ORM（开发 `db:push`，生产优先版本化 `db:migrate:deploy`） |
-| 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与品牌统一在 `apps/web/src/config/app-config.ts`，列表页使用 `ResourceTableSlot`；支持 `bun run gen:module` 生成新业务模块 |
+| 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；共享弹窗、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与品牌统一在 `apps/web/src/config/app-config.ts`，列表页使用 `ResourceTableSlot`；支持 `bun run gen:module` 生成新业务模块 |
 | 角色 | `admin`、`member` |
 | 项目技能 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，前端交互与 Agent 操作由 AGENTS 默认路由；随模板复制 |
-| CI/CD | GitHub Actions：`.github/workflows/ci.yml`（`ci-scope` 变更分类 + 静态/构建检查 + 真实容器 HTTP/事务回滚 E2E）与 `.github/workflows/deploy-production.yml`（调用 `scripts/deploy-production.sh`） |
+| CI/CD | GitHub Actions：`.github/workflows/ci.yml`（`ci-scope` 变更分类 + 静态/构建检查 + 真实容器 HTTP/事务回滚 E2E + 隔离模型客户端 `ai-client-e2e`）与 `.github/workflows/deploy-production.yml`（调用 `scripts/deploy-production.sh`） |
 
 ## 模块
 
@@ -29,6 +29,7 @@
 | `/audit` | 操作日志（服务端分页，覆盖账户、个人资料与资产写操作） | 管理员 |
 | `/settings` | 个人设置 | 全部 |
 | `/demo/navigation` | [二级导航与顶部 Tab Demo](./apps/web/src/features/navigation-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
+| `/demo/forms` | [三段式表单弹窗、输入控件与全局通知 Demo](./apps/web/src/features/forms-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
 
 ## 数据表
 

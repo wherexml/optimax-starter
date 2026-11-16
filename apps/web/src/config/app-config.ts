@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Settings,
+  SlidersHorizontal,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -32,7 +33,8 @@ export type NavTarget =
   | "/accounts"
   | "/audit"
   | "/settings"
-  | "/demo/navigation";
+  | "/demo/navigation"
+  | "/demo/forms";
 
 export interface NavLeafItem {
   kind: "item";
@@ -116,6 +118,16 @@ export const NAV_REGISTRY: readonly NavNode[] = [
         aliases: ["demo", "navigation", "tabs", "导航", "演示", "资产视图 Demo"],
         demoOnly: true,
         defaultSearch: { tab: "all" },
+      },
+      {
+        kind: "item",
+        to: "/demo/forms",
+        label: "表单弹窗",
+        icon: SlidersHorizontal,
+        collapsedIcon: SlidersHorizontal,
+        collapsedLabel: "Demo 表单弹窗",
+        aliases: ["forms", "modal", "dialog", "input", "表单", "弹窗", "输入框"],
+        demoOnly: true,
       },
     ],
   },

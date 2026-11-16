@@ -5,11 +5,14 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Loader2, Shield, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, Shield, User } from "lucide-react";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CopyableInput } from "@/components/ui/input-group";
+import { PasswordInput } from "@/components/ui/password-input";
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
+  FieldLayout,
   Form,
   FormControl,
   FormField,
@@ -17,7 +20,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
+import { toast } from "@/components/ui/toast";
 import { request, type Account } from "@/console-client";
 import { useAccount } from "@/features/auth/session";
 import { useUnsavedGuard } from "./useUnsavedGuard";
@@ -89,6 +94,7 @@ export function SettingsPage() {
           description="未保存的更改将会丢失。"
           size="sm"
           submitText="离开"
+          submitVariant={"destructive" as ButtonProps["variant"]}
           cancelText="留下"
           onSubmit={guard.leave}
           onOpenChange={(open) => {
@@ -102,15 +108,25 @@ export function SettingsPage() {
   );
 }
 
-function ReadOnly({ label, value }: { label: string; value: string }) {
+function ReadOnly({
+  label,
+  value,
+  copyable,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+}) {
   const id = useId();
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-medium leading-none">
-        {label}
-      </label>
-      <Input id={id} value={value} readOnly className="readonly-input" />
-    </div>
+    <FieldLayout>
+      <Label htmlFor={id}>{label}</Label>
+      {copyable ? (
+        <CopyableInput id={id} value={value} copyLabel={`复制${label}`} />
+      ) : (
+        <Input id={id} value={value} readOnly />
+      )}
+    </FieldLayout>
   );
 }
 
@@ -123,14 +139,12 @@ function ProfileCard({
 }) {
   const id = useId();
   const cache = useQueryClient();
-  const [saved, setSaved] = useState(false);
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: toValues(account),
   });
   const dirty = form.formState.isDirty;
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
-  // When the session refetches, pick up the new server values unless the user is editing.
   const sig = [account.name, account.email ?? "", account.company ?? ""].join("\u0000");
   useEffect(() => {
     if (!form.formState.isDirty) form.reset(toValues(account));
@@ -146,15 +160,21 @@ function ProfileCard({
     onSuccess: (row) => {
       cache.setQueryData(["session"], row);
       form.reset(toValues(row));
-      setSaved(true);
+      toast.success("个人资料已保存");
       void cache.invalidateQueries({ queryKey: ["accounts"] });
     },
     onError: (e) => form.setError("root", { message: e.message }),
   });
-  const fields: { key: keyof ProfileValues; label: string; type?: string; auto: string }[] = [
+  const fields: {
+    key: keyof ProfileValues;
+    label: string;
+    type?: string;
+    auto: string;
+    optional?: boolean;
+  }[] = [
     { key: "name", label: "显示名称", auto: "name" },
-    { key: "email", label: "邮箱", type: "email", auto: "email" },
-    { key: "company", label: "公司", auto: "organization" },
+    { key: "email", label: "邮箱", type: "email", auto: "email", optional: true },
+    { key: "company", label: "公司", auto: "organization", optional: true },
   ];
   return (
     <section className="settings-card" aria-labelledby={id}>
@@ -166,12 +186,11 @@ function ProfileCard({
         <form
           noValidate
           onSubmit={form.handleSubmit((v) => {
-            setSaved(false);
             save.mutate(v);
           })}
         >
           <fieldset className="settings-fieldset" disabled={save.isPending}>
-            <ReadOnly label="账户名" value={account.username} />
+            <ReadOnly label="账户名" value={account.username} copyable />
             {fields.map((f) => (
               <FormField
                 key={f.key}
@@ -179,7 +198,9 @@ function ProfileCard({
                 name={f.key}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{f.label}</FormLabel>
+                    <FormLabel required={!f.optional} optional={f.optional}>
+                      {f.label}
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} type={f.type ?? "text"} autoComplete={f.auto} />
                     </FormControl>
@@ -190,7 +211,7 @@ function ProfileCard({
             ))}
             <ReadOnly label="角色" value={account.role === "admin" ? "管理员" : "成员"} />
             {form.formState.errors.root && (
-              <p role="alert" className="m-0 text-sm text-destructive">
+              <p role="alert" className="m-0 text-xs font-medium leading-[18px] text-destructive">
                 {form.formState.errors.root.message}
               </p>
             )}
@@ -205,14 +226,10 @@ function ProfileCard({
                 disabled={save.isPending || !dirty}
                 onClick={() => {
                   form.reset(toValues(account));
-                  setSaved(false);
                 }}
               >
                 重置
               </Button>
-              <p role="status" className="settings-status">
-                {saved && !dirty ? "已保存" : ""}
-              </p>
             </div>
           </fieldset>
         </form>
@@ -232,11 +249,6 @@ function SecurityCard({
 }) {
   const id = useId();
   const cache = useQueryClient();
-  const [show, setShow] = useState<Record<keyof PasswordValues, boolean>>({
-    current: false,
-    password: false,
-    confirm: false,
-  });
   const form = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: { current: "", password: "", confirm: "" },
@@ -251,7 +263,6 @@ function SecurityCard({
         password: v.password,
       }),
     onSuccess: () => {
-      // The server has revoked every session for this account, including this one, and cleared the cookie.
       onChanged();
       form.reset();
       cache.clear();
@@ -293,33 +304,17 @@ function SecurityCard({
                 name={key}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{PASSWORD_LABELS[key]}</FormLabel>
-                    <div className="password-field">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type={show[key] ? "text" : "password"}
-                          autoComplete={
-                            key === "current" ? "current-password" : "new-password"
-                          }
-                          placeholder={key === "password" ? "至少 10 位" : undefined}
-                          className="pr-10"
-                        />
-                      </FormControl>
-                      <button
-                        type="button"
-                        className="password-toggle"
-                        aria-label={`${show[key] ? "隐藏" : "显示"}${PASSWORD_LABELS[key]}`}
-                        aria-pressed={show[key]}
-                        onClick={() => setShow((s) => ({ ...s, [key]: !s[key] }))}
-                      >
-                        {show[key] ? (
-                          <EyeOff size={16} aria-hidden="true" />
-                        ) : (
-                          <Eye size={16} aria-hidden="true" />
-                        )}
-                      </button>
-                    </div>
+                    <FormLabel required>{PASSWORD_LABELS[key]}</FormLabel>
+                    <FormControl>
+                      <PasswordInput
+                        {...field}
+                        toggleLabel={PASSWORD_LABELS[key]}
+                        autoComplete={
+                          key === "current" ? "current-password" : "new-password"
+                        }
+                        placeholder={key === "password" ? "至少 10 位" : undefined}
+                      />
+                    </FormControl>
                     {key === "confirm" && match && (
                       <p className="settings-match" data-state={match} aria-live="polite">
                         {match === "ok" ? "两次输入一致" : "两次输入不一致"}
@@ -331,7 +326,7 @@ function SecurityCard({
               />
             ))}
             {form.formState.errors.root && (
-              <p role="alert" className="m-0 text-sm text-destructive">
+              <p role="alert" className="m-0 text-xs font-medium leading-[18px] text-destructive">
                 {form.formState.errors.root.message}
               </p>
             )}

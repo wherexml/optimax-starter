@@ -1,39 +1,36 @@
 import { useState } from "react";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AtSign, Building2, Mail, User } from "lucide-react";
+import { useForm } from "react-hook-form";
+
+import {
+  accountCreateSchema,
+  type AccountCreateInput,
+} from "@optimax-starter/api";
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
+  FieldCharCount,
+  FieldLabelRow,
   Form,
+  FormControl,
   FormField,
   FormItem,
-  FormControl,
   FormLabel,
   FormMessage,
+  FormSection,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/input-group";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { request } from "@/console-client";
 
-const schema = z.object({
-  name: z.string().trim().min(1, "请输入姓名").max(80, "姓名最多 80 个字符"),
-  username: z
-    .string()
-    .trim()
-    .min(1, "请输入账户名")
-    .max(64, "账户名最多 64 个字符"),
-  password: z.string().min(10, "密码至少 10 位").max(256, "密码最多 256 位"),
-  role: z.enum(["member", "admin"]),
-});
-type Values = z.infer<typeof schema>;
 export function CreateAccountDialog({
   close,
   trigger,
@@ -41,19 +38,29 @@ export function CreateAccountDialog({
   close: (createdName?: string) => void;
   trigger: HTMLButtonElement | null;
 }) {
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: { name: "", username: "", password: "", role: "member" },
+  const form = useForm<AccountCreateInput>({
+    resolver: zodResolver(accountCreateSchema),
+    defaultValues: {
+      name: "",
+      username: "",
+      password: "",
+      role: "member",
+      email: "",
+      company: "",
+    },
   });
   const { isDirty } = form.formState;
   const [confirming, setConfirming] = useState(false);
+  const nameValue = form.watch("name");
+
   const keepEditing = () => {
     setConfirming(false);
     form.setFocus("name");
   };
+
   const cache = useQueryClient();
   const add = useMutation({
-    mutationFn: (values: Values) => request("/accounts", "POST", values),
+    mutationFn: (values: AccountCreateInput) => request("/accounts", "POST", values),
     onSuccess: async (_data, values) => {
       await cache.invalidateQueries({ queryKey: ["accounts"] });
       close(values.name.trim());
@@ -65,7 +72,9 @@ export function CreateAccountDialog({
         { shouldFocus: true },
       ),
   });
+
   const submit = form.handleSubmit((values) => add.mutate(values));
+
   return (
     <FormDialog
       open
@@ -74,8 +83,17 @@ export function CreateAccountDialog({
       submitText="创建账户"
       loading={add.isPending}
       formId="create-account"
+      footerStart="带 * 项为必填，初始密码至少 10 位"
+      unsaved={
+        confirming
+          ? {
+              onKeepEditing: keepEditing,
+              onDiscard: () => close(),
+            }
+          : null
+      }
       onCloseAutoFocus={(e) => {
-        if (trigger) {
+        if (trigger?.isConnected) {
           e.preventDefault();
           trigger.focus();
         }
@@ -92,32 +110,115 @@ export function CreateAccountDialog({
           noValidate
           id="create-account"
           onSubmit={submit}
-          className="grid gap-4 sm:grid-cols-2"
+          className="flex flex-col gap-5"
         >
-          {(["name", "username", "password"] as const).map((key) => (
+          <FormSection title="身份与组织">
             <FormField
-              key={key}
               control={form.control}
-              name={key}
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>
-                    {
-                      {
-                        name: "姓名",
-                        username: "账户名",
-                        password: "初始密码",
-                      }[key]
-                    }
-                  </FormLabel>
+                  <FieldLabelRow>
+                    <FormLabel required>姓名</FormLabel>
+                    <FieldCharCount current={nameValue.length} max={80} />
+                  </FieldLabelRow>
                   <FormControl>
-                    <Input
+                    <ClearableInput
                       {...field}
-                      type={key === "password" ? "password" : "text"}
-                      autoComplete={key === "password" ? "new-password" : "off"}
-                      autoFocus={key === "name"}
-                      placeholder={
-                        key === "password" ? "至少 10 位" : undefined
+                      autoFocus
+                      autoComplete="off"
+                      maxLength={80}
+                      placeholder="例如：张敏"
+                      startIcon={<User />}
+                      onClear={() => form.setValue("name", "", { shouldDirty: true })}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>账户名</FormLabel>
+                  <FormControl>
+                    <ClearableInput
+                      {...field}
+                      autoComplete="off"
+                      maxLength={64}
+                      placeholder="登录标识，创建后不可修改"
+                      startIcon={<AtSign />}
+                      onClear={() => form.setValue("username", "", { shouldDirty: true })}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel optional>邮箱</FormLabel>
+                  <FormControl>
+                    <ClearableInput
+                      {...field}
+                      value={field.value ?? ""}
+                      type="email"
+                      autoComplete="off"
+                      placeholder="name@company.com"
+                      startIcon={<Mail />}
+                      onClear={() => form.setValue("email", "", { shouldDirty: true })}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="company"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel optional>公司或团队</FormLabel>
+                  <FormControl>
+                    <ClearableInput
+                      {...field}
+                      value={field.value ?? ""}
+                      autoComplete="off"
+                      maxLength={120}
+                      placeholder="例如：安全运营中心"
+                      startIcon={<Building2 />}
+                      onClear={() => form.setValue("company", "", { shouldDirty: true })}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </FormSection>
+
+          <FormSection title="凭证与角色">
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>初始密码</FormLabel>
+                  <FormControl>
+                    <PasswordInput
+                      {...field}
+                      toggleLabel="初始密码"
+                      autoComplete="new-password"
+                      placeholder="至少 10 位，可一键生成"
+                      onGenerate={(generated) =>
+                        form.setValue("password", generated, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        })
                       }
                     />
                   </FormControl>
@@ -125,63 +226,33 @@ export function CreateAccountDialog({
                 </FormItem>
               )}
             />
-          ))}
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>角色</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="member">成员</SelectItem>
-                    <SelectItem value="admin">管理员</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel required>角色</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger aria-label="角色">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="member">成员</SelectItem>
+                      <SelectItem value="admin">管理员</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </FormSection>
+
           {form.formState.errors.root && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="m-0 text-xs font-medium leading-[18px] text-destructive">
               {form.formState.errors.root.message}
             </p>
-          )}
-          {confirming && (
-            <div
-              role="group"
-              aria-labelledby="create-account-discard"
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted p-3"
-            >
-              <p id="create-account-discard" role="alert" className="text-sm">
-                有未保存的内容
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  autoFocus
-                  onClick={keepEditing}
-                >
-                  继续编辑
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => close()}
-                >
-                  放弃更改
-                </Button>
-              </div>
-            </div>
           )}
         </form>
       </Form>

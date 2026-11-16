@@ -3,15 +3,22 @@ import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
 import {
   Controller,
-  ControllerProps,
-  FieldPath,
-  FieldValues,
+  type ControllerProps,
+  type FieldPath,
+  type FieldValues,
   FormProvider,
   useFormContext,
 } from "react-hook-form";
 
+import { Label, type LabelProps } from "@optimax-starter/ui/components/label";
+import {
+  FieldCharCount,
+  FieldHint,
+  FieldLabelRow,
+  FieldLayout,
+  FormSection,
+} from "@optimax-starter/ui/components/field";
 import { cn } from "@/lib/utils";
-import { Label } from "@/components/ui/label";
 
 const Form = FormProvider;
 
@@ -78,7 +85,12 @@ const FormItem = React.forwardRef<
 
   return (
     <FormItemContext.Provider value={{ id }}>
-      <div ref={ref} className={cn("space-y-2", className)} {...props} />
+      <div
+        ref={ref}
+        data-slot="form-item"
+        className={cn("flex min-w-0 flex-col gap-2", className)}
+        {...props}
+      />
     </FormItemContext.Provider>
   );
 });
@@ -86,7 +98,7 @@ FormItem.displayName = "FormItem";
 
 const FormLabel = React.forwardRef<
   React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
+  LabelProps
 >(({ className, ...props }, ref) => {
   const { error, formItemId } = useFormField();
 
@@ -134,7 +146,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("m-0 text-xs leading-[18px] text-muted-foreground", className)}
       {...props}
     />
   );
@@ -156,7 +168,8 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn("text-sm font-medium text-destructive", className)}
+      role="alert"
+      className={cn("m-0 text-xs font-medium leading-[18px] text-destructive", className)}
       {...props}
     >
       {body}
@@ -174,4 +187,9 @@ export {
   FormDescription,
   FormMessage,
   FormField,
+  FormSection,
+  FieldLayout,
+  FieldLabelRow,
+  FieldCharCount,
+  FieldHint,
 };

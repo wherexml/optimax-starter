@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./content-refresh.css";
+@import "./toast.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @source "../../../apps/**/*.{ts,tsx}";

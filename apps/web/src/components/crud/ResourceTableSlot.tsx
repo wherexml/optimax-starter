@@ -1,10 +1,11 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { RotateCw } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
 import { DataTable } from "@/components/table/DataTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { toast } from "@/components/ui/toast";
 import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 import type { Filters } from "@/hooks/usePersistedFilters";
 
@@ -69,6 +70,24 @@ export function ResourceTableSlot<TData extends { id: number }>({
   children,
 }: ResourceTableSlotProps<TData>) {
   const runRefresh = useContentRefresh();
+  const prevNotice = useRef("");
+  const prevActionError = useRef("");
+
+  useEffect(() => {
+    const next = notice?.trim() ?? "";
+    if (next && next !== prevNotice.current) {
+      toast.success(next);
+    }
+    prevNotice.current = next;
+  }, [notice]);
+
+  useEffect(() => {
+    const next = actionError?.trim() ?? "";
+    if (next && next !== prevActionError.current) {
+      toast.error(next);
+    }
+    prevActionError.current = next;
+  }, [actionError]);
 
   if (!allowed) {
     return (
@@ -131,16 +150,6 @@ export function ResourceTableSlot<TData extends { id: number }>({
   return (
     <>
       <PageHeader title={title} actions={actions} />
-      {notice !== undefined && (
-        <p role="status" className={notice ? "notice" : "m-0"}>
-          {notice}
-        </p>
-      )}
-      {actionError && (
-        <p role="alert" className="mb-3 mt-0 text-sm text-destructive">
-          {actionError}
-        </p>
-      )}
       {wrapTable ? wrapTable(tableNode) : tableNode}
       {children}
     </>

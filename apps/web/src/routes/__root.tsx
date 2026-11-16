@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/popover";
 import { FormDialog } from "@/components/ui/FormDialog";
 import { Button } from "@/components/ui/button";
+import { Toaster, toast } from "@/components/ui/toast";
 import {
   ChevronUp,
   LogOut,
@@ -101,7 +102,12 @@ function moveFocus(e: ReactKeyboardEvent<HTMLDivElement>) {
 export const Route = createRootRoute({ component: Root });
 function Root() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  return path === "/login" ? <Outlet /> : <Shell />;
+  return (
+    <>
+      {path === "/login" ? <Outlet /> : <Shell />}
+      <Toaster />
+    </>
+  );
 }
 
 function SidebarLeaf({
@@ -245,6 +251,7 @@ function Shell() {
     } catch {
       // 会话可能已失效，仍然回到登录页。
     }
+    toast.dismiss();
     cache.clear();
     location.replace("/login");
   }
