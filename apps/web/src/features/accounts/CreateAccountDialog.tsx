@@ -11,6 +11,7 @@ import {
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
   FieldCharCount,
+  FieldHint,
   FieldLabelRow,
   Form,
   FormControl,
@@ -30,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { request } from "@/console-client";
+import { useAccount } from "@/features/auth/session";
 
 export function CreateAccountDialog({
   close,
@@ -38,6 +40,8 @@ export function CreateAccountDialog({
   close: (createdName?: string) => void;
   trigger: HTMLButtonElement | null;
 }) {
+  const me = useAccount();
+  const isSuperAdmin = me.data?.role === "super_admin";
   const form = useForm<AccountCreateInput>({
     resolver: zodResolver(accountCreateSchema),
     defaultValues: {
@@ -232,7 +236,11 @@ export function CreateAccountDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel required>角色</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!isSuperAdmin}
+                  >
                     <FormControl>
                       <SelectTrigger aria-label="角色">
                         <SelectValue />
@@ -240,9 +248,17 @@ export function CreateAccountDialog({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="member">成员</SelectItem>
-                      <SelectItem value="admin">管理员</SelectItem>
+                      {isSuperAdmin && (
+                        <>
+                          <SelectItem value="admin">管理员</SelectItem>
+                          <SelectItem value="super_admin">超级管理员</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
+                  {!isSuperAdmin && (
+                    <FieldHint>管理员角色仅可由超级管理员分配</FieldHint>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

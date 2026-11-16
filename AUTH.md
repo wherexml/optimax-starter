@@ -29,11 +29,11 @@
 | Session 有效期 | 8 小时（`28800` 秒） |
 | 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
 | OAuth Provider | 默认无；通过 `AUTH_SSO_*` 环境变量预留扩展挂载位 |
-| 注册限制 | 无开放注册，仅由启用的 `admin` 在后台创建账户 |
+| 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
 | 登录限流 | 应用网关/反代层按实际部署环境配置 |
-| 权限模型 | 两级 RBAC（`admin`、`member`），写操作在服务端 `ADMIN_LOCK` 事务咨询锁内二次复核操作者启用态与角色 |
+| 权限模型 | 三层角色（`super_admin`、`admin`、`member`）+ `console_role_permission` 模块级「查看 / 操作」权限矩阵；写操作在服务端 `ADMIN_LOCK` 事务咨询锁内二次复核操作者启用态、角色与实时有效权限 |
 | 租户字段 | 无（单组织后台基线） |
-| 审计日志 | `console_audit` 只追加表，同事务记录账户创建/改名/改角色/启停/重置密码/撤销会话、本人资料与改密、以及资产创建/编辑/删除（绝不记录密码、哈希、令牌或本人邮箱/公司原值） |
+| 审计日志 | `console_audit` 只追加表，记录 `actor_source`（`human` / `agent`）并对敏感键名递归 `[REDACTED]` 脱敏；同事务覆盖账户生命周期、本人资料与改密、权限矩阵修改/恢复默认、系统时区与 AI 熔断开关变更、资产增删改及 Agent 筛选回执 |
 
 ---
 
@@ -260,22 +260,18 @@ localStorage：
 - [ ] Cookie 设置 `HttpOnly`、`Secure`、`SameSite`；Bearer token 不写入日志。
 - [ ] 登出、切换账号、切换组织会清理前端缓存和实时连接。
 
-## 账户管理规则
+## 账户管理与系统权限规则
 
-- `/console/accounts*` 全部写入由服务端再次校验管理员身份；成员不能读取账户列表或在线会话。
-- `PATCH /console/me` 任何登录用户可修改自己的显示名称、邮箱与公司；`POST /console/accounts` 与 `PATCH /console/accounts/:id` 由管理员创建或修改账户的姓名、可选邮箱/公司、角色与启停。
-- 不能停用自己、不能把自己降为成员；重置密码与强制下线不能作用于当前账户。
-- 影响管理员集合的修改在事务内先取 `pg_advisory_xact_lock(7140301)` 串行化，复核操作者仍为启用管理员，写入后若启用管理员为 0 则整体回滚（409）。
-- 停用、重置密码会删除目标账户全部会话；`POST /console/accounts/:id/revoke` 单独强制下线。
-- 前端对停用、强制下线、角色变更使用显式确认；启用和改名直接生效。
+- `/console/accounts*` 读接口要求 `accounts:read`，写接口要求 `accounts:manage` 并在事务锁内复核实时有效权限。
+- 三层提权防线：普通 `admin` 仅可创建、编辑、启停、重置密码或撤销 `member` 账户，不能创建 `admin` / `super_admin`、不能修改任何账户的系统角色、也不能改动其他管理员或超级管理员（返回 `403`）。
+- 不能停用自己、不能更改当前账户角色；核心引导超级管理员不可停用或降级；系统在 `pg_advisory_xact_lock(7140301)` 内强制保证至少保留 1 名启用的 `super_admin`（否则 `409` 回滚）。
+- `/console/system/permissions`（`/permissions`）仅 `super_admin` 可查看与维护：前端以「模块 × 角色（查看 / 操作）」双按钮展示并联动，后端强制锁定 `super_admin` 完整权限且拒绝将 `system:permission:*`、`system:ai:manage`、`system:manage` 分配给其他角色；关闭某角色的模块查看权限后，前端自动隐藏对应菜单并在直达时跳转首个可访问页，后端接口及 Agent 路由同步返回 `403`。
 
 ## 操作日志
 
-- 表 `console_audit` 为新增表（只增不改）。API 只写入不更新、不删除，查询接口为 `GET /console/audit`（仅管理员）。
-- 查询参数：`action`、`actor`（匹配操作人姓名或账户名）、`start`/`end`（`YYYY-MM-DD`，按 UTC+8 自然日，含结束当天，`start > end` 或日期无效返回 400）、`page`、`size`（服务端上限 100）。按时间、ID 倒序排列。
-- 记录的操作：新增账户、修改姓名或联系资料、调整角色、变更状态、重置密码、强制下线、修改本人资料与密码，以及管理员新增/编辑/删除资产。日志与业务写操作在同一事务内写入，失败的操作和读取操作都不记录；没有实际变化的修改不写入。
-- 账户与个人资料日志保存操作人和对象当时的 ID、账户名与姓名；`detail` 只允许 `from/to/role/sessions/fields`（邮箱与公司变更仅在 `fields` 中记录字段名，不记录具体内容），非账户业务资源通过 `auditResource` 记录 `entityId/stage/domain`；任何日志均不记录密码、哈希、Cookie 或令牌。
-- 管理员写操作在咨询锁内复核操作者仍是启用的管理员。`requireAdmin` 逐个路由挂载，不再用通配 `use` 重复执行。
+- 表 `console_audit` 只增不改，新增 `actor_source`（`human` | `agent`），查询接口为 `GET /console/audit`（要求 `audit:read`）。
+- 查询参数：`source`（`human` / `agent`）、`action`、`actor`、`start`/`end`（`YYYY-MM-DD`，按当前生效的 `console_setting.timezone` 系统时区解释自然日，默认 `Asia/Shanghai`）、`page`、`size`（上限 100）。响应一并返回当前 `timezone` 供前端一致格式化。
+- 服务端 `sanitizeAuditDetail` 在落库前对含 `password`、`secret`、`token`、`cookie`、`hash`、`prompt`、`instruction` 等敏感键递归脱敏；Agent 筛选回执仅记录命中数、模型名与参数自愈次数，不存用户自然语言输入原文。
 
 ## 本人资料与密码
 

@@ -1,6 +1,6 @@
 # 快速导航
 
-`QuickNav.tsx` 复用共享 Radix Dialog；页面入口与角色过滤来自 `config/app-config.ts`，不维护第二份导航表。
+`QuickNav.tsx` 复用共享 Radix Dialog；页面入口与按有效权限过滤（`getVisibleNavItems`）统一来自 `config/app-config.ts`，不维护第二份导航表。
 
 - 搜索使用中文页面名及英文别名；输入提示只保留“搜索页面”。
 - `.quick-nav-list` 为可滚动单列，`.quick-nav-item` 是整行按钮，最小高度 44px。选中项用主题浅蓝背景，图标、名称和当前页标记对齐。

@@ -11,15 +11,17 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | 路由 | 页面 | 可访问角色 | 说明 |
 | --- | --- | --- | --- |
 | `/login` | 登录 | 匿名 | 用户名 + 密码，服务端数据库 Session（HttpOnly、SameSite=Strict Cookie） |
-| `/` | 工作台 | 管理员、成员 | 资产统计卡片、业务域分布与下钻；管理员看最近操作，成员看待复核队列；快捷入口 |
-| `/assets` | 资产台账 | 管理员、成员 | 表格排序、列设置、分页；动态筛选（多选、包含/等于） |
-| `/accounts` | 账户管理 | 管理员 | 新增、编辑姓名、调整角色、重置密码、强制下线、启用/停用 |
-| `/audit` | 操作日志 | 管理员 | 按操作类型、操作人、日期筛选，服务端分页；日志只追加 |
-| `/settings` | 个人设置 | 管理员、成员 | 修改显示名称、邮箱、公司；修改密码后撤销本人全部会话 |
+| `/` | 工作台 | 全部（`workbench:read`） | 资产统计卡片、业务域分布与下钻；具备审计权限看最近操作，其余看待复核队列；快捷入口按有效权限展示 |
+| `/assets` | 资产台账 | 成员只读，管理员与超管可写 | 表格排序、列设置、分页；动态筛选（多选、包含/等于）与可选自然语言筛选 |
+| `/accounts` | 账户管理 | 管理员、超级管理员 | 新增、编辑资料、重置密码、强制下线、启停；管理员提权与高权限账户维护仅限超级管理员 |
+| `/permissions` | 系统权限 | 超级管理员 | 「模块 × 角色（查看 / 操作）」双按钮权限矩阵、自动联动与二次点击恢复默认 |
+| `/system` | 系统配置 | 管理员只读，超级管理员可维护 | 顶部 Tab：`运行控制`（数据库探针、AI 队列水位与一键熔断开关）与 `基础配置`（全局系统时区） |
+| `/audit` | 操作日志 | 管理员、超级管理员 | 按操作来源（`人工 / Agent`）、操作类型、操作人、日期筛选，服务端分页并跟随系统时区；只追加且自动脱敏 |
+| `/settings` | 个人设置 | 全部已登录账户 | 修改显示名称、邮箱、公司；修改密码后撤销本人全部会话 |
 
-Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)（二级侧栏与顶部 Tab，详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)）、[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），管理员、成员均可访问。
+Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)（二级侧栏与顶部 Tab，详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)）、[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），登录账户均可访问。
 
-角色只有管理员（`admin`）和成员（`member`）两种。所有写操作都在服务端再次校验权限，前端隐藏入口只用于展示。侧栏支持折叠和移动端抽屉，Cmd/Ctrl+K 打开快速导航。
+系统内置超级管理员（`super_admin`）、管理员（`admin`）和成员（`member`）三层角色及持久化模块权限矩阵。所有读写与 Agent 接口均在服务端按实时有效权限裁决，前端菜单隐藏与无权限路由回跳仅用于展示体验。侧栏遵循最多二级规范，支持折叠和移动端抽屉，Cmd/Ctrl+K 打开快速导航。
 
 ![折叠侧栏](docs/images/sidebar-compact.png)
 
@@ -101,13 +103,13 @@ bun run gen:module vendors --label 供应商  # 一键生成新业务模块（�
 apps/
   web/src/config/        app-config.ts（品牌、本地存储前缀、侧栏与 Cmd+K 统一导航注册表）
   web/src/routes/        路由、鉴权跳转、URL 搜索参数
-  web/src/features/      auth · dashboard · assets · accounts · audit · settings · navigation · filters
+  web/src/features/      auth · dashboard · assets · accounts · permissions · system · audit · settings · navigation · filters
   web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui（共享弹窗/输入/右下角通知）
-  server/src/core/       config · guards（咨询锁与 RBAC）· audit · seed
-  server/src/modules/    auth · accounts · audit · assets（含服务端分页与 CRUD 示例）
+  server/src/core/       config · guards（咨询锁与 RBAC）· permissions · system-settings · audit · ai · seed
+  server/src/modules/    auth · accounts · system · audit · assets（含服务端分页与 CRUD 示例）
 packages/
-  api/src/               contracts.ts（前后端共享 Zod 契约与 DTO）· asset-agent.ts
-  db/src/schema/         console.ts：账户、会话、资产、操作日志
+  api/src/               contracts.ts · permissions.ts · system.ts · asset-agent.ts（前后端共享 Zod 契约与权限矩阵）
+  db/src/schema/         console.ts：账户、会话、资产、角色权限矩阵、系统配置、操作日志
 scripts/                 init-local.sh · bootstrap-project.sh · gen-module.mjs · ci-scope.mjs · deploy-production.sh · verify-*.py
 .github/workflows/       ci.yml · deploy-production.yml
 compose.yaml             本地开发基础栈（配合 compose.override.yaml 热更新）
@@ -180,6 +182,7 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 | `python3 scripts/verify-console.py` | 匿名访问、角色权限、启用/停用、会话撤销、退出 | 结束时自动删除临时成员 |
 | `python3 scripts/verify-foundation.py` | 日志事务、权限、日期、分页 | 会保留临时成员供浏览器验收；完成后必须执行 `--cleanup` |
 | `python3 scripts/verify-easm-settings.py` | 个人资料、改密、会话撤销 | 会保留夹具；完成后必须执行 `--cleanup`。回滚步骤依赖 settings 夹具，执行 `--cleanup` 前不要手动删除 |
+| `python3 scripts/verify-system-governance.py` | 三层角色提权拦截、权限矩阵联动与恢复默认、系统探针、AI 一键熔断、时区回滚、人机双源审计 | 结束时自动清理临时账户与配置 |
 | `docker compose exec -T web bun run --filter web check-types` | Vite 生产构建与前端类型检查 | — |
 | `docker compose exec -T api bun run --filter server check-types` | 后端类型检查 | — |
 
@@ -196,7 +199,7 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 - **生产镜像与同源托管**：`Dockerfile.prod` 执行多阶段构建并以非 root `node` 用户运行，单容器同源托管 `apps/web/dist` 静态产物与 `/console` API；`compose.prod.yaml` 默认强制 `STARTER_SEED_DEMO=false`、`VITE_ENABLE_DEMOS=false`，并在存在 `packages/db/src/migrations/*.sql` 时优先执行版本化迁移 `db:migrate:deploy`。
 - **安全预检与部署回滚入口**：`./scripts/deploy-production.sh` 提供 `--check`（拦截弱密码、默认 Cookie 名与演示种子）、`--deploy <sha>`（在线库备份 → 镜像构建 → 激活 → `/healthz` 与 SPA 冒烟 → 写入 `accepted-sha`）与 `--rollback [<sha>]`。
 - **GitHub Actions 门禁**：`.github/workflows/ci.yml` 包含 `ci-scope` 变更分类、PR 并发取消、静态与构建检查及真实 PostgreSQL 17 容器 HTTP/事务回滚 E2E；`.github/workflows/deploy-production.yml` 默认受仓库变量 `ENABLE_PRODUCTION_CD=true` 保护（未配置自托管 `[self-hosted, deploy-prod]` runner 时自动安全跳过，不会排队卡死）。
-- **业务项目仍需按需评估**：当前角色为两级 RBAC（`admin` / `member`），多租户隔离、企业 SSO（已预留 `/console/auth/providers` 扩展位）及更严格密码复杂度按具体产品需求补齐。
+- **业务项目仍需按需评估**：当前内置三层 RBAC（`super_admin` / `admin` / `member`）与模块级「查看 / 操作」权限矩阵，多租户组织隔离、企业 SSO（已预留 `/console/auth/providers` 扩展位）及更严格密码策略按具体产品需求补齐。
 
 ## 文档导航
 

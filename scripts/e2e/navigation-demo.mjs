@@ -27,7 +27,7 @@ export async function verifyNavigationDemo(task, { evidenceDir, pageLabel = 'p1'
       const leaf = document.querySelector('nav a[href^="/demo/navigation"]');
       return { current: leaf?.getAttribute('aria-current'), groups: [...document.querySelectorAll('nav .nav-group-title')].map(e => e.textContent.trim()), depth: leaf ? [...leaf.closest('nav').querySelectorAll('.nav-group')].filter(d => d.contains(leaf)).length + 1 : 0, nested: document.querySelectorAll('nav details details, nav .nav-group .nav-group').length };
     });
-    check('Demo sidebar has two levels, no third level, and current page', hierarchy.depth === 2 && hierarchy.groups.join('/') === 'Demo' && hierarchy.nested === 0 && hierarchy.current === 'page');
+    check('Demo sidebar has two levels, no third level, and current page', hierarchy.depth === 2 && hierarchy.groups.includes('Demo') && hierarchy.nested === 0 && hierarchy.current === 'page');
     const assets = await page.evaluate(async () => (await (await fetch('/console/assets')).json()));
     async function rowsMatch(stage) {
       const names = await page.evaluate(() => [...document.querySelectorAll('[role="tabpanel"] tbody tr[data-row-id] td:nth-child(2)')].map(e => e.textContent.trim()));

@@ -5,11 +5,13 @@ import { z } from "zod";
 import { assets } from "@optimax-starter/db/schema/console";
 import { assetAgentRequest, validateAssetAgentFilters, type AssetAgentFilters } from "@optimax-starter/api/asset-agent";
 import { db } from "./services";
-import { AiError, aiEnabled, aiErrorResponse, aiLogFields, withAi } from "./core/ai";
+import { auditResource } from "./core/audit";
+import { AiError, aiErrorResponse, aiLogFields, aiRuntimeEnabled, withAi } from "./core/ai";
+import { requirePermission, type Env } from "./core/guards";
 
 type Message = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string };
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
-type Run = { actor: number; expires: number; messages: Message[]; model: string; callId: string; tools: unknown[] };
+type Run = { actor: number; expires: number; messages: Message[]; model: string; callId: string; tools: unknown[]; corrections: number };
 const runs = new Map<string, Run>();
 const receiptInput = z.object({
   runId: z.string().uuid(),
@@ -51,10 +53,11 @@ type Planned =
   | { kind: 'plan'; filters: AssetAgentFilters; runId: string; model: string; callId: string; corrections: number }
   | { kind: 'refused'; error: string };
 
-export const assetAgentApi = new Hono<{ Variables: { actor: { id: number } } }>();
+export const assetAgentApi = new Hono<Env>();
 assetAgentApi.use('*', bodyLimit({ maxSize: 8192, onError: c => c.json({ error: "请求过大" }, 413) }));
+assetAgentApi.use('*', requirePermission("assets:read"));
 
-assetAgentApi.get('/config', c => c.json({ enabled: aiEnabled() }));
+assetAgentApi.get('/config', async c => c.json({ enabled: await aiRuntimeEnabled() }));
 
 assetAgentApi.post('/plan', async c => {
   const input = assetAgentRequest.safeParse(await c.req.json().catch(() => null));
@@ -98,7 +101,7 @@ assetAgentApi.post('/plan', async c => {
         for (const [id, run] of runs) if (run.expires < Date.now()) runs.delete(id);
         if (runs.size >= 50) throw new Error("筛选请求过多，请稍后重试");
         const runId = randomUUID();
-        runs.set(runId, { actor, expires: Date.now() + 5 * 60_000, messages: [...messages, message], model, callId: call.id, tools });
+        runs.set(runId, { actor, expires: Date.now() + 5 * 60_000, messages: [...messages, message], model, callId: call.id, tools, corrections: attempt });
         return { kind: 'plan', filters, runId, model, callId: call.id, corrections: attempt };
       }
       return { kind: 'refused', error: "模型参数无效，筛选未更改" };
@@ -120,14 +123,23 @@ assetAgentApi.post('/plan', async c => {
 assetAgentApi.post('/result', async c => {
   const parsed = receiptInput.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "执行回执无效" }, 400);
+  const actor = c.get('actor');
   const input = parsed.data, run = runs.get(input.runId);
-  if (!run || run.actor !== c.get('actor').id || run.expires < Date.now()) return c.json({ error: "筛选请求已过期" }, 404);
+  if (!run || run.actor !== actor.id || run.expires < Date.now()) return c.json({ error: "筛选请求已过期" }, 404);
   runs.delete(input.runId);
   try {
     await withAi(String(run.actor), c.req.raw.signal, async complete => {
       const message = await complete({ model: run.model, messages: [...run.messages, { role: 'tool', tool_call_id: run.callId, content: JSON.stringify({ ok: input.ok, applied: input.filters, matched: input.matched, ...(input.error ? { error: input.error } : {}) }) }], tools: run.tools, tool_choice: 'none', stream: false, temperature: 0, max_tokens: 800 });
       if (message.tool_calls?.length || !message.content?.trim()) throw new AiError('upstream_invalid_response');
     });
+    await auditResource(
+      db,
+      'agent.asset_filter',
+      actor,
+      { code: 'assets', name: '资产台账' },
+      { matched: input.matched, corrections: run.corrections, model: run.model, ok: input.ok },
+      'agent',
+    );
     return c.json({ acknowledged: true, model: run.model, callId: run.callId });
   } catch (error) {
     if (error instanceof AiError) {

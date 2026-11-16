@@ -34,12 +34,13 @@ export const assets = pgTable("console_asset", {
   stage: text().notNull(),
 });
 
-// Append-only operation log. The API only inserts rows, inside the same transaction as the account change.
+// Append-only operation log. The API only inserts rows, inside the same transaction as the state change.
 // Actor and target names are copied at write time, so the log still shows them after later renames.
 export const audits = pgTable("console_audit", {
   id: serial().primaryKey(),
   at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
   action: text().notNull(),
+  actorSource: text("actor_source").default("human").notNull(),
   actorId: integer("actor_id").references(() => accounts.id),
   actorUsername: text("actor_username").notNull(),
   actorName: text("actor_name").notNull(),
@@ -47,4 +48,18 @@ export const audits = pgTable("console_audit", {
   targetUsername: text("target_username"),
   targetName: text("target_name"),
   detail: jsonb().$type<Record<string, unknown>>().default({}).notNull(),
+});
+
+export const rolePermissions = pgTable("console_role_permission", {
+  role: text().primaryKey(),
+  permissions: jsonb().$type<string[]>().default([]).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: integer("updated_by").references(() => accounts.id, { onDelete: "set null" }),
+});
+
+export const systemSettings = pgTable("console_setting", {
+  key: text().primaryKey(),
+  value: text().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: integer("updated_by").references(() => accounts.id, { onDelete: "set null" }),
 });

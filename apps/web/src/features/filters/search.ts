@@ -1,8 +1,12 @@
 import {
+  ACTOR_SOURCES,
   ASSET_STAGES,
   AUDIT_ACTIONS,
   AUDIT_ACTION_LABELS,
+  ROLE_VALUES,
+  type AccountRole,
   type AccountSearch,
+  type ActorSource,
   type AssetSearch,
   type AssetStage,
   type AuditSearch,
@@ -16,6 +20,8 @@ const text = (v: unknown, max = 200) =>
 
 const MAX_ITEMS = 20;
 const STAGES: readonly string[] = ASSET_STAGES;
+const ROLES: readonly string[] = ROLE_VALUES;
+const SOURCES: readonly string[] = ACTOR_SOURCES;
 
 // Normalizes a scalar or array value: trimmed, unique, sorted, at most MAX_ITEMS entries.
 // Objects, nested arrays and over-long strings are dropped, never thrown.
@@ -64,7 +70,9 @@ export function parseAccountSearch(v: Record<string, unknown>): AccountSearch {
     ...(v.status === "active" || v.status === "disabled"
       ? { status: v.status }
       : {}),
-    ...(v.role === "admin" || v.role === "member" ? { role: v.role } : {}),
+    ...(typeof v.role === "string" && ROLES.includes(v.role)
+      ? { role: v.role as AccountRole }
+      : {}),
   };
 }
 
@@ -78,6 +86,9 @@ export function parseAuditSearch(v: Record<string, unknown>): AuditSearch {
     ...(typeof v.action === "string" &&
     (AUDIT_ACTIONS as readonly string[]).includes(v.action)
       ? { action: v.action }
+      : {}),
+    ...(typeof v.source === "string" && SOURCES.includes(v.source)
+      ? { source: v.source as ActorSource }
       : {}),
     ...(actor ? { actor } : {}),
     ...(typeof v.start === "string" && DAY.test(v.start) ? { start: v.start } : {}),

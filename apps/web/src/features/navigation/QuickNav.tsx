@@ -3,24 +3,31 @@ import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { getQuickNavEntries, type QuickNavEntry } from "@/config/app-config";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import type { Account } from "@/console-client";
 
 export function QuickNav({
   open,
   onOpenChange,
-  admin,
+  account,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  admin: boolean;
+  account: Account | null | undefined;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {open && <Palette admin={admin} close={() => onOpenChange(false)} />}
+      {open && <Palette account={account} close={() => onOpenChange(false)} />}
     </Dialog>
   );
 }
 
-function Palette({ admin, close }: { admin: boolean; close: () => void }) {
+function Palette({
+  account,
+  close,
+}: {
+  account: Account | null | undefined;
+  close: () => void;
+}) {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   // 首次渲染时记录打开前的焦点（自动聚焦之前），关闭后归还。
@@ -30,17 +37,23 @@ function Palette({ admin, close }: { admin: boolean; close: () => void }) {
   const id = useId();
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return getQuickNavEntries(admin).filter(
+    return getQuickNavEntries(account).filter(
       (e) => !q || [e.label, ...e.aliases].some((t) => t.toLowerCase().includes(q)),
     );
-  }, [admin, query]);
+  }, [account, query]);
   const current = Math.min(active, Math.max(items.length - 1, 0));
   useEffect(() => {
     document.getElementById(`${id}-${current}`)?.scrollIntoView({ block: "nearest" });
   }, [current, id, items]);
   function go(entry: QuickNavEntry) {
     close();
-    if (entry.to !== path) void navigate({ to: entry.to });
+    if (entry.to !== path) {
+      if (entry.defaultSearch) {
+        void navigate({ to: entry.to, search: entry.defaultSearch as never });
+      } else {
+        void navigate({ to: entry.to });
+      }
+    }
   }
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;

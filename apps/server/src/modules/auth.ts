@@ -22,6 +22,7 @@ import {
   profileFields,
   type Env,
 } from "../core/guards";
+import { getEffectivePermissions } from "../core/permissions";
 
 export const authRoutes = new Hono<Env>();
 
@@ -76,7 +77,9 @@ authRoutes.get("/me", async (c) => {
     .select(profileFields)
     .from(accounts)
     .where(eq(accounts.id, c.get("actor").id));
-  return row ? c.json(row) : c.json({ error: "请登录" }, 401);
+  if (!row) return c.json({ error: "请登录" }, 401);
+  const permissions = await getEffectivePermissions(row.role);
+  return c.json({ ...row, permissions });
 });
 
 authRoutes.patch("/me", async (c) => {
@@ -115,7 +118,9 @@ authRoutes.patch("/me", async (c) => {
     await audit(tx, "profile.update", before, after!, detail);
     return after!;
   });
-  return row ? c.json(row) : c.json({ error: "账户不存在" }, 404);
+  if (!row) return c.json({ error: "账户不存在" }, 404);
+  const permissions = await getEffectivePermissions(row.role);
+  return c.json({ ...row, permissions });
 });
 
 authRoutes.post("/me/password", async (c) => {

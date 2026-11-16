@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { ROLE_LABELS, ROLE_VALUES, type AccountRole } from "./permissions";
+import type { ActorSource } from "./system";
 
-export const ROLE_VALUES = ["member", "admin"] as const;
-export type AccountRole = (typeof ROLE_VALUES)[number];
+export { ROLE_LABELS, ROLE_VALUES, type AccountRole };
 
 export const ASSET_STAGES = ["已登记", "待复核"] as const;
 export type AssetStage = (typeof ASSET_STAGES)[number];
@@ -15,6 +16,11 @@ export const AUDIT_ACTIONS = [
   "account.revoke",
   "profile.update",
   "profile.password_change",
+  "permission.update",
+  "permission.reset",
+  "system.timezone_update",
+  "system.ai_circuit",
+  "agent.asset_filter",
   "asset.create",
   "asset.update",
   "asset.delete",
@@ -30,6 +36,11 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "account.revoke": "强制下线",
   "profile.update": "修改本人资料",
   "profile.password_change": "修改本人密码",
+  "permission.update": "修改系统权限",
+  "permission.reset": "恢复默认权限",
+  "system.timezone_update": "修改系统时区",
+  "system.ai_circuit": "切换 AI 熔断开关",
+  "agent.asset_filter": "Agent 筛选资产",
   "asset.create": "新增资产",
   "asset.update": "编辑资产",
   "asset.delete": "删除资产",
@@ -44,6 +55,7 @@ export interface Account {
   sessions?: number;
   email?: string | null;
   company?: string | null;
+  permissions?: string[];
 }
 
 export interface Asset {
@@ -63,7 +75,7 @@ export interface PaginatedResult<T> {
 
 export type AssetPage = PaginatedResult<Asset>;
 
-// Fields allowed in audit detail. Never store passwords, hashes, cookies or tokens here.
+// Fields allowed in audit detail. Never store passwords, hashes, cookies, prompts or tokens here.
 export type AuditDetail = {
   entityId?: number;
   from?: string | boolean;
@@ -75,12 +87,20 @@ export type AuditDetail = {
   domain?: string;
   owner?: string;
   stage?: string;
+  targetRole?: string;
+  beforePermissions?: string[];
+  afterPermissions?: string[];
+  matched?: number;
+  corrections?: number;
+  model?: string;
+  ok?: boolean;
 };
 
 export interface AuditEntry {
   id: number;
   at: string;
   action: string;
+  actorSource: ActorSource;
   actorId: number | null;
   actorUsername: string;
   actorName: string;
@@ -90,7 +110,9 @@ export interface AuditEntry {
   detail: Record<string, unknown>;
 }
 
-export type AuditPage = PaginatedResult<AuditEntry>;
+export type AuditPage = PaginatedResult<AuditEntry> & {
+  timezone?: string;
+};
 
 export type AssetSearch = {
   q?: string;
@@ -108,6 +130,7 @@ export type AccountSearch = {
 export type AuditSearch = {
   action?: string;
   actor?: string;
+  source?: ActorSource;
   start?: string;
   end?: string;
   page?: number;

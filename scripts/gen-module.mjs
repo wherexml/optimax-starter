@@ -9,6 +9,8 @@ const RESERVED = new Set([
   "accounts",
   "audit",
   "assets",
+  "permissions",
+  "system",
   "settings",
   "login",
   "demo",
@@ -159,9 +161,9 @@ import { AUDIT_MAX_PAGE, auditResource, containsPattern } from "../core/audit";
 import {
   Refusal,
   guarded,
-  lockAdmin,
+  lockPermission,
   parsePositiveId,
-  requireAdmin,
+  requirePermission,
   type Env,
 } from "../core/guards";
 
@@ -186,7 +188,7 @@ const toResource = (row: { id: number; name: string }) => ({
   name: row.name,
 });
 
-${camel}Routes.get("/${slug}", async (c) => {
+${camel}Routes.get("/${slug}", requirePermission("${slug}:read"), async (c) => {
   const raw = Object.fromEntries(
     Object.entries(c.req.query()).filter(([, v]) => v.trim() !== ""),
   );
@@ -214,12 +216,12 @@ ${camel}Routes.get("/${slug}", async (c) => {
   return c.json({ items, total: Number(totals[0]?.n ?? 0), page, size });
 });
 
-${camel}Routes.post("/${slug}", requireAdmin, async (c) => {
+${camel}Routes.post("/${slug}", requirePermission("${slug}:manage"), async (c) => {
   const parsed = ${camel}InputSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "请完整填写${label}信息" }, 400);
   return guarded(c, async () => {
     const created = await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
       const [row] = await tx
         .insert(${camel}Table)
         .values(parsed.data)
@@ -236,13 +238,13 @@ ${camel}Routes.post("/${slug}", requireAdmin, async (c) => {
   });
 });
 
-${camel}Routes.patch("/${slug}/:id", requireAdmin, async (c) => {
+${camel}Routes.patch("/${slug}/:id", requirePermission("${slug}:manage"), async (c) => {
   const id = parsePositiveId(c.req.param("id"));
   const parsed = ${camel}PatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!id || !parsed.success) return c.json({ error: "无效的变更参数" }, 400);
   return guarded(c, async () => {
     const updated = await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
       const [before] = await tx
         .select()
         .from(${camel}Table)
@@ -270,12 +272,12 @@ ${camel}Routes.patch("/${slug}/:id", requireAdmin, async (c) => {
   });
 });
 
-${camel}Routes.delete("/${slug}/:id", requireAdmin, async (c) => {
+${camel}Routes.delete("/${slug}/:id", requirePermission("${slug}:manage"), async (c) => {
   const id = parsePositiveId(c.req.param("id"));
   if (!id) return c.json({ error: "无效的编号" }, 400);
   return guarded(c, async () => {
     await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
       const [removed] = await tx
         .delete(${camel}Table)
         .where(eq(${camel}Table.id, id))
@@ -500,7 +502,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
+import { hasPermission, useAccount } from "@/features/auth/session";
 import type { Filters } from "@/hooks/usePersistedFilters";
 import { ${pascal}FormDialog } from "./${pascal}FormDialog";
 
@@ -530,7 +532,8 @@ const FIELDS: FilterField[] = [
 export function ${pascal}Page() {
   const me = useAccount();
   const cache = useQueryClient();
-  const admin = me.data?.role === "admin";
+  const canRead = hasPermission(me.data, "${slug}:read");
+  const canManage = hasPermission(me.data, "${slug}:manage");
   const params = route.useSearch();
   const navigate = route.useNavigate();
   const page = params.page ?? 1;
@@ -558,6 +561,7 @@ export function ${pascal}Page() {
       );
       return request<${singularPascal}Page>("/${slug}?" + qs.toString());
     },
+    enabled: Boolean(me.data) && canRead,
     placeholderData: keepPreviousData,
   });
 
@@ -592,7 +596,7 @@ export function ${pascal}Page() {
         ),
       },
     ];
-    if (!admin) return base;
+    if (!canManage) return base;
     return [
       ...base,
       {
@@ -629,13 +633,14 @@ export function ${pascal}Page() {
         },
       },
     ];
-  }, [admin]);
+  }, [canManage]);
 
   return (
     <ResourceTableSlot
       title="${label}"
+      allowed={canRead}
       actions={
-        admin ? (
+        canManage ? (
           <Button
             ref={createTrigger}
             onClick={() => {
@@ -847,16 +852,37 @@ consoleSrc =
   consoleSrc.trimEnd() + `\nconsoleApi.route("/", ${camel}Routes);\n`;
 writeFileSync(consoleFile, consoleSrc);
 
-// 4. Register navigation entry in apps/web/src/config/app-config.ts
+// 4. Register module permissions in packages/api/src/permissions.ts
+const permFile = path.join(ROOT, "packages/api/src/permissions.ts");
+let permSrc = readFileSync(permFile, "utf-8");
+permSrc = permSrc.replace(
+  '  { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },',
+  `  { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },\n  { code: "${slug}:read", label: "查看${label}", module: "${label}", kind: "view" },\n  { code: "${slug}:manage", label: "维护${label}", module: "${label}", kind: "operate" },`,
+);
+permSrc = permSrc.replace(
+  '    "assets:manage",\n    "accounts:read",',
+  `    "assets:manage",\n    "${slug}:read",\n    "${slug}:manage",\n    "accounts:read",`,
+);
+permSrc = permSrc.replace(
+  '  member: [\n    "workbench:read",\n    "assets:read",\n  ],',
+  `  member: [\n    "workbench:read",\n    "assets:read",\n    "${slug}:read",\n  ],`,
+);
+permSrc = permSrc.replace(
+  '  {\n    id: "accounts",',
+  `  {\n    id: "${slug}",\n    label: "${label}",\n    description: "${label}查询与增删改维护",\n    actions: ALL_ACTIONS,\n    viewCodes: { default: ["${slug}:read"] },\n    operateCodes: { default: ["${slug}:manage"] },\n  },\n  {\n    id: "accounts",`,
+);
+writeFileSync(permFile, permSrc);
+
+// 5. Register navigation entry in apps/web/src/config/app-config.ts
 const navFile = path.join(ROOT, "apps/web/src/config/app-config.ts");
 let navSrc = readFileSync(navFile, "utf-8");
 navSrc = navSrc.replace(
-  '| "/demo/navigation";',
-  `| "/${slug}"\n  | "/demo/navigation";`,
+  '| "/demo/forms";',
+  `| "/${slug}"\n  | "/demo/forms";`,
 );
 navSrc = navSrc.replace(
-  '  {\n    kind: "item",\n    to: "/accounts",',
-  `  {\n    kind: "item",\n    to: "/${slug}",\n    label: "${label}",\n    icon: Boxes,\n    aliases: ["${slug}", "${singularSlug}", "${label}"],\n  },\n  {\n    kind: "item",\n    to: "/accounts",`,
+  '  {\n    kind: "group",\n    label: "系统管理",',
+  `  {\n    kind: "item",\n    to: "/${slug}",\n    label: "${label}",\n    icon: Boxes,\n    aliases: ["${slug}", "${singularSlug}", "${label}"],\n    permissionCode: "${slug}:read",\n  },\n  {\n    kind: "group",\n    label: "系统管理",`,
 );
 writeFileSync(navFile, navSrc);
 

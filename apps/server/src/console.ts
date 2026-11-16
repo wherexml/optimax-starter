@@ -5,10 +5,12 @@ import { accounts, sessions } from "@optimax-starter/db/schema/console";
 import { db } from "./services";
 import { getCookieName, getCorsOrigin } from "./core/config";
 import { accountFields, digest, type Env } from "./core/guards";
+import { getEffectivePermissions } from "./core/permissions";
 import { accountsRoutes } from "./modules/accounts";
 import { assetsRoutes } from "./modules/assets";
 import { auditRoutes } from "./modules/audit";
 import { authRoutes } from "./modules/auth";
+import { systemRoutes } from "./modules/system";
 
 export { initializeConsole } from "./core/seed";
 
@@ -44,7 +46,8 @@ consoleApi.use("*", async (c, next) => {
         )
     : [];
   if (!actor) return c.json({ error: "请登录" }, 401);
-  c.set("actor", actor);
+  const permissions = await getEffectivePermissions(actor.role);
+  c.set("actor", { ...actor, permissions });
   await next();
 });
 
@@ -52,3 +55,4 @@ consoleApi.route("/", authRoutes);
 consoleApi.route("/", assetsRoutes);
 consoleApi.route("/", accountsRoutes);
 consoleApi.route("/", auditRoutes);
+consoleApi.route("/", systemRoutes);

@@ -44,9 +44,9 @@ docker compose up -d --build api web
 
 | 路径 | 内容 |
 | --- | --- |
-| `GET /console/assets/agent/config` | `{ enabled }`，不返回凭证 |
+| `GET /console/assets/agent/config` | `{ enabled }`（需 `assets:read`；环境未配置或超管开启全局熔断时均为 `false`），不返回凭证 |
 | `POST /console/assets/agent/plan` | `{ instruction, current }`；返回 `{ filters, runId, model, callId, corrections }`，`filters` 是完整目标条件，`corrections` 为 0 或 1 |
-| `POST /console/assets/agent/result` | `{ runId, ok, filters, matched, error? }`；模型收到真实执行回执后返回 `{ acknowledged, model, callId }` |
+| `POST /console/assets/agent/result` | `{ runId, ok, filters, matched, error? }`；模型收到真实执行回执后写入一条 `actor_source = "agent"` 的 `agent.asset_filter` 脱敏审计记录（不存指令原文），并返回 `{ acknowledged, model, callId }` |
 
 指令最多 500 字，JSON 请求体最多 8KB。计划与当前登录账户绑定，5 分钟过期、单次回传；结果只留在有界进程内存，不新增业务数据表。非法输入 400、未登录 401、来源不符 403、过期 404、过大 413、不支持的自然语言请求 422。
 

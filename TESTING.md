@@ -9,7 +9,7 @@
 | 项 | 当前事实 |
 | --- | --- |
 | 静态检查命令 | `bun run check-types`、`bun run build`、`git diff --check`、`node scripts/e2e/ci-scope-e2e.mjs`（CI `quality` job 同步执行） |
-| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md)（含 `forms-dialog.mjs`、`navigation-demo.mjs`、`page-layout.mjs`、`filter-state.mjs`） |
+| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-system-governance.py`、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md)（含 `system-admin.mjs`、`notifications.mjs`、`forms-dialog.mjs`、`navigation-demo.mjs`、`page-layout.mjs`、`filter-state.mjs`） |
 | 测试环境及安全数据 | 本地 Docker Compose 独立预览库（`http://127.0.0.1:38140` / `:38141`），仅使用本地演示账号与脚本自动清理的随机 `qa_*` 临时夹具 |
 | 证据目录 | 本地 git 忽略的 `evidence/<task>/`；CI 运行产物上传至 GitHub Actions Artifacts（保留 7 天） |
 | 隔离测试 | 默认仅用真实进程/HTTP/浏览器 E2E；新增 `scripts/e2e/ci-scope-e2e.mjs` 在编写 `ci-scope.mjs` 前先运行失败断言再实现通过 |
@@ -203,3 +203,12 @@
   - HTTP E2E：`python3 scripts/verify-console.py` PASS。
   - 真实浏览器 E2E（Ego Browser）：新增 `scripts/e2e/notifications.mjs` **12 项 PASS**，回归 `forms-dialog.mjs` **17 项 PASS**、`page-layout.mjs` **28 项 PASS**、`navigation-demo.mjs` **22 项 PASS**（合计 **79 项浏览器断言 PASS**，含 `agent.snapshot()` 无空通知区泄漏）。5 张桌面与手机产品截图已实际查看核验，临时 `qa_ntf_*` / `qa_dlg_*` 账户已清理（见 [验收记录](./evidence/global-notifications/acceptance.md)）。
 - **边界状态**：仅本地修改与验证；未提交、未推送、未执行生产发布。
+
+### 2026-11-17：系统管理、三层角色权限矩阵、AI 一键熔断与人机双源审计
+
+- **能力范围**：对齐 `smart-water-secure` 实战经验，落地 `super_admin / admin / member` 三层角色与提权防线、`/permissions` 模块级「查看 / 操作」权限矩阵（含联动、超管列锁定、二次点击恢复默认、无权限菜单动态隐藏与自动跳回首个可访问页）、`/system?tab=status|settings`（数据库 `SELECT 1` 延迟探针、AI 并发队列水位、全局 AI 一键熔断开关、全局系统时区及 `可维护 / 只读` 徽章），以及 `console_audit` 敏感键递归脱敏与 `human / agent` 双源筛选。
+- **验证结果**：
+  - 静态与构建：`bun run build`、`bun run check-types`、`node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run`、`node scripts/e2e/ci-scope-e2e.mjs`、`git diff --check` 全部退出 `0`。
+  - 容器栈 HTTP 与事务门禁：`verify-console.py`、`verify-foundation.py` + `--cleanup`、`verify-easm-settings.py` + `verify-easm-rollback.py` + `--cleanup`、新增 `verify-system-governance.py` 全部 PASS。
+  - 隔离模型模拟栈：`python3 scripts/e2e/ai-client/run.py --only token,security` **161 项 PASS**（覆盖 `S7` 超管开启熔断即返回 `503 AI_CIRCUIT_OPEN` 零上游请求、恢复放行及 `agent.asset_filter` 脱敏落库）。
+  - 真实浏览器 E2E（Ego Browser）：新增 `scripts/e2e/system-admin.mjs` **22 项 PASS**，回归 `quick-nav.mjs` **13 项 PASS**、`navigation-demo.mjs` **22 项 PASS**、`page-layout.mjs` **28 项 PASS**、`forms-dialog.mjs` **17 项 PASS**（合计 **102 项浏览器断言 PASS**），桌面与 `375×812` 手机截图已逐张视觉核验，临时 `qa_*` 账户与测试配置已清理。

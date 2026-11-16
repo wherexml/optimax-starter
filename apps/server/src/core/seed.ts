@@ -29,7 +29,7 @@ export async function initializeConsole() {
 
   const adminUsername = getBootstrapAdminUsername();
   const [existing] = await db
-    .select({ id: accounts.id })
+    .select({ id: accounts.id, role: accounts.role, active: accounts.active })
     .from(accounts)
     .where(eq(accounts.username, adminUsername));
   if (!existing) {
@@ -40,10 +40,15 @@ export async function initializeConsole() {
       .values({
         username: adminUsername,
         name: "本地管理员",
-        role: "admin",
+        role: "super_admin",
         hash: await hashPassword(password),
       })
       .onConflictDoNothing();
+  } else if (existing.role !== "super_admin" || !existing.active) {
+    await db
+      .update(accounts)
+      .set({ role: "super_admin", active: true })
+      .where(eq(accounts.id, existing.id));
   }
 
   await db

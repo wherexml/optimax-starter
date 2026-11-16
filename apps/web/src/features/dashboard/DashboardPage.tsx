@@ -35,7 +35,7 @@ import {
   type Asset,
   type AuditPage,
 } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
+import { useAccount, hasPermission } from "@/features/auth/session";
 import { AUDIT_ACTION_LABELS } from "@/features/filters/search";
 
 const QUEUE_SIZE = 6;
@@ -49,32 +49,45 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   "account.revoke": LogOut,
   "profile.update": Pencil,
   "profile.password_change": KeyRound,
+  "permission.update": ShieldCheck,
+  "permission.reset": ShieldCheck,
+  "system.timezone_update": Clock,
+  "system.ai_circuit": Power,
+  "agent.asset_filter": Activity,
 };
 
 export function DashboardPage() {
   const runRefresh = useContentRefresh();
   const me = useAccount();
-  const admin = me.data?.role === "admin";
+  const canReadAssets = hasPermission(me.data, "assets:read");
+  const canReadAccounts = hasPermission(me.data, "accounts:read");
+  const canReadAudit = hasPermission(me.data, "audit:read");
+  const canReadPermissions = hasPermission(me.data, "system:permission:read");
+  const canReadSystem =
+    hasPermission(me.data, "system:settings:read") ||
+    hasPermission(me.data, "system:ai:read");
   const assets = useQuery({
     meta: { contentRefresh: true },
     queryKey: ["assets"],
     queryFn: () => request<Asset[]>("/assets"),
+    enabled: Boolean(me.data) && canReadAssets,
   });
-  // 成员不发起账户与日志请求。
   const accounts = useQuery({
     meta: { contentRefresh: true },
     queryKey: ["accounts"],
     queryFn: () => request<Account[]>("/accounts"),
-    enabled: admin,
+    enabled: Boolean(me.data) && canReadAccounts,
   });
   const recent = useQuery({
     meta: { contentRefresh: true },
     queryKey: ["audit", "recent"],
     queryFn: () => request<AuditPage>(`/audit?size=${ACTIVITY_SIZE}`),
-    enabled: admin,
+    enabled: Boolean(me.data) && canReadAudit,
   });
   const fetching =
-    assets.isFetching || (admin && (accounts.isFetching || recent.isFetching));
+    (canReadAssets && assets.isFetching) ||
+    (canReadAccounts && accounts.isFetching) ||
+    (canReadAudit && recent.isFetching);
   return (
     <>
       <PageHeader
@@ -88,8 +101,9 @@ export function DashboardPage() {
             aria-label="刷新工作台"
             disabled={fetching}
             onClick={() => void runRefresh(() => Promise.all([
-              assets.refetch(),
-              ...(admin ? [accounts.refetch(), recent.refetch()] : []),
+              ...(canReadAssets ? [assets.refetch()] : []),
+              ...(canReadAccounts ? [accounts.refetch()] : []),
+              ...(canReadAudit ? [recent.refetch()] : []),
             ]))}
           >
             <RotateCw size={15} className={fetching ? "animate-spin" : undefined} />
@@ -98,7 +112,7 @@ export function DashboardPage() {
       />
       <div className="dash">
         <div className="stat-grid">
-          {assets.isPending ? (
+          {!canReadAssets ? null : assets.isPending ? (
             [0, 1, 2].map((i) => <StatSkeleton key={i} />)
           ) : assets.isError ? (
             <StatError
@@ -109,7 +123,7 @@ export function DashboardPage() {
           ) : (
             <AssetStats rows={assets.data} />
           )}
-          {admin ? (
+          {canReadAccounts ? (
             accounts.isPending ? (
               <StatSkeleton />
             ) : accounts.isError ? (
@@ -120,63 +134,73 @@ export function DashboardPage() {
             ) : (
               <AccountStat rows={accounts.data} />
             )
-          ) : assets.isPending ? (
+          ) : !canReadAssets ? null : assets.isPending ? (
             <StatSkeleton />
           ) : assets.data ? (
             <DomainStat rows={assets.data} />
           ) : null}
         </div>
 
-        <div className="dash-main">
-          <Panel
-            title="业务域"
-            action={
-              <Link to="/assets">
-                资产台账
-                <ArrowRight size={14} aria-hidden="true" />
-              </Link>
-            }
-          >
-            <Loaded query={assets} empty="暂无资产" isEmpty={(d) => !d.length}>
-              {(rows) => <DomainList rows={rows} />}
-            </Loaded>
-          </Panel>
-          {admin ? (
-            <Panel
-              title="最近操作"
-              action={
-                <Link to="/audit">
-                  操作日志
-                  <ArrowRight size={14} aria-hidden="true" />
-                </Link>
-              }
-            >
-              <Loaded
-                query={recent}
-                empty="暂无操作记录"
-                isEmpty={(d) => !d.items.length}
+        {(canReadAssets || canReadAudit) && (
+          <div className="dash-main">
+            {canReadAssets && (
+              <Panel
+                title="业务域"
+                action={
+                  <Link to="/assets">
+                    资产台账
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
+                }
               >
-                {(d) => <RecentActivity page={d} />}
-              </Loaded>
-            </Panel>
-          ) : (
-            <Panel
-              title="待复核资产"
-              action={
-                <Link to="/assets" search={{ stage: "待复核" }}>
-                  全部待复核
-                  <ArrowRight size={14} aria-hidden="true" />
-                </Link>
-              }
-            >
-              <Loaded query={assets} empty="暂无资产" isEmpty={(d) => !d.length}>
-                {(rows) => <ReviewQueue rows={rows} />}
-              </Loaded>
-            </Panel>
-          )}
-        </div>
+                <Loaded query={assets} empty="暂无资产" isEmpty={(d) => !d.length}>
+                  {(rows) => <DomainList rows={rows} />}
+                </Loaded>
+              </Panel>
+            )}
+            {canReadAudit ? (
+              <Panel
+                title="最近操作"
+                action={
+                  <Link to="/audit">
+                    操作日志
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
+                }
+              >
+                <Loaded
+                  query={recent}
+                  empty="暂无操作记录"
+                  isEmpty={(d) => !d.items.length}
+                >
+                  {(d) => <RecentActivity page={d} />}
+                </Loaded>
+              </Panel>
+            ) : canReadAssets ? (
+              <Panel
+                title="待复核资产"
+                action={
+                  <Link to="/assets" search={{ stage: "待复核" }}>
+                    全部待复核
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
+                }
+              >
+                <Loaded query={assets} empty="暂无资产" isEmpty={(d) => !d.length}>
+                  {(rows) => <ReviewQueue rows={rows} />}
+                </Loaded>
+              </Panel>
+            ) : null}
+          </div>
+        )}
 
-        <QuickAccess admin={admin} />
+        <QuickAccess
+          canReadAssets={canReadAssets}
+          canReadAccounts={canReadAccounts}
+          canReadPermissions={canReadPermissions}
+          canReadSystem={canReadSystem}
+          canReadAudit={canReadAudit}
+        />
       </div>
     </>
   );
@@ -557,7 +581,19 @@ function Feature({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
     </>
   );
 }
-function QuickAccess({ admin }: { admin: boolean }) {
+function QuickAccess({
+  canReadAssets,
+  canReadAccounts,
+  canReadPermissions,
+  canReadSystem,
+  canReadAudit,
+}: {
+  canReadAssets: boolean;
+  canReadAccounts: boolean;
+  canReadPermissions: boolean;
+  canReadSystem: boolean;
+  canReadAudit: boolean;
+}) {
   const id = useId();
   return (
     <section aria-labelledby={id}>
@@ -565,21 +601,35 @@ function QuickAccess({ admin }: { admin: boolean }) {
         快捷入口
       </h2>
       <div className="feature-grid">
-        <Link to="/assets" className="feature-card">
-          <Feature icon={Boxes} title="资产台账" />
-        </Link>
-        <Link to="/assets" search={{ stage: "待复核" }} className="feature-card">
-          <Feature icon={Clock} title="待复核资产" />
-        </Link>
-        {admin && (
+        {canReadAssets && (
           <>
-            <Link to="/accounts" className="feature-card">
-              <Feature icon={Users} title="账户管理" />
+            <Link to="/assets" className="feature-card">
+              <Feature icon={Boxes} title="资产台账" />
             </Link>
-            <Link to="/audit" className="feature-card">
-              <Feature icon={ScrollText} title="操作日志" />
+            <Link to="/assets" search={{ stage: "待复核" }} className="feature-card">
+              <Feature icon={Clock} title="待复核资产" />
             </Link>
           </>
+        )}
+        {canReadAccounts && (
+          <Link to="/accounts" className="feature-card">
+            <Feature icon={Users} title="账户管理" />
+          </Link>
+        )}
+        {canReadPermissions && (
+          <Link to="/permissions" className="feature-card">
+            <Feature icon={ShieldCheck} title="系统权限" />
+          </Link>
+        )}
+        {canReadSystem && (
+          <Link to="/system" search={{ tab: "status" }} className="feature-card">
+            <Feature icon={Activity} title="系统配置" />
+          </Link>
+        )}
+        {canReadAudit && (
+          <Link to="/audit" className="feature-card">
+            <Feature icon={ScrollText} title="操作日志" />
+          </Link>
         )}
         <Link to="/settings" className="feature-card">
           <Feature icon={Settings} title="个人设置" />

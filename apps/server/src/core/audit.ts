@@ -1,51 +1,123 @@
 import { z } from "zod";
 import { audits } from "@optimax-starter/db/schema/console";
-import { AUDIT_ACTIONS, type AuditAction, type AuditDetail } from "@optimax-starter/api";
+import {
+  ACTOR_SOURCES,
+  AUDIT_ACTIONS,
+  DEFAULT_SYSTEM_TIMEZONE,
+  type ActorSource,
+  type AuditAction,
+  type AuditDetail,
+} from "@optimax-starter/api";
+import type { db } from "../services";
 import type { Party, Tx } from "./guards";
 
+type AuditWriter = Tx | typeof db;
+
+const REDACTED = "[REDACTED]";
+const SENSITIVE_PARTS = [
+  "authorization",
+  "cookie",
+  "credential",
+  "password",
+  "passwd",
+  "secret",
+  "token",
+  "apikey",
+  "hash",
+];
+const SENSITIVE_EXACT = new Set([
+  "code",
+  "otp",
+  "pwd",
+  "prompt",
+  "instruction",
+  "sms",
+  "smscode",
+  "verifycode",
+]);
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return (
+    SENSITIVE_EXACT.has(normalized) ||
+    SENSITIVE_PARTS.some((part) => normalized.includes(part))
+  );
+}
+
+export function sanitizeAuditDetail(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeAuditDetail(item));
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (item === undefined) continue;
+      out[key] = isSensitiveKey(key) ? REDACTED : sanitizeAuditDetail(item);
+    }
+    return out;
+  }
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  return String(value);
+}
+
+function cleanRecord(detail: AuditDetail | Record<string, unknown>): Record<string, unknown> {
+  return sanitizeAuditDetail(detail) as Record<string, unknown>;
+}
+
 export function audit(
-  tx: Tx,
+  tx: AuditWriter,
   action: AuditAction,
   actor: Party,
   target: Party | null,
   detail: AuditDetail = {},
+  actorSource: ActorSource = "human",
 ) {
   return tx.insert(audits).values({
     action,
+    actorSource,
     actorId: actor.id,
     actorUsername: actor.username,
     actorName: actor.name,
     targetId: target?.id ?? null,
     targetUsername: target?.username ?? null,
     targetName: target?.name ?? null,
-    detail,
+    detail: cleanRecord(detail),
   });
 }
 
-// Non-account business entities keep targetId=null (console_audit.target_id references console_account.id)
-// while recording human-readable code/name and numeric entityId so audit rows survive entity deletion.
+// Non-account entities keep targetId=null (console_audit.target_id references console_account.id)
+// while recording human-readable code/name so audit rows survive entity or role changes.
 export function auditResource(
-  tx: Tx,
+  tx: AuditWriter,
   action: AuditAction,
   actor: Party,
-  resource: { id: number; code: string; name: string },
+  resource: { id?: number; code: string; name: string },
   detail: AuditDetail = {},
+  actorSource: ActorSource = "human",
 ) {
+  const merged =
+    resource.id !== undefined ? { entityId: resource.id, ...detail } : detail;
   return tx.insert(audits).values({
     action,
+    actorSource,
     actorId: actor.id,
     actorUsername: actor.username,
     actorName: actor.name,
     targetId: null,
     targetUsername: resource.code,
     targetName: resource.name,
-    detail: { entityId: resource.id, ...detail },
+    detail: cleanRecord(merged),
   });
 }
 
 export const AUDIT_MAX_PAGE = 100;
-// 日期按 UTC+8 自然日解释，结束日期包含当天。
-const AUDIT_OFFSET = "+08:00";
 
 export const daySchema = z
   .string()
@@ -55,12 +127,50 @@ export const daySchema = z
     return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
   });
 
-export const dayStart = (s: string, plusDays = 0) =>
-  new Date(new Date(`${s}T00:00:00${AUDIT_OFFSET}`).getTime() + plusDays * 864e5);
+function zoneOffsetMs(utcMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(utcMs));
+  const map: Record<string, number> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") map[part.type] = Number(part.value);
+  }
+  const zonedUtc = Date.UTC(
+    map.year!,
+    (map.month ?? 1) - 1,
+    map.day ?? 1,
+    map.hour ?? 0,
+    map.minute ?? 0,
+    map.second ?? 0,
+  );
+  return zonedUtc - utcMs;
+}
+
+// Computes exact local midnight in the configured IANA system timezone.
+export function dayStart(
+  s: string,
+  plusDays = 0,
+  timeZone = DEFAULT_SYSTEM_TIMEZONE,
+): Date {
+  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
+  const target = new Date(Date.UTC(y, m - 1, d + plusDays, 0, 0, 0));
+  const guess = target.getTime();
+  const first = guess - zoneOffsetMs(guess, timeZone);
+  const refined = guess - zoneOffsetMs(first, timeZone);
+  return new Date(refined);
+}
 
 export const auditQuerySchema = z.object({
   action: z.enum(AUDIT_ACTIONS).optional(),
   actor: z.string().trim().min(1).max(80).optional(),
+  source: z.enum(ACTOR_SOURCES).optional(),
   start: daySchema.optional(),
   end: daySchema.optional(),
   page: z.coerce.number().int().min(1).max(100000).default(1),

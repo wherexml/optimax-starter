@@ -12,6 +12,7 @@ import { readFileSync, statSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import { z } from "zod";
+import { isAiCircuitOpen } from "../system-settings";
 import { AiError, classifyStatus, parseRetryAfter, readVendorError } from "./errors";
 import { AiQueue, abortError, type QueueLimits } from "./queue";
 import { MAX_COMPLETION_TOKENS, MAX_TOKENS, TokenFieldCache, isOpenAIHost, isTokenField, tokenFieldWanted, withTokenField, type TokenField } from "./token-field";
@@ -162,6 +163,16 @@ export function aiEnabled(): boolean {
   return config.mode === "client" || config.mode === "legacy";
 }
 
+export async function aiRuntimeEnabled(): Promise<boolean> {
+  if (!aiEnabled()) return false;
+  return !(await isAiCircuitOpen());
+}
+
+export function aiQueueSnapshot() {
+  aiConfig();
+  return queue ? queue.snapshot() : null;
+}
+
 type RawResponse = { status: number; headers: http.IncomingHttpHeaders; text: string };
 
 function post(transport: Transport, payload: string, signal: AbortSignal): Promise<RawResponse> {
@@ -288,6 +299,7 @@ export async function withAi<T>(actor: string, signal: AbortSignal, fn: (call: A
   const config = aiConfig();
   if (config.mode === "disabled") throw new AiError("ai_disabled");
   if (config.mode === "invalid" || !queue) throw new AiError("ai_config_invalid");
+  if (await isAiCircuitOpen()) throw new AiError("ai_circuit_open");
   const deadline = Date.now() + config.timeoutMs;
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(new AiError("upstream_timeout")), config.timeoutMs);

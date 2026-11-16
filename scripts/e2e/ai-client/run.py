@@ -804,6 +804,25 @@ def group_security(ctx):
     with scenario(ctx, "S6 无额外写操作"):
         ctx.check("asset table unchanged", admin.call("GET", "/assets").text == snapshot)
 
+    with scenario(ctx, "S7 超管 AI 一键熔断实时拦截与恢复 + Agent 审计落库"):
+        agent_logs = admin.call("GET", "/audit?source=agent&size=20")
+        ctx.check("agent audit query 200", agent_logs.status == 200 and agent_logs.body().get("total", 0) >= 1, ">=1", agent_logs.body().get("total"))
+        ctx.check("agent audit rows attributed to agent without prompt text", all(r.get("actorSource") == "agent" and r.get("action") == "agent.asset_filter" and "[e2e:" not in json.dumps(r, ensure_ascii=False) for r in agent_logs.body().get("items", [])))
+        member_deny = ctx.members[0].call("PATCH", "/system/ai-circuit", {"enabled": False})
+        ctx.check("member cannot trip circuit breaker", member_deny.status == 403, 403, member_deny.status)
+        tripped = admin.call("PATCH", "/system/ai-circuit", {"enabled": False})
+        ctx.check("super_admin trips circuit breaker", tripped.status == 200 and tripped.body().get("circuitOpen") is True, True, tripped.body())
+        try:
+            before_seq = fx_state()["seq"]
+            ctx.check("config disabled while circuit open", admin.call("GET", "/assets/agent/config").body() == {"enabled": False})
+            blocked = plan(admin, "s7-blocked")
+            expect_error(ctx, "circuit open plan", blocked, 503, "ai_circuit_open")
+            ctx.check("zero upstream calls while circuit open", fx_state()["seq"] == before_seq)
+        finally:
+            restored = admin.call("PATCH", "/system/ai-circuit", {"enabled": True})
+            ctx.check("super_admin restores circuit breaker", restored.status == 200 and restored.body().get("circuitOpen") is False, False, restored.body())
+        ctx.check("config re-enabled immediately", admin.call("GET", "/assets/agent/config").body() == {"enabled": True})
+
 
 def group_errors(ctx):
     ctx.group = "errors"

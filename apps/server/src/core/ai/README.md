@@ -6,8 +6,8 @@
 
 - `token-field.ts`：两种 token 上限字段的归一化；官方 OpenAI 主机默认 `max_completion_tokens`，其他地址默认 `max_tokens`。只有 400/422 明确要求另一字段才修正一次；跳过额度、限流和上下文错误码。保留数值、messages 和 tools，成功修正后缓存 endpoint+model 的选择（最多 64 条，6 小时）。
 - `errors.ts`：识别 OpenAI / Anthropic / Gemini 错误结构，返回固定文案、稳定 code 和安全元数据；不返回上游正文。Retry-After 支持秒与 HTTP 日期，向上取整，不截短供应商建议等待时间。
-- `queue.ts`：单进程有界 FIFO，单用户活跃加排队限额；排队取消不发上游，超时退出，成功、失败和取消都释放，释放幂等。用户计数归零即删除。多实例之间不共享限流状态。
-- `client.ts`：私有文件凭证、HTTP(S) 传输、可信 CA、1MiB 响应上限；拒绝重定向。一个截止时间覆盖排队、token 修正及业务工具参数修正。
+- `queue.ts`：单进程有界 FIFO，单用户活跃加排队限额；排队取消不发上游，超时退出，成功、失败和取消都释放，释放幂等。用户计数归零即删除；通过 `snapshot()` 向超管状态页只读暴露 `active / waiting / activeActors` 实时水位。多实例之间不共享限流状态。
+- `client.ts`：私有文件凭证、HTTP(S) 传输、可信 CA、1MiB 响应上限；拒绝重定向。接入 `console_setting` 的 `ai.enabled` 全局熔断开关，开启熔断时在获取队列槽位与请求上游前直接抛出 `ai_circuit_open`（HTTP `503`）。一个截止时间覆盖排队、token 修正及业务工具参数修正。
 
 所选逻辑移植自 Magpie 固定提交 `58cf764533743a84b93a8b2cbff61fde27350856`，未引入 Go 库。原函数、修改说明和原文件摘要见 [来源清单](../../../../../third_party/magpie-sources.json)，完整版权与许可见 [MIT](../../../../../third_party/licenses/magpie-MIT.txt)。`Dockerfile.prod` 把这些文件复制到最终镜像 `/app/third_party/`；后续摘取或升级需核对新增内容及其许可。
 

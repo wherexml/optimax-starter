@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { request, type Account } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
+import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { parseAccountSearch } from "@/features/filters/search";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { CreateAccountDialog } from "./CreateAccountDialog";
@@ -43,16 +43,25 @@ const FIELDS: FilterField[] = [
     label: "角色",
     type: "select",
     options: [
+      { value: "super_admin", label: "超级管理员" },
       { value: "admin", label: "管理员" },
       { value: "member", label: "成员" },
     ],
   },
 ];
 
+function roleBadgeVariant(role: string): "brand" | "outline" | "neutral" {
+  if (role === "super_admin") return "brand";
+  if (role === "admin") return "outline";
+  return "neutral";
+}
+
 export function AccountsPage() {
   const me = useAccount(),
     cache = useQueryClient(),
-    admin = me.data?.role === "admin";
+    canRead = hasPermission(me.data, "accounts:read"),
+    canManage = hasPermission(me.data, "accounts:manage"),
+    isSuperAdmin = me.data?.role === "super_admin";
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -64,7 +73,7 @@ export function AccountsPage() {
     role = params.role ?? "";
   const update = usePersistedFilters({
     scope: "accounts",
-    accountId: admin ? me.data?.id : undefined,
+    accountId: canRead ? me.data?.id : undefined,
     values: params,
     persist: PERSIST,
     parse: parseAccountSearch,
@@ -75,7 +84,7 @@ export function AccountsPage() {
     meta: { contentRefresh: true },
     queryKey: ["accounts"],
     queryFn: () => request<Account[]>("/accounts"),
-    enabled: admin,
+    enabled: Boolean(me.data) && canRead,
   });
   const refresh = () => cache.invalidateQueries({ queryKey: ["accounts"] });
   const enable = useMutation({
@@ -100,116 +109,144 @@ export function AccountsPage() {
     await refresh();
     toast.success(message, description ? { description } : undefined);
   }
-  const columns: ColumnDef<Account>[] = [
-    {
-      accessorKey: "name",
-      header: "姓名",
-      cell: (c) => (
-        <span className="font-medium">
-          {String(c.getValue())}
-          {c.row.original.id === me.data?.id && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              当前账户
-            </span>
-          )}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "username",
-      header: "账户名",
-      cell: (c) => (
-        <span className="font-mono text-xs text-muted-foreground">
-          {String(c.getValue())}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "role",
-      header: "角色",
-      cell: (c) => (
-        <Badge variant={c.getValue() === "admin" ? "brand" : "neutral"}>
-          {c.getValue() === "admin" ? "管理员" : "成员"}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "active",
-      header: "状态",
-      cell: (c) => (
-        <span className={c.getValue() ? "status-dot on" : "status-dot"}>
-          {c.getValue() ? "已启用" : "已停用"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "sessions",
-      header: "在线会话",
-      cell: (c) => <span className="tabular-nums">{Number(c.getValue() ?? 0)}</span>,
-    },
-    {
-      id: "action",
-      header: "操作",
-      cell: (c) => {
-        const row = c.row.original;
-        const self = row.id === me.data?.id;
-        return (
-          <div className="row-actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label={`编辑 ${row.name}`}
-              onClick={(e) => open("edit", row, e)}
-            >
-              编辑
-            </Button>
-            {!self && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`重置 ${row.name} 的密码`}
-                  onClick={(e) => open("password", row, e)}
-                >
-                  重置密码
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={`强制 ${row.name} 下线`}
-                  disabled={!row.sessions}
-                  onClick={(e) => open("revoke", row, e)}
-                >
-                  下线
-                </Button>
-                {row.active ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    aria-label={`停用 ${row.name}`}
-                    onClick={(e) => open("disable", row, e)}
-                  >
-                    停用
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`启用 ${row.name}`}
-                    disabled={enable.isPending}
-                    onClick={() => enable.mutate(row)}
-                  >
-                    启用
-                  </Button>
-                )}
-              </>
+  const activeSuperAdminCount = useMemo(
+    () =>
+      (query.data ?? []).filter((r) => r.role === "super_admin" && r.active)
+        .length,
+    [query.data],
+  );
+  const columns = useMemo<ColumnDef<Account>[]>(() => {
+    const base: ColumnDef<Account>[] = [
+      {
+        accessorKey: "name",
+        header: "姓名",
+        cell: (c) => (
+          <span className="font-medium">
+            {String(c.getValue())}
+            {c.row.original.id === me.data?.id && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                当前账户
+              </span>
             )}
-          </div>
-        );
+          </span>
+        ),
       },
-    },
-  ];
+      {
+        accessorKey: "username",
+        header: "账户名",
+        cell: (c) => (
+          <span className="font-mono text-xs text-muted-foreground">
+            {String(c.getValue())}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "role",
+        header: "角色",
+        cell: (c) => {
+          const val = String(c.getValue());
+          return (
+            <Badge variant={roleBadgeVariant(val)}>{getRoleLabel(val)}</Badge>
+          );
+        },
+      },
+      {
+        accessorKey: "active",
+        header: "状态",
+        cell: (c) => (
+          <span className={c.getValue() ? "status-dot on" : "status-dot"}>
+            {c.getValue() ? "已启用" : "已停用"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "sessions",
+        header: "在线会话",
+        cell: (c) => (
+          <span className="tabular-nums">{Number(c.getValue() ?? 0)}</span>
+        ),
+      },
+    ];
+    if (!canManage) return base;
+    return [
+      ...base,
+      {
+        id: "action",
+        header: "操作",
+        cell: (c) => {
+          const row = c.row.original;
+          const self = row.id === me.data?.id;
+          const protectedPeer = !self && !isSuperAdmin && row.role !== "member";
+          if (protectedPeer) {
+            return (
+              <span className="text-xs text-muted-foreground">仅超管可维护</span>
+            );
+          }
+          const isLastSuperAdmin =
+            row.role === "super_admin" && row.active && activeSuperAdminCount <= 1;
+          return (
+            <div className="row-actions">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`编辑 ${row.name}`}
+                onClick={(e) => open("edit", row, e)}
+              >
+                编辑
+              </Button>
+              {!self && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`重置 ${row.name} 的密码`}
+                    onClick={(e) => open("password", row, e)}
+                  >
+                    重置密码
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`强制 ${row.name} 下线`}
+                    disabled={!row.sessions}
+                    onClick={(e) => open("revoke", row, e)}
+                  >
+                    下线
+                  </Button>
+                  {row.active ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      aria-label={`停用 ${row.name}`}
+                      disabled={isLastSuperAdmin}
+                      title={
+                        isLastSuperAdmin ? "至少保留一名启用的超级管理员" : undefined
+                      }
+                      onClick={(e) => open("disable", row, e)}
+                    >
+                      停用
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`启用 ${row.name}`}
+                      disabled={enable.isPending}
+                      onClick={() => enable.mutate(row)}
+                    >
+                      启用
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ];
+  }, [activeSuperAdminCount, canManage, enable, isSuperAdmin, me.data?.id]);
+
   const rows = useMemo(
     () =>
       query.data?.filter(
@@ -224,12 +261,14 @@ export function AccountsPage() {
   return (
     <ResourceTableSlot
       title="账户管理"
-      allowed={admin}
+      allowed={canRead}
       actions={
-        <Button ref={trigger} onClick={() => setAdding(true)}>
-          <Plus size={16} />
-          新增账户
-        </Button>
+        canManage ? (
+          <Button ref={trigger} onClick={() => setAdding(true)}>
+            <Plus size={16} />
+            新增账户
+          </Button>
+        ) : undefined
       }
       fields={FIELDS}
       filters={params}

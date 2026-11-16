@@ -14,9 +14,9 @@ import { AUDIT_MAX_PAGE, auditResource, containsPattern } from "../core/audit";
 import {
   Refusal,
   guarded,
-  lockAdmin,
+  lockPermission,
   parsePositiveId,
-  requireAdmin,
+  requirePermission,
   type Env,
 } from "../core/guards";
 
@@ -69,12 +69,12 @@ const assetResource = (row: { id: number; name: string }) => ({
 assetsRoutes.route("/assets/agent", assetAgentApi);
 
 // Full list endpoint preserved for client-side filtering and Agent pilot compatibility.
-assetsRoutes.get("/assets", async (c) =>
+assetsRoutes.get("/assets", requirePermission("assets:read"), async (c) =>
   c.json(await db.select().from(assets).orderBy(assets.id)),
 );
 
 // Server-side paginated + multi-select + contains/equals filtering reference endpoint.
-assetsRoutes.get("/assets/page", async (c) => {
+assetsRoutes.get("/assets/page", requirePermission("assets:read"), async (c) => {
   const scalar = Object.fromEntries(
     Object.entries(c.req.query()).filter(
       ([k, v]) => k !== "stage" && k !== "domain" && v.trim() !== "",
@@ -113,14 +113,14 @@ assetsRoutes.get("/assets/page", async (c) => {
   return c.json({ items, total: Number(totals[0]?.n ?? 0), page, size });
 });
 
-assetsRoutes.post("/assets", requireAdmin, async (c) => {
+assetsRoutes.post("/assets", requirePermission("assets:manage"), async (c) => {
   const parsed = assetInputSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "请完整填写资产名称、业务域、责任团队与登记状态" }, 400);
   }
   return guarded(c, async () => {
     const created = await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
       const [row] = await tx
         .insert(assets)
         .values(parsed.data)
@@ -138,14 +138,14 @@ assetsRoutes.post("/assets", requireAdmin, async (c) => {
   });
 });
 
-assetsRoutes.patch("/assets/:id", requireAdmin, async (c) => {
+assetsRoutes.patch("/assets/:id", requirePermission("assets:manage"), async (c) => {
   const id = parsePositiveId(c.req.param("id"));
   const parsed = assetPatchSchema.safeParse(await c.req.json().catch(() => null));
   if (!id || !parsed.success) return c.json({ error: "无效的资产变更" }, 400);
   const change = parsed.data;
   return guarded(c, async () => {
     const updated = await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
       const [before] = await tx
         .select()
         .from(assets)
@@ -186,12 +186,12 @@ assetsRoutes.patch("/assets/:id", requireAdmin, async (c) => {
   });
 });
 
-assetsRoutes.delete("/assets/:id", requireAdmin, async (c) => {
+assetsRoutes.delete("/assets/:id", requirePermission("assets:manage"), async (c) => {
   const id = parsePositiveId(c.req.param("id"));
   if (!id) return c.json({ error: "无效的资产" }, 400);
   return guarded(c, async () => {
     await db.transaction(async (tx) => {
-      const self = await lockAdmin(tx, c.get("actor").id);
+      const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
       const [removed] = await tx
         .delete(assets)
         .where(eq(assets.id, id))

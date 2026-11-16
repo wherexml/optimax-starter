@@ -2,6 +2,7 @@ export type {
   Account,
   AccountRole,
   AccountSearch,
+  ActorSource,
   Asset,
   AssetPage,
   AssetSearch,
@@ -11,7 +12,13 @@ export type {
   AuditPage,
   AuditSearch,
   AuthProviderInfo,
+  ModulePermissionAction,
   PaginatedResult,
+  SystemPermissionMatrixPayload,
+  SystemPermissionRow,
+  SystemSettingsResponse,
+  SystemStatusResponse,
+  SystemTab,
 } from "@optimax-starter/api";
 
 const MAX_MESSAGE = 120;

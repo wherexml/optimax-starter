@@ -3,16 +3,19 @@ import {
   createRootRoute,
   Link,
   Outlet,
+  useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   APP_CONFIG,
+  getFirstAccessiblePath,
   getSidebarNodes,
+  isPathAccessible,
   storageKey,
   type NavLeafItem,
 } from "@/config/app-config";
-import { useAccount } from "@/features/auth/session";
+import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { QuickNav } from "@/features/navigation/QuickNav";
 import {
   Popover,
@@ -123,7 +126,7 @@ function SidebarLeaf({
 }) {
   const Icon = compact && item.collapsedIcon ? item.collapsedIcon : item.icon;
   const collapsedTitle =
-    item.collapsedLabel ?? (groupLabel ? `${groupLabel} · ${item.label}` : item.label);
+    item.collapsedLabel ?? (groupLabel ? `${groupLabel} ${item.label}` : item.label);
   const linkProps = item.defaultSearch
     ? {
         search: item.defaultSearch as never,
@@ -149,6 +152,7 @@ function SidebarLeaf({
 
 function Shell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const mobile = useMedia(MOBILE_QUERY);
   const [compact, setCompact] = useState(readCompact);
   const [drawer, setDrawer] = useState(false);
@@ -167,6 +171,16 @@ function Shell() {
   const cache = useQueryClient();
   const me = useAccount();
   const ready = Boolean(me.data);
+  const accessible = me.data ? isPathAccessible(path, me.data) : true;
+
+  useEffect(() => {
+    if (me.data && !accessible) {
+      const target = getFirstAccessiblePath(me.data);
+      if (target !== path) {
+        void navigate({ to: target, replace: true });
+      }
+    }
+  }, [accessible, me.data, navigate, path]);
 
   useEffect(() => {
     setDrawer(false);
@@ -232,11 +246,11 @@ function Shell() {
         正在加载…
       </main>
     );
-  const admin = me.data.role === "admin";
-  const roleLabel = admin ? "管理员" : "成员";
+  const canViewAccounts = hasPermission(me.data, "accounts:read");
+  const roleLabel = getRoleLabel(me.data.role);
   const initial = me.data.name.slice(0, 1);
   const rail = compact && !mobile;
-  const sidebarNodes = getSidebarNodes(admin);
+  const sidebarNodes = getSidebarNodes(me.data);
   const toggleLabel = mobile ? "关闭菜单" : compact ? "展开菜单" : "折叠菜单";
   const ToggleIcon = mobile ? X : compact ? PanelLeftOpen : PanelLeftClose;
   // When a menu item navigates or opens a dialog, focus does not return to the trigger, so it cannot land in a hidden sidebar or behind the dialog.
@@ -390,7 +404,7 @@ function Shell() {
                 <Settings size={16} aria-hidden="true" />
                 个人设置
               </Link>
-              {admin && (
+              {canViewAccounts && (
                 <Link to="/accounts" className="user-menu-item" onClick={leaveMenu}>
                   <Users size={16} aria-hidden="true" />
                   账户管理
@@ -436,11 +450,11 @@ function Shell() {
             </button>
           )}
           <WorkspaceRefresh key={path} path={path}>
-            <div className="page"><Outlet /></div>
+            <div className="page">{accessible ? <Outlet /> : null}</div>
           </WorkspaceRefresh>
         </section>
       </main>
-      <QuickNav open={quick} onOpenChange={setQuick} admin={admin} />
+      <QuickNav open={quick} onOpenChange={setQuick} account={me.data} />
       <FormDialog
         open={logoutOpen}
         onOpenChange={(open) => {

@@ -9,6 +9,7 @@
 
 export type AiErrorCode =
   | "ai_disabled"
+  | "ai_circuit_open"
   | "ai_config_invalid"
   | "upstream_auth"
   | "upstream_rate_limited"
@@ -29,6 +30,7 @@ export type AiErrorMeta = { upstreamStatus?: number; errorShape?: ErrorShape; re
 
 const TABLE: Record<AiErrorCode, { status: 429 | 502 | 503 | 504; message: string }> = {
   ai_disabled: { status: 503, message: "模型筛选尚未配置" },
+  ai_circuit_open: { status: 503, message: "AI 功能已由管理员临时熔断" },
   ai_config_invalid: { status: 503, message: "模型服务配置无效，请联系管理员" },
   upstream_auth: { status: 502, message: "模型服务鉴权失败，请联系管理员检查服务端配置" },
   upstream_rate_limited: { status: 429, message: "模型服务限流，请稍后重试" },

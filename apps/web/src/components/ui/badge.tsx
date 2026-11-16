@@ -11,6 +11,8 @@ const badgeVariants = cva(
       variant: {
         brand: "bg-accent text-accent-foreground",
         warning: "bg-warning text-warning-foreground",
+        danger: "bg-destructive/10 text-destructive",
+        outline: "border-[0.5px] border-border bg-card text-foreground",
         neutral: "bg-muted text-muted-foreground",
       },
     },

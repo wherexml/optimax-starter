@@ -23,6 +23,14 @@ export class AiQueue {
 
   constructor(private readonly limits: QueueLimits) {}
 
+  snapshot() {
+    return {
+      active: this.active,
+      waiting: this.waiting.length,
+      activeActors: this.actors.size,
+    };
+  }
+
   /** Waits in turn for a slot; resolves with a release that is safe to call more than once. */
   acquire(actor: string, signal: AbortSignal, deadline: number): Promise<() => void> {
     if (signal.aborted) return Promise.reject(abortError(signal));

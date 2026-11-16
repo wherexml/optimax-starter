@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { request, type Account } from "@/console-client";
+import { getRoleLabel, useAccount } from "@/features/auth/session";
 
 const schema = z.object({
   name: z.string().trim().min(1, "请输入姓名").max(80, "姓名最多 80 个字符"),
@@ -52,12 +53,19 @@ export function EditAccountDialog({
   trigger: HTMLElement | null;
   close: (message?: string) => void;
 }) {
+  const me = useAccount();
+  const isSuperAdmin = me.data?.role === "super_admin";
+  const canEditRole = !self && isSuperAdmin;
+  const initialRole: Values["role"] =
+    account.role === "super_admin" || account.role === "admin"
+      ? account.role
+      : "member";
   const usernameId = useId();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: account.name,
-      role: account.role === "admin" ? "admin" : "member",
+      role: initialRole,
       email: account.email ?? "",
       company: account.company ?? "",
     },
@@ -67,7 +75,7 @@ export function EditAccountDialog({
   const [confirmRole, setConfirmRole] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const role = form.watch("role");
-  const roleChanged = !self && role !== account.role;
+  const roleChanged = canEditRole && role !== initialRole;
 
   useEffect(() => {
     setConfirmRole(false);
@@ -87,7 +95,7 @@ export function EditAccountDialog({
         company?: string;
       } = {};
       if (values.name.trim() !== account.name) body.name = values.name.trim();
-      if (!self && values.role !== account.role) body.role = values.role;
+      if (canEditRole && values.role !== initialRole) body.role = values.role;
       const nextEmail = (values.email ?? "").trim();
       if (nextEmail !== (account.email ?? "")) body.email = nextEmail;
       const nextCompany = (values.company ?? "").trim();
@@ -189,7 +197,7 @@ export function EditAccountDialog({
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
-                    disabled={self}
+                    disabled={!canEditRole}
                   >
                     <FormControl>
                       <SelectTrigger aria-label="角色">
@@ -199,9 +207,14 @@ export function EditAccountDialog({
                     <SelectContent>
                       <SelectItem value="member">成员</SelectItem>
                       <SelectItem value="admin">管理员</SelectItem>
+                      <SelectItem value="super_admin">超级管理员</SelectItem>
                     </SelectContent>
                   </Select>
-                  {self && <FieldHint>不能更改自己的角色</FieldHint>}
+                  {self ? (
+                    <FieldHint>不能更改自己的角色</FieldHint>
+                  ) : !isSuperAdmin ? (
+                    <FieldHint>角色变更仅超级管理员可执行</FieldHint>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
@@ -258,9 +271,7 @@ export function EditAccountDialog({
               role="alert"
               className="m-0 rounded-lg border-[0.5px] border-[color:var(--warning-foreground)]/25 bg-[var(--warning)] px-3.5 py-2.5 text-sm leading-5 text-[var(--warning-foreground)]"
             >
-              {role === "admin"
-                ? `${account.name} 将可以管理全部账户、角色与会话。`
-                : `${account.name} 将失去账户管理权限。`}
+              {`${account.name} 的系统角色将从「${getRoleLabel(initialRole)}」变更为「${getRoleLabel(role)}」。`}
               再次点击“确认更改角色”生效。
             </p>
           )}

@@ -161,6 +161,7 @@ jobs:
           python3 scripts/verify-easm-settings.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
           python3 scripts/verify-easm-rollback.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
           python3 scripts/verify-easm-settings.py --cleanup | tee -a "$RUNNER_TEMP/e2e-summary.log"
+          python3 scripts/verify-system-governance.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
       - name: Collect container diagnostics and tear down stack
         if: always()
         run: |

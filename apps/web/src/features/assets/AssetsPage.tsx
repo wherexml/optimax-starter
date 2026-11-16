@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { storageKey } from "@/config/app-config";
 import { request, type Asset } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
+import { hasPermission, useAccount } from "@/features/auth/session";
 import { asList, parseAssetSearch } from "@/features/filters/search";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { AssetAgent, type FilterDraft } from "./AssetAgent";
@@ -37,7 +37,8 @@ export function AssetsPage() {
   }, []);
   const me = useAccount();
   const cache = useQueryClient();
-  const admin = me.data?.role === "admin";
+  const canRead = hasPermission(me.data, "assets:read");
+  const canManage = hasPermission(me.data, "assets:manage");
   const [pending, setPending] = useState<PendingAction>(null);
   const createTrigger = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -67,6 +68,7 @@ export function AssetsPage() {
     meta: { contentRefresh: true },
     queryKey: ["assets"],
     queryFn: () => request<Asset[]>("/assets"),
+    enabled: Boolean(me.data) && canRead,
   });
 
   const domains = useMemo(
@@ -134,7 +136,7 @@ export function AssetsPage() {
   );
 
   const columns = useMemo<ColumnDef<Asset>[]>(() => {
-    if (!admin) return assetColumns;
+    if (!canManage) return assetColumns;
     return [
       ...assetColumns,
       {
@@ -167,13 +169,15 @@ export function AssetsPage() {
         },
       },
     ];
-  }, [admin, openRowAction]);
+  }, [canManage, openRowAction]);
 
   return (
     <ResourceTableSlot
       title="资产台账"
+      allowed={canRead}
+      deniedMessage="无权查看资产台账"
       actions={
-        admin ? (
+        canManage ? (
           <Button
             ref={createTrigger}
             onClick={() => {

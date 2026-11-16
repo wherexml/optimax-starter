@@ -212,11 +212,13 @@ AppShell
 | 路径 | 页面 | 权限 | 数据来源 | 验收入口 |
 | --- | --- | --- | --- | --- |
 | `/login` | `features/auth/LoginPage` | 公开；已有 Session 时仍可访问，不自动跳转 | `/console` 登录 API，设置 Session Cookie | `http://127.0.0.1:38140/login` |
-| `/` | `features/dashboard/DashboardPage`（工作台） | 登录（成员、管理员） | `/console/assets`、`/console/accounts`、`/console/audit` | `http://127.0.0.1:38140/` |
-| `/assets` | `features/assets/AssetsPage`（资产台账） | 登录（成员只读、管理员可写） | `/console/assets`；URL 参数 `q`、`qOp`、`stage`、`domain` | `http://127.0.0.1:38140/assets` |
-| `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | 管理员（后端鉴权） | `/console/accounts`；URL 参数 `q`、`status`、`role` | `http://127.0.0.1:38140/accounts` |
-| `/audit` | `features/audit/AuditPage`（操作日志） | 管理员（后端鉴权） | `/console/audit` 服务端分页；URL 参数 `action`、`actor`、`start`、`end`、`page`、`size` | `http://127.0.0.1:38140/audit` |
-| `/settings` | `features/settings/SettingsPage`（个人设置） | 登录（成员、管理员） | `/console/me`、`/console/me/password` | `http://127.0.0.1:38140/settings` |
+| `/` | `features/dashboard/DashboardPage`（工作台） | `workbench:read` | `/console/assets`、`/console/accounts`、`/console/audit`（按有效权限请求） | `http://127.0.0.1:38140/` |
+| `/assets` | `features/assets/AssetsPage`（资产台账） | `assets:read`（写操作需 `assets:manage`） | `/console/assets`；URL 参数 `q`、`qOp`、`stage`、`domain` | `http://127.0.0.1:38140/assets` |
+| `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | `accounts:read`（写操作需 `accounts:manage`，提权仅限 `super_admin`） | `/console/accounts`；URL 参数 `q`、`status`、`role` | `http://127.0.0.1:38140/accounts` |
+| `/permissions` | `features/permissions/PermissionsPage`（系统权限） | `super_admin`（`system:permission:read`） | `/console/system/permissions` | `http://127.0.0.1:38140/permissions` |
+| `/system` | `features/system/SystemPage`（系统配置） | `system:ai:read` 或 `system:settings:read` | `/console/system/status`、`/console/system/settings`；URL 参数 `tab=status\|settings` | `http://127.0.0.1:38140/system?tab=status` |
+| `/audit` | `features/audit/AuditPage`（操作日志） | `audit:read` | `/console/audit` 服务端分页；URL 参数 `source`、`action`、`actor`、`start`、`end`、`page`、`size` | `http://127.0.0.1:38140/audit` |
+| `/settings` | `features/settings/SettingsPage`（个人设置） | 全部已登录账户 | `/console/me`、`/console/me/password` | `http://127.0.0.1:38140/settings` |
 | `/demo/navigation` | `features/navigation-demo/NavigationDemoPage` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets`；URL 参数 `tab` | `http://127.0.0.1:38140/demo/navigation?tab=pending` |
 | `/demo/forms` | `features/forms-demo/FormsDemoPage` + `ComplexFormDialog` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets` 候选源 + 页内策略状态 + 右下角通知速查；可选参数 `dialog=create\|edit` | `http://127.0.0.1:38140/demo/forms?dialog=create` |
 
@@ -301,9 +303,8 @@ AppShell
 
 > 「前端隐藏入口≠权限」「后端最终鉴权」等通用红线见 [AGENTS.md 核心约束](./AGENTS.md#核心约束)；认证字段、Session、RBAC 细则以 [AUTH.md](./AUTH.md) 为准。本节只讲前端登录态的行为。
 
-- 应用启动时必须调用 `me` 或等价接口确认当前用户。
-- 未登录时跳转登录页；已登录访问登录页时跳回首页。
-- 权限不足展示 permission denied，不伪装成空数据。
+- 应用启动时必须调用 `me` 或等价接口确认当前用户及实时有效权限集合（`permissions`）。
+- 未登录时跳转登录页；直达当前账号无查看权限的模块路由时，按统一导航顺序自动跳转首个可访问页面（兜底 `/settings`），页面内写权限不足时展示只读徽章或明确提示，不伪装成空数据。
 - 登录态 store 只保存必要用户、组织、角色和 session 信息。
 - 凭证存储与传递边界见 [AUTH.md §12](./AUTH.md#12-cookiebearer-与本地存储)。
 - 登出、Session 过期或服务端撤销身份后，清理登录态、query cache 和账号绑定的持久数据，关闭 SSE/WebSocket、轮询及 Agent 会话，再进入登录页。
