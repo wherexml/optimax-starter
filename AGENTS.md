@@ -62,6 +62,7 @@
 | 页内标签、页面间导航或多页标签条 | [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签) + [FRONTEND.md 页内导航与标签行为](./FRONTEND.md#页内导航与标签行为) | 选用方式、样式、URL、权限、草稿与验收用例 |
 | UI、PPT、报表或视觉输出 | [DESIGN.md](./DESIGN.md) | 文案、Radix 配色、字号、对齐、视觉验收；生成图片使用 imagegen skill |
 | 后端、数据库、队列、Worker | [BACKEND.md](./BACKEND.md) | 分层、数据、任务、日志、健康检查 |
+| Laravel 后端引入、契约桥与双栈迁移 | [LARAVEL.md](./LARAVEL.md) | 决策记录、阶段 spec 索引与完成状态、spec 执行流程 |
 | API、Webhook、跨端契约 | [API_CONVENTIONS.md](./API_CONVENTIONS.md) | 响应、错误、分页、幂等、契约变更 |
 | 登录、角色、租户、权限 | [AUTH.md](./AUTH.md) | 身份、Session、RBAC、租户与审计 |
 | 凭证、敏感数据、文件输入、安全边界或 AI/风险数据口径 | [SECURITY.md](./SECURITY.md) | 数据保护、输入风险与信息真实性 |
