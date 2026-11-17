@@ -74,6 +74,7 @@
 ## 项目技能默认路由
 
 - 前端交互、键盘/焦点行为、UI SDK 和 Agent 操作默认先读取项目内 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)。在 Starter 目录工作时可原生发现，自动调用已开启，也可显式使用 `$starter-ui-sdk`；父目录会话按本文件链接读取。
+- PHP / Laravel 后端任务默认先读取项目内 Laravel 官方 skills：[starter-kit-upgrade](./.agents/skills/starter-kit-upgrade/SKILL.md)（从 Laravel starter kit 选择性同步上游特性）与 [laravel-simplifier](./.zcode/agents/laravel-simplifier.md)（Laravel 代码精简 agent）。来源、commit 与裁剪范围见 [third_party/laravel-agent-skills.json](./third_party/laravel-agent-skills.json)；laravel-cloud 与 laravel-nightwatch 未引入（SaaS 服务与自托管部署边界冲突）。
 - 纯布局、颜色、文案按 FRONTEND / DESIGN 处理；纯后端任务按上表进入对应规范。读取技能不代表自动迁移全部控件或启用模型。
 - 全局 `ui-sdk` 与项目技能可能同时存在；本项目按上述明确路径读取适配版，不依赖个人主目录。技能负责开发流程，已安装 SDK 文档负责当前 API。
 
