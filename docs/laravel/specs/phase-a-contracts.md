@@ -14,15 +14,21 @@
 
 ### 动作
 
-- [ ] 逐个将实体改写为 `z.object`/`z.looseObject` 形式并 `export type X = z.infer<...>`；可选字段用 `.optional()`，`AuditDetail` 保持宽松（`z.record(z.unknown())` 级别）
-- [ ] `PaginatedResult<T>` 用函数或泛型工厂保持现有泛型用法兼容；`AuditPage`/`AssetPage` 等组合类型不破坏现有 import
-- [ ] 全仓 `bun run check-types` 通过；`apps/web` 与 `apps/server` 的消费点不改一行
-- [ ] 确认提升后 schema 能被 `z.toJSONSchema()` 表达（不使用 date/bigint/transform 等不可表示类型）
+- [x] 逐个将实体改写为 `z.object`/`z.looseObject` 形式并 `export type X = z.infer<...>`；可选字段用 `.optional()`，`AuditDetail` 保持宽松（`z.record(z.unknown())` 级别）
+- [x] `PaginatedResult<T>` 用函数或泛型工厂保持现有泛型用法兼容；`AuditPage`/`AssetPage` 等组合类型不破坏现有 import
+- [x] 全仓 `bun run check-types` 通过；`apps/web` 与 `apps/server` 的消费点不改一行
+- [x] 确认提升后 schema 能被 `z.toJSONSchema()` 表达（不使用 date/bigint/transform 等不可表示类型）
 
 ### 验收
 
 - `bun run check-types` 全绿（证据：命令输出）
 - 既有 E2E 任选 3 个（login-brand、system-admin、asset-agent-api）仍绿，证明契约行为未变
+
+### 完成记录（2026-11-17，commit `5d14e17`，分支 `laravel/la-01-entity-schemas`）
+
+- 实现：`Account`/`Asset`/`AuditEntry`/`AuthProviderInfo`/三个 Search 类型提升为 zod schema + `z.infer`；`PaginatedResult` 保留手写泛型并新增 `paginatedResultSchema` 工厂 + `paginatedShapeLock` 编译期一致性锁；`assetPageSchema`/`auditPageSchema` 导出供 LA-02 生成。**偏差说明**：`AuditDetail` 未提升——它是服务端构造辅助类型（响应路径 `AuditEntry.detail` 已是 `Record<string, unknown>`），保留精确键约束价值更高，宽松性在响应侧已成立。
+- 验证（`evidence/la-01/verification.txt`，本地不入库）：① 全仓 `check-types` 绿；② `z.toJSONSchema` 可表达性 9/9 PASS；③ `bun run verify`（verify-console.py 打运行中容器栈，api 容器热加载本分支源码）PASS：healthz/匿名守卫/login/资产 CRUD+服务端分页/RBAC/禁用/强制下线/启用/登出。
+- NOT_RUN 及原因：login-brand.mjs、system-admin.mjs 需 Ego TaskSpace 浏览器 task 环境（本会话无此 harness）；asset-agent-api.py 前置为 AI 筛选启用（默认关闭、需真实模型端点）。浏览器 E2E 待环境可用时补跑，不阻塞 LA-02（本次改动为类型级，运行时 schema 集未变）。
 
 ### 影响面 / 回滚
 
