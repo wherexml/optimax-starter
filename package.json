@@ -33,13 +33,15 @@
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "bootstrap": "./scripts/bootstrap-project.sh",
     "gen:module": "node scripts/gen-module.mjs",
-    "verify": "python3 scripts/verify-console.py"
+    "verify": "python3 scripts/verify-console.py",
+    "test:e2e:pw": "playwright test -c scripts/e2e/playwright/playwright.config.ts"
   },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
     "@optimax-starter/config": "workspace:*",
+    "@playwright/test": "^1.65.1",
     "@types/bun": "catalog:",
     "typescript": "catalog:",
     "varlock": "catalog:"

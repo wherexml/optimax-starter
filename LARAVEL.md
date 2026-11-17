@@ -27,7 +27,7 @@
 
 | 阶段 | spec | 标题 | 前置 | 状态 |
 | --- | --- | --- | --- | --- |
-| A | [LA-01](./docs/laravel/specs/phase-a-contracts.md) | 实体接口提升为 Zod schema | — | ✅ 5d14e17（浏览器 E2E 待补） |
+| A | [LA-01](./docs/laravel/specs/phase-a-contracts.md) | 实体接口提升为 Zod schema | — | ✅ 5d14e17（浏览器 E2E 由 Playwright 套件覆盖） |
 | A | [LA-02](./docs/laravel/specs/phase-a-contracts.md) | `contracts:generate` 生成链 | LA-01 | 未开始 |
 | A | [LA-03](./docs/laravel/specs/phase-a-contracts.md) | refine 清单机制 | LA-02 | 未开始 |
 | A | [LA-04](./docs/laravel/specs/phase-a-contracts.md) | 契约 CI 门禁 | LA-02 | 未开始 |
