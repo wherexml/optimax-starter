@@ -26,21 +26,33 @@ LC-08。
 
 `scripts/gen-module.mjs`、两个 README。
 
-## LD-02 试点新模块验证扩展性
+## LD-02 试点附件模块与 OSS 存储管理
 
 ### 目标
 
-用一条真实的小需求走完双轨全流程，验证「最大扩展性」承诺：不改横切代码、不手写重复契约。
+用一条真实小需求走完双轨全流程，验证「最大扩展性」承诺，同时落地 D8 的存储管理：**附件模块（attachments）**——Laravel Filesystem 抽象、本地/对象存储双 driver、签名 URL、附件元数据与审计。UI 侧复用 `packages/ui` 已有的 attachment 输入控件。
+
+### 前置
+
+LD-01、LB-07。
 
 ### 动作
 
-- [ ] 选一个与现网数据隔离的试点模块（建议：公告 `announcements`，只读 + 管理员写，含分页），从 PRD 场景 → 契约 → 双轨生成 → 实现 → E2E 全程按本 spec 流程执行
-- [ ] 记录每一步耗时与需要人工补齐的点，反哺 gen:module 与规范（发现的摩擦点回写对应 spec/README）
-- [ ] 试点完成后决定模块去留（保留为示例或删除，理由记录）
+- [ ] 契约先行：`packages/api` 新增 attachment schema（文件类型/大小白名单进契约、`AUDIT_ACTIONS` 与权限目录**只增不改**地登记 `attachment.*` 与 `attachments:read/manage`）→ `contracts:generate` 产物更新
+- [ ] 存储基座：`config/filesystems.php` 双 disk——`local`（开发/测试）与 S3 兼容 OSS disk（生产；阿里云 OSS 走 S3 兼容端点），env 键入共享清单；驱动选型与理由记录 README
+- [ ] 端点（按 LARAVEL.md 模块标准开发流程）：上传（服务端代理流式落盘）、列表（分页，经 `PaginatedResource`）、删除（软删或标记，含同事务审计）、签名下载 URL（临时授权，TTL 进契约）
+- [ ] 上传策略：MIME/扩展名白名单、大小上限在服务端强制（契约与 PHP 双侧一致），文件名与路径不可信输入处理（对齐 SECURITY.md）
+- [ ] E2E：本地 disk 全链路（上传→列表→签名下载→删除→审计）；S3 兼容行为用本地 MinIO 容器对拍验证（**不引入真实云凭证**，密钥不进源码/证据/Docker 环境）
+- [ ] 记录每一步耗时与需人工补齐的点，反哺 gen:module 与规范（摩擦点回写对应 spec/README）；试点完成后决定模块去留（保留为示例或删除，理由记录）
 
 ### 验收
 
-- 试点模块 E2E 绿；过程中未修改任何 `app/Core/**` 与 `packages/api` 既有 schema（diff 证明）
+- 试点模块 E2E 绿；`git diff` 证明对 `app/Core/**` 与 `packages/api` 既有定义**只做新增注册、零修改**
+- MinIO 对拍证据（签名 URL 语义、分片/大文件边界按契约上限验证）
+
+### 影响面 / 回滚
+
+新增模块目录、`packages/api` 新增契约、compose 可选 MinIO 服务（测试态）。可整体删除回滚。
 
 ### 影响面 / 回滚
 
@@ -84,7 +96,7 @@ LD-02。
 
 ### 动作
 
-- [ ] 评估记录（写入 LARAVEL.md 决策表 D2 终态）：移交收益（artisan 生态、Laravel 新项目默认）vs 成本（重放 6 张表历史、drizzle-kit 降级只读、EAS/资产模块 TS 类型链）
+- [ ] 评估记录（写入 LARAVEL.md 决策表 D2 终态）：方向已定为移交（D2/D8），评估聚焦成本与切换步骤（重放 6 张表 + 附件表基线、drizzle-kit 降级只读、EASM/资产模块 TS 类型链的替代供数方式）
 - [ ] 按结论执行：移交则 Laravel 建全量基线迁移（对现有库 `--pretend` 校验无漂移）+ `packages/db` 降级说明；不移交则在 BACKEND.md/PROJECT.md 固化「schema 权威在 Drizzle、Laravel 禁写迁移」并让 gen:module 生成的 Laravel 骨架不含迁移
 - [ ] 结论同步 SPEC_ADOPTION.md（若与团队 BACKEND 规范冲突）
 

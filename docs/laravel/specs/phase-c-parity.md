@@ -1,12 +1,18 @@
 # 阶段 C：功能对等迁移与切流（LC）
 
-> 出口标准：Laravel 栈承接 `/console` 全部流量，全量 E2E 与 verify 脚本（参数化指向新栈）绿；旧 `apps/server` 停止接管流量进入观察期。每条 spec 的接口行为以 `apps/server` 对应模块为对照基线，先写双栈对拍再实现。
+> 出口标准：Laravel 栈承接 `/console` 全部流量，全量 E2E 与 verify 脚本（参数化指向新栈）绿；旧 `apps/server` 停止接管流量进入观察期。每条 spec 的接口行为以 `apps/server` 对应模块为对照基线，先写双栈对拍再实现。**所有端点实现统一按 [LARAVEL.md 模块标准开发流程](../../../LARAVEL.md) 顺序推进**（契约 → 路由先行 → SchemaRequest → Controller → Repository/Resource → 同事务审计 → 对拍/E2E）；各 spec 的「路由基线」表列出端点与契约、权限、审计 action 的对应，具体路径/方法以对应 Hono 模块的路由声明为最终核对基准。
 
 ## LC-01 audit 只读接口（首个真接口）
 
 ### 目标
 
 `GET /console/audit`（分页、action/actor/source/start/end 筛选、时区附带）在 Laravel 侧对等实现——选择它打头是因为只读、无状态变更、能一次性验证「契约消费 + 会话 + 权限 + 分页形状」全链路。
+
+路由基线（核对 `apps/server/src/modules/audit.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| GET `/console/audit` | `AuditSearch` 解析 | `audit:read` | —（只读） |
 
 ### 前置
 
@@ -33,6 +39,16 @@ LB-06。
 
 login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周期、强制下线所需的会话撤销语义就位。
 
+路由基线（核对 `apps/server/src/modules/auth.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| POST `/console/login` | `credentialsSchema` | 公开 | — |
+| POST `/console/logout` | — | 已登录 | — |
+| GET `/console/me` | — | 已登录 | — |
+| PATCH `/console/me` | `profileInputSchema` | 已登录 | `profile.update` |
+| POST `/console/me/password` | `passwordChangeSchema` | 已登录 | `profile.password_change` |
+
 ### 动作
 
 - [ ] login：`credentialsSchema` 校验（JSON Schema 消费层）、argon2id 验证、写 `console_session`；错误形状与旧栈一致（不泄露账户存在性）
@@ -55,6 +71,14 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 探针（DB 连通、AI 队列水位/熔断状态展示所需数据）、权限矩阵读、系统时区、设置页读接口对等。
 
+路由基线（核对 `apps/server/src/modules/system.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| GET `/console/system/status` | `SystemStatusResponse` | `system:settings:read` / `system:ai:read` | — |
+| GET `/console/system/settings` | `SystemSettingsResponse` | `system:settings:read` | — |
+| GET `/console/system/permissions` | 矩阵 payload | `system:permission:read` | — |
+
 ### 动作
 
 - [ ] `SystemStatusResponse`/`SystemSettingsResponse` 形状对齐；AI 状态按 D5 从 Node AI 服务获取（本 spec 先做只读透传或降级占位，真正接通在 LC-07）
@@ -74,6 +98,15 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 ### 目标
 
 权限矩阵写/恢复默认、时区更新、AI 熔断开关；全部走同事务审计；最后一名超管保护与不可变权限锁定。
+
+路由基线（核对 `apps/server/src/modules/system.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| PUT `/console/system/permissions` | 矩阵更新 schema | `system:permission:manage` | `permission.update` |
+| POST `/console/system/permissions/reset` | — | `system:permission:manage` | `permission.reset` |
+| PUT `/console/system/timezone` | 时区更新 schema | `system:settings:manage` | `system.timezone_update` |
+| POST `/console/system/ai/circuit` | 熔断开关 schema | `system:ai:manage`（immutable） | `system.ai_circuit` |
 
 ### 动作
 
@@ -96,6 +129,16 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 账户 CRUD、角色调整、启停、重置密码、强制下线；三层防提权与最后超管保护对等。
 
+路由基线（核对 `apps/server/src/modules/accounts.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| GET `/console/accounts` | `AccountSearch` | `accounts:read` | — |
+| POST `/console/accounts` | `accountCreateSchema` | `accounts:manage` | `account.create` |
+| PATCH `/console/accounts/:id` | `accountPatchSchema` | `accounts:manage` | `account.update` / `account.role` / `account.status` |
+| POST `/console/accounts/:id/password-reset` | `passwordResetSchema` | `accounts:manage` | `account.password_reset` |
+| POST `/console/accounts/:id/revoke` | — | `accounts:manage` | `account.revoke` |
+
 ### 动作
 
 - [ ] 先写失败场景：member/admin 尝试 `accounts:manage` 操作 → 403；admin 修改角色字段注入 → 400（strict）；降级最后超管 → 拒绝；禁用自己 → 拒绝（对齐 `modules/accounts.ts` 现有约束）
@@ -117,6 +160,16 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 资产 CRUD、`GET /assets`（全量，客户端筛选兼容）、`GET /assets/page`（服务端分页 + 多选 + contains/equals 语义）对等。
 
+路由基线（核对 `apps/server/src/modules/assets.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| GET `/console/assets` | — | `assets:read` | — |
+| GET `/console/assets/page` | 分页/筛选查询解析 | `assets:read` | — |
+| POST `/console/assets` | `assetInputSchema` | `assets:manage` | `asset.create` |
+| PATCH `/console/assets/:id` | `assetPatchSchema` | `assets:manage` | `asset.update` |
+| DELETE `/console/assets/:id` | — | `assets:manage` | `asset.delete` |
+
 ### 动作
 
 - [ ] 先写失败场景：非法分页/超长筛选 → 400；member 写资产 → 403
@@ -136,6 +189,12 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 ### 目标
 
 自然语言筛选链路在新架构下闭环：Laravel 承接 `/console/assets/agent`，模型调用按 D5 走保留的 Node AI 服务。
+
+路由基线（核对 `apps/server/src/asset-agent.ts`）：
+
+| 端点 | 契约 | 权限 | 审计 |
+| --- | --- | --- | --- |
+| POST `/console/assets/agent` | `assetAgentRequest` | `assets:read` | `agent.asset_filter`（`actor_source=agent`） |
 
 ### 动作
 

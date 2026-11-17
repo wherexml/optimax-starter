@@ -1,6 +1,6 @@
 # 阶段 B：Laravel 骨架与基础设施（LB）
 
-> 出口标准：`apps/api-laravel` 在本地 compose 内可运行、可连现有库、通过 JSON Schema 校验请求并按 `{ error }` 协议报错、会话与现有账户互通、生产安全拦截就位——但**不接管任何流量**（web 仍指向 `apps/server`）。
+> 出口标准：`apps/api-laravel` 在本地 compose 内可运行、可连现有库、通过 JSON Schema 校验请求并按 `{ error }` 协议报错、会话与现有账户互通、生产安全拦截就位、Laravel 数据管理特性（关系/Cast/Scope/Resource/Cache）与演示种子可用——但**不接管任何流量**（web 仍指向 `apps/server`）。
 
 ## LB-01 Laravel 项目骨架与静态门禁
 
@@ -18,7 +18,7 @@ LA-04（契约产物已存在）。
 - [ ] 目录映射：`app/Core/`（Guards、Audit、Permissions、SystemSettings）与 `app/Modules/`（Auth、Accounts、Assets、Audit、System），对应 `apps/server/src/core|modules`
 - [ ] 接入 Pint（格式）与 Larastan（静态），配 `composer lint`/`composer analyse` 脚本；CI 增加 PHP job（install → lint → analyse），`scripts/ci-scope.mjs` 识别 `apps/api-laravel/**` 为应用路径
 - [ ] 共享 env 键清单：建 `apps/api-laravel/.env.example`，与 varlock `.env.schema` 的共享键（`SESSION_COOKIE_NAME`、`STARTER_ADMIN_USERNAME/PASSWORD`、`STARTER_SEED_DEMO`、`CORS_ORIGIN`、DB 键）逐一命名对齐；DEPLOYMENT.md 登记
-- [ ] 新建 `apps/api-laravel/README.md`：定位、启动、分层、与 `apps/server` 的关系
+- [ ] 新建 `apps/api-laravel/README.md`：定位、启动、分层、与 `apps/server` 的关系；开头即链接 [LARAVEL.md 模块标准开发流程](../../../LARAVEL.md)（LD-05 收口后该正文迁入 BACKEND.md，README 改链）
 - [ ] SPEC_ADOPTION.md 记偏差：BACKEND.md §2 框架建议——后端迁移至 Laravel 13（`apps/api-laravel`），Hono 栈进入退役观察期；证据指向本骨架与 LARAVEL.md
 
 ### 验收
@@ -157,3 +157,53 @@ LB-05。
 ### 影响面 / 回滚
 
 `apps/api-laravel`、deploy-production.sh。
+
+## LB-07 Laravel 数据管理特性接入
+
+### 目标
+
+落实 D8：把 Eloquent 关系预载、Casts、局部 Scope、API Resource 与 Cache 接入为**默认可用**的数据管理基座，LC 阶段所有接口直接消费，而不是逐模块现写。
+
+### 前置
+
+LB-04。
+
+### 动作
+
+- [ ] 关系：`Account hasMany ConsoleSession`（accounts 列表的 sessions 计数即现网需求）、审计 actor/target 关联；列表查询统一 `with()` 预载防 N+1
+- [ ] Casts：`console_audit.detail` JSON cast、布尔与时间字段 cast 对齐现网序列化输出
+- [ ] 局部 Scope：active 账户、资产 stage、审计时间窗（start/end）固化为 Scope，供 LC-05/06/01 复用
+- [ ] Resource 体系：实体 Resource + `PaginatedResource` 基类（`items/total/page/size` 形状的唯一实现处）；LC-01 起所有响应必须经 Resource
+- [ ] Cache：权限矩阵与系统设置读缓存（写路径主动失效，TTL 与失效点登记 README），对齐现网每请求读库的语义但降负载
+
+### 验收
+
+- tinker 演示关系预载与 Scope 生效（无 N+1，查询计数证据）；缓存命中与写路径失效对拍输出
+
+### 影响面 / 回滚
+
+`apps/api-laravel`。
+
+## LB-08 演示种子移植
+
+### 目标
+
+`apps/server/src/core/seed.ts` 的种子语义对等移植（`STARTER_SEED_DEMO` 控制的演示账户、默认权限矩阵、演示资产，幂等可重入）；弥补审计发现的缺口：CI 起新栈容器必须能一键种子化，否则 LC 阶段 CI E2E 无法运行。
+
+### 前置
+
+LB-04。
+
+### 动作
+
+- [ ] artisan 命令 `console:seed`（Seeder/command 实现）：内容与幂等语义对拍 `core/seed.ts`（已存在不重复创建）
+- [ ] CI/本地：新栈容器启动后先 `console:seed` 再跑 E2E（衔接 ci.yml job 编排）
+- [ ] 生产禁用语义由 LB-06 的启动拦截覆盖，本 spec 只管种子内容与幂等对等
+
+### 验收
+
+- 空库起 Laravel 栈 → `console:seed` → demo 账户可登录、权限矩阵默认值与旧栈种子后一致（对拍证据）
+
+### 影响面 / 回滚
+
+`apps/api-laravel`、ci.yml。
