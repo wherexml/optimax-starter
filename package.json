@@ -34,7 +34,8 @@
     "bootstrap": "./scripts/bootstrap-project.sh",
     "gen:module": "node scripts/gen-module.mjs",
     "verify": "python3 scripts/verify-console.py",
-    "test:e2e:pw": "playwright test -c scripts/e2e/playwright/playwright.config.ts"
+    "test:e2e:pw": "playwright test -c scripts/e2e/playwright/playwright.config.ts",
+    "contracts:generate": "bun packages/api/src/generate.ts"
   },
   "dependencies": {
     "zod": "catalog:"

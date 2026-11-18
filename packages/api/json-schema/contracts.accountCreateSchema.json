@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "password": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 256
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "member",
+        "admin",
+        "super_admin"
+      ]
+    },
+    "email": {
+      "type": "string",
+      "maxLength": 254
+    },
+    "company": {
+      "type": "string",
+      "maxLength": 120
+    }
+  },
+  "required": [
+    "username",
+    "password",
+    "name",
+    "role"
+  ],
+  "additionalProperties": false
+}

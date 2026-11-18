@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ROLE_LABELS, ROLE_VALUES, type AccountRole } from "./permissions";
-import { ACTOR_SOURCES, type ActorSource } from "./system";
+import { ACTOR_SOURCES } from "./system";
 
 export { ROLE_LABELS, ROLE_VALUES, type AccountRole };
 

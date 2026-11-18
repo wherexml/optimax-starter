@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string"
+    },
+    "qOp": {
+      "type": "string",
+      "enum": [
+        "contains",
+        "equals"
+      ]
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "已登记",
+            "待复核"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "已登记",
+              "待复核"
+            ]
+          }
+        }
+      ]
+    },
+    "domain": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

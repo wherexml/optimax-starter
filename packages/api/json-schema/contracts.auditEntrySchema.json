@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "at": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "actorSource": {
+      "type": "string",
+      "enum": [
+        "human",
+        "agent"
+      ]
+    },
+    "actorId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "actorUsername": {
+      "type": "string"
+    },
+    "actorName": {
+      "type": "string"
+    },
+    "targetId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "targetUsername": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "detail": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "id",
+    "at",
+    "action",
+    "actorSource",
+    "actorId",
+    "actorUsername",
+    "actorName",
+    "targetId",
+    "targetUsername",
+    "targetName",
+    "detail"
+  ],
+  "additionalProperties": false
+}

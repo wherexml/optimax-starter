@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disabled"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "member",
+        "admin",
+        "super_admin"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

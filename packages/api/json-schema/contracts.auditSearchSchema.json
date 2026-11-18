@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "human",
+        "agent"
+      ]
+    },
+    "start": {
+      "type": "string"
+    },
+    "end": {
+      "type": "string"
+    },
+    "page": {
+      "type": "number"
+    },
+    "size": {
+      "type": "number"
+    }
+  },
+  "additionalProperties": false
+}
