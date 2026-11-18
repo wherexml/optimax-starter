@@ -151,16 +151,27 @@ LB-04。
 
 ### 动作
 
-- [ ] 自定义 `SessionHandler` 适配 `console_session` 表结构（含生命周期 8h、过期清理语义对齐 `core/config.ts`）
-- [ ] 哈希：`password_hash/verify` 用 argon2id 且显式 `memory_cost=65536, time_cost=2, threads=1`；用现有 `console_account.password_hash` 真实样本验证 `password_verify` 通过、且新哈希可被 `@node-rs/argon2` verify（双向对拍）
-- [ ] cookie：`SESSION_COOKIE_NAME` 读取 env、`SameSite=Lax`、`HttpOnly`、生命周期对齐；D4 论证记录（同源 BFF + JSON-only + SameSite 足以替代 CSRF token 的理由与复查条件）写入 AUTH.md 迁移注记
-- [ ] `/console` 路由组中间件：未认证返回 401（供前端跳转）；排除 CSRF 中间件（`VerifyCsrfToken` 排除该组），排除理由引用 D4
-- [ ] `requirePermission` 等价中间件：读 `console_role_permission` + 默认目录，语义与 `apps/server/src/core/guards.ts` 一致（含 `Refusal` 403 `{ error }` 形状、`lockPermission` 不可变权限拒绝）
+- [x] 自定义 `SessionHandler` 适配 `console_session` 表结构（含生命周期 8h、过期清理语义对齐 `core/config.ts`）
+- [x] 哈希：`password_hash/verify` 用 argon2id 且显式 `memory_cost=65536, time_cost=2, threads=1`；用现有 `console_account.password_hash` 真实样本验证 `password_verify` 通过、且新哈希可被 `@node-rs/argon2` verify（双向对拍）
+- [x] cookie：`SESSION_COOKIE_NAME` 读取 env、`SameSite=Lax`、`HttpOnly`、生命周期对齐；D4 论证记录（同源 BFF + JSON-only + SameSite 足以替代 CSRF token 的理由与复查条件）写入 AUTH.md 迁移注记
+- [x] `/console` 路由组中间件：未认证返回 401（供前端跳转）；排除 CSRF 中间件（`VerifyCsrfToken` 排除该组），排除理由引用 D4
+- [x] `requirePermission` 等价中间件：读 `console_role_permission` + 默认目录，语义与 `apps/server/src/core/guards.ts` 一致（含 `Refusal` 403 `{ error }` 形状、`lockPermission` 不可变权限拒绝）
 
 ### 验收
 
 - E2E（新写 `scripts/e2e/laravel-session.mjs`）：用真实演示账户登录 Laravel 栈拿 cookie → 调受保护探针路由 200 → 无 cookie 调用 401 → 无权限账户 403（证据）
 - 哈希双向对拍输出
+
+### 完成记录（2026-11-18，分支 `laravel/lb-05-session-auth`，commit `e64311e`）
+
+- **架构偏差（如实记录）**：勘察发现现有「会话」实为**登录令牌表**（`console_session` 无 payload 列，仅 key/account/expires），与 Laravel 会话系统（StartSession + 序列化负载）不匹配；故不走 SessionHandler，以 `ResolveConsoleActor` 中间件直读 Cookie 实现 D3——语义逐条对齐而非硬套框架抽象。
+- 语义对齐（全部来自 console.ts/auth.ts/guards.ts 实文）：Cookie 持原始 token、库存 sha256、8h 过期、**SameSite=Strict**（注意：现栈实为 Strict 而非 Lax，spec 原文有误已按实际对齐）；非 GET 恒校验 Origin===CORS_ORIGIN 且 Content-Type JSON（含 login）；401「请登录」/403「请求来源无效」「无权执行该操作」/401「账户或密码错误」/400「请输入账户和密码」逐条一致；`Cache-Control: no-store`。
+- 权限：`permissions.defaults.json` 产物（generate.ts 新增：目录+默认值+超管独占集，单一事实源）→ `ConsoleAuth::effectivePermissions`（目录过滤 + 超管独占剔除 + 目录序排序，2s 进程缓存对齐 CACHE_TTL_MS）→ `RequirePermission` 参数化中间件（`console.permission:<code>` 别名，参数经 handle() 传入）。
+- **E2E 11/11 PASS**（`bun scripts/e2e/laravel-session.mjs`）：错误密码 401 / 空凭证 400（契约文案）/ 非法 Origin 403 / 登录 200 + Cookie 属性（HttpOnly+Strict+Max-Age 28800）/ 未认证 401 / `/me` 形状与 13 项权限 / 超管 `accounts:manage` 200 / 临时 member 403「无权执行该操作」/ 登出 + 会话失效。临时夹具已清理。
+- **哈希双向互认实证**：PHP `Hash::check('demo@2026!', 现有 Node PHC)` → true；Node `@node-rs/argon2 verify(PHP 新哈希, 'lb05-parity-pass')` → true；新哈希参数 `$argon2id m=65536,t=2,p=1` 与 password.ts 一致。
+- 过程中修复的三个真实缺陷：`validated()` 在空 rules 下返回空集 → 改 `input()`；参数化中间件参数走 handle() 而非构造函数；Symfony Cookie 的 sameSite 必须小写（phpstan 揪出，属运行时 bug）。另补 larastan extension 注册（此前 phpstan 一直在裸跑）；零迁移项目 Larastan 无法静态发现列名 → 模型 `@property` 显式声明（真实列文档，非压制）。
+- 已知噪音（如实）：中间件层早抛异常（401/403）时 laravel.log 会出现一条次级「headers already sent」记录，**用户可见响应正确**（干净 JSON）；疑与 debug 模式的次级渲染有关，列为观察项，LC-02 迁完整 auth 模块时复查。
+- D4/CSRF：api 组无 StartSession/VerifyCsrfToken 天然排除，论证与复查条件按计划归 AUTH.md（LC-02 一并落）。
 
 ### 影响面 / 回滚
 
