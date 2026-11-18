@@ -44,6 +44,13 @@
 | Webhook | 外部系统推送 | 签名、幂等、重试、原始 payload 策略 |
 | SSE/WebSocket | Agent、长任务、通知 | 断线恢复、心跳、权限、资源清理 |
 
+### 共享契约与 JSON Schema 桥（跨语言消费，LARAVEL.md 路线 A）
+
+- 契约唯一权威源是 `packages/api`（Zod schema + `z.infer` 类型，[README](./packages/api/README.md)）。
+- 跨语言消费物由 `bun run contracts:generate` 生成：`packages/api/json-schema/` 下每 schema 一份 draft-2020-12 产物、`index.json` 名单与 `refines.json` 语义清单；产物**必须随代码显式提交**，CI 门禁拦截过期产物（[ci.yml](./.github/workflows/ci.yml) quality job）。
+- 语义口径：`.strict()` 映射为 `additionalProperties: false`（防提权白名单跨语言保留）；`.refine()` 不进 JSON Schema，每处必须在 [refines.ts](./packages/api/src/refines.ts) 登记（生成时硬性对拍），PHP/Laravel 侧按 `phpRule` 实现等价校验（LB-03 落地后在此回填实现文件链接）。
+- 新增 `.refine()`/公开 schema 未登记或未重新生成产物时，`contracts:generate` 与 CI 均失败——契约漂移不允许静默发生。
+
 ---
 
 ## 4. 响应格式
@@ -335,6 +342,7 @@ Webhook 请求必须有：
 - 后端 schema / router / service。
 - 前端调用方和错误态。
 - 共享类型或 OpenAPI 文档。
+- 共享契约产物：`bun run contracts:generate` 重新生成并提交 `packages/api/json-schema/`（含 `refines.json`），CI 门禁拦截不同步提交。
 - 测试和演示数据。
 - 对应专项文档和调用方 E2E 场景；AGENTS.md 仅在入口变化时更新。
 
