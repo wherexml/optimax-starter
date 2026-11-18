@@ -18,6 +18,8 @@ config = dict(
 web_port = os.environ.get("WEB_PORT") or config.get("WEB_PORT", "38140")
 api_port = os.environ.get("API_PORT") or config.get("API_PORT", "38141")
 origin = os.environ.get("CORS_ORIGIN") or config.get("CORS_ORIGIN") or f"http://127.0.0.1:{web_port}"
+# LC 双栈对拍：覆盖后直打任意栈（默认仍走 web 代理）。
+base = os.environ.get("E2E_API_BASE") or origin
 admin_user = os.environ.get("STARTER_ADMIN_USERNAME") or config.get("STARTER_ADMIN_USERNAME", "demo@optimax.hk")
 admin_password = os.environ.get("STARTER_ADMIN_PASSWORD") or config["STARTER_ADMIN_PASSWORD"]
 
@@ -28,7 +30,7 @@ def client():
 
 def call(session, method, path, status, data=None):
     request = urllib.request.Request(
-        origin + "/console" + path,
+        base + "/console" + path,
         method=method,
         data=json.dumps(data).encode() if data is not None else None,
         headers={"Origin": origin, "Content-Type": "application/json"},

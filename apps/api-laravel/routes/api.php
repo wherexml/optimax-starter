@@ -1,6 +1,9 @@
 <?php
 
 use App\Core\Http\Middleware\ResolveConsoleActor;
+use App\Modules\Accounts\AccountsController;
+use App\Modules\Assets\AssetAgentController;
+use App\Modules\Assets\AssetsController;
 use App\Modules\Audit\AuditController;
 use App\Modules\Auth\AuthController;
 use App\Modules\System\SystemController;
@@ -53,6 +56,43 @@ Route::prefix('console')->group(function (): void {
             ->middleware(['console.superadmin', 'console.permission:system:permission:manage']);
         Route::patch('/system/ai-circuit', [SystemController::class, 'updateCircuit'])
             ->middleware(['console.superadmin', 'console.permission:system:ai:manage']);
+
+        // 资产台账（LC-06）。
+        Route::get('/assets', [AssetsController::class, 'index'])
+            ->middleware('console.permission:assets:read');
+        Route::get('/assets/page', [AssetsController::class, 'page'])
+            ->middleware('console.permission:assets:read');
+        Route::post('/assets', [AssetsController::class, 'store'])
+            ->middleware('console.permission:assets:manage');
+        Route::patch('/assets/{id}', [AssetsController::class, 'update'])
+            ->whereNumber('id')
+            ->middleware('console.permission:assets:manage');
+        Route::delete('/assets/{id}', [AssetsController::class, 'destroy'])
+            ->whereNumber('id')
+            ->middleware('console.permission:assets:manage');
+
+        // 资产自然语言筛选桥（LC-07，D5 直接代理；审计与模型在 Node 侧）。
+        Route::get('/assets/agent/config', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'config'))
+            ->middleware('console.permission:assets:read');
+        Route::post('/assets/agent/plan', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'plan'))
+            ->middleware('console.permission:assets:read');
+        Route::post('/assets/agent/result', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'result'))
+            ->middleware('console.permission:assets:read');
+
+        // 账户管理（LC-05）。
+        Route::get('/accounts', [AccountsController::class, 'index'])
+            ->middleware('console.permission:accounts:read');
+        Route::post('/accounts', [AccountsController::class, 'store'])
+            ->middleware('console.permission:accounts:manage');
+        Route::patch('/accounts/{id}', [AccountsController::class, 'update'])
+            ->whereNumber('id')
+            ->middleware('console.permission:accounts:manage');
+        Route::post('/accounts/{id}/password', [AccountsController::class, 'resetPassword'])
+            ->whereNumber('id')
+            ->middleware('console.permission:accounts:manage');
+        Route::post('/accounts/{id}/revoke', [AccountsController::class, 'revoke'])
+            ->whereNumber('id')
+            ->middleware('console.permission:accounts:manage');
 
         // 认证（LC-02）。
         Route::post('/logout', [AuthController::class, 'logout']);
