@@ -141,13 +141,19 @@ LA-04。
 
 ### 动作
 
-- [ ] API_CONVENTIONS.md 新增「共享契约与 JSON Schema 桥」章节：权威在 Zod、生成命令、产物位置、refine 登记约定、PHP 消费方义务（LB-03 落地后回填实现文件链接）
-- [ ] SPEC_ADOPTION.md 记偏差：跨端契约由「同语言类型直通」调整为「Zod 单源 + JSON Schema 生成物 + refine 清单」，理由（路线 A 选型）、证据（生成链文件）、复查触发（Zod 大版本或 toJSONSchema 行为变化）
-- [ ] AGENTS.md「按任务读取」表登记 LARAVEL.md 入口行（若本 spec 与总纲提交同批，确认链接有效）
+- [x] API_CONVENTIONS.md 新增「共享契约与 JSON Schema 桥」章节：权威在 Zod、生成命令、产物位置、refine 登记约定、PHP 消费方义务（LB-03 落地后回填实现文件链接）
+- [x] SPEC_ADOPTION.md 记偏差：跨端契约由「同语言类型直通」调整为「Zod 单源 + JSON Schema 生成物 + refine 清单」，理由（路线 A 选型）、证据（生成链文件）、复查触发（Zod 大版本或 toJSONSchema 行为变化）
+- [x] AGENTS.md「按任务读取」表登记 LARAVEL.md 入口行（若本 spec 与总纲提交同批，确认链接有效）
 
 ### 验收
 
 - 文档链接全部可达（`git diff --check` + 人工核对链接目标存在）
+
+### 完成记录（2026-11-18，分支 `laravel/la-05-spec-adoption`）
+
+- API_CONVENTIONS.md §3 新增「共享契约与 JSON Schema 桥（跨语言消费）」小节（权威源、生成命令、产物约定、语义口径、漂移拦截），§13 契约变更同步清单增加「契约产物必须随代码重新生成提交」义务；SPEC_ADOPTION.md 偏差表新增 API_CONVENTIONS.md §3 行（做法/理由/证据/负责人/复查触发齐全）；AGENTS.md 的 LARAVEL.md 入口行已于总纲提交批次登记，链接实测可达。
+- 验收：`git diff --check` 通过；偏差行引用的 5 个链接目标逐一存在。
+- **Phase A 至此全部完成**（LA-01..05）：契约基线就绪，路线 A 的 TS 侧（生成、登记、门禁、规范）闭环，PHP 消费从 LB-03 开始。
 
 ### 影响面 / 回滚
 
