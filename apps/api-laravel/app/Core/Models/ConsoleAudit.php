@@ -3,7 +3,9 @@
 namespace App\Core\Models;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RuntimeException;
 
 /**
@@ -42,6 +44,30 @@ final class ConsoleAudit extends Model
         'target_name',
         'detail',
     ];
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(ConsoleAccount::class, 'actor_id');
+    }
+
+    public function target(): BelongsTo
+    {
+        return $this->belongsTo(ConsoleAccount::class, 'target_id');
+    }
+
+    /** @param  Builder<self>  $query start/end 为 YYYY-MM-DD（audit.ts daySchema 语义，含当日）。 */
+    public function scopeTimeWindow(Builder $query, ?string $start, ?string $end): Builder
+    {
+        return $query
+            ->when($start !== null, fn (Builder $q): Builder => $q->where('at', '>=', $start.' 00:00:00'))
+            ->when($end !== null, fn (Builder $q): Builder => $q->where('at', '<=', $end.' 23:59:59.999999'));
+    }
+
+    /** @param  Builder<self>  $query human/agent（ACTOR_SOURCES 语义）。 */
+    public function scopeSource(Builder $query, string $source): Builder
+    {
+        return $query->where('actor_source', $source);
+    }
 
     protected function casts(): array
     {

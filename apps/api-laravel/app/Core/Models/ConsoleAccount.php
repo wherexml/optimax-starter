@@ -2,7 +2,9 @@
 
 namespace App\Core\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * 账户（console_account）。schema 权威在 Drizzle（LARAVEL.md D2，零迁移）。
@@ -27,6 +29,19 @@ final class ConsoleAccount extends Model
     protected $table = 'console_account';
 
     protected $fillable = ['username', 'name', 'role', 'active', 'email', 'company'];
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(ConsoleSession::class, 'account', 'id');
+    }
+
+    /**
+     * @param  Builder<self>  $query
+     */
+    public function scopeActive(Builder $query, bool $active = true): Builder
+    {
+        return $query->where('active', $active);
+    }
 
     protected function casts(): array
     {

@@ -74,6 +74,8 @@ services:
       STARTER_SEED_DEMO: ${STARTER_SEED_DEMO:-true}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:${WEB_PORT:-38140}}
       PHP_CLI_SERVER_WORKERS: "4"
+      # D2 零迁移：无 Laravel cache 表，用文件 store（多 worker 共享，LB-07）。
+      CACHE_STORE: file
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/console/health"]

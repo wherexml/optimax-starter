@@ -2,6 +2,7 @@
 
 namespace App\Core\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -22,4 +23,10 @@ final class ConsoleAsset extends Model
     protected $table = 'console_asset';
 
     protected $fillable = ['name', 'domain', 'owner', 'stage'];
+
+    /** @param  Builder<self>  $query 单个或多个登记状态（LC-06 多选筛选复用）。 */
+    public function scopeStage(Builder $query, string|array $stage): Builder
+    {
+        return $query->whereIn('stage', is_array($stage) ? array_values($stage) : [$stage]);
+    }
 }
