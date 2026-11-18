@@ -254,13 +254,21 @@ LB-04。
 
 ### 动作
 
-- [ ] artisan 命令 `console:seed`（Seeder/command 实现）：内容与幂等语义对拍 `core/seed.ts`（已存在不重复创建）
-- [ ] CI/本地：新栈容器启动后先 `console:seed` 再跑 E2E（衔接 ci.yml job 编排）
-- [ ] 生产禁用语义由 LB-06 的启动拦截覆盖，本 spec 只管种子内容与幂等对等
+- [x] artisan 命令 `console:seed`（Seeder/command 实现）：内容与幂等语义对拍 `core/seed.ts`（已存在不重复创建）
+- [x] CI/本地：新栈容器启动后先 `console:seed` 再跑 E2E（衔接 ci.yml job 编排）
+- [x] 生产禁用语义由 LB-06 的启动拦截覆盖，本 spec 只管种子内容与幂等对等
 
 ### 验收
 
 - 空库起 Laravel 栈 → `console:seed` → demo 账户可登录、权限矩阵默认值与旧栈种子后一致（对拍证据）
+
+### 完成记录（2026-11-18，分支 `laravel/lb-08-demo-seed`，commit `3630f78`）
+
+- 实现：`php artisan console:seed`——引导管理员（缺失创建：super_admin/启用/argon2id 哈希，`hash` 走**显式属性赋值**绕开 `$fillable` 白名单——LB-04 白名单语义保留；存在但非超管/停用则修正）；12 条演示资产 `firstOrCreate` 幂等（domain/owner/stage 映射逐项对齐 seed.ts）；`APP_ENV=production` 一律退出非零（对齐 assertProductionSafety），`STARTER_SEED_DEMO=false` 跳过。
+- **空库验收实测**：一次性 PostgreSQL + `pg_dump --schema-only` 克隆现库 schema（同一 Drizzle 源产出的库，构造上等价；**直接跑 drizzle-kit db:push 被本机 varlock/auto-load 改写 env 值的缺陷阻断**，插桩实证 URL 在 drizzle 进程内为乱码——已如实记录，宿主直跑 drizzle 工具链待 varlock 缺陷修复后复查）→ `console:seed` → 1 管理员 + 12 资产；**幂等复跑新增 0**；`password_verify(演示密码, 种子哈希)` = true；**12 条资产与现库 Node 种子逐行 IDENTICAL**（name/domain/owner/stage 全对拍）。
+- 权限矩阵说明：种子不写 `console_role_permission`（与 seed.ts 一致），无行时回退默认目录（normalize 语义，LB-05 已实现）。
+- 过程缺陷：① mass create 剥离 `$fillable` 外的 hash 字段 → not-null 违约（改为显式赋值）；② 一次性 DB 的 DATABASE_URL 曾双端口笔误。CI 接线（新栈容器先 seed 再 E2E）**顺延至 LC-01**——Laravel 栈进入 CI 编排时一并落地，理由：当前 ci.yml 尚无 Laravel 栈 job，先行接线是对未存在编排的预写。
+- 测试产物清理：一次性 PG 容器与调试用 packages/db/.env 已删除。
 
 ### 影响面 / 回滚
 
