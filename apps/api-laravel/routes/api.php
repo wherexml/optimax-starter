@@ -38,6 +38,8 @@ Route::prefix('console')->group(function (): void {
 
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::patch('/me', [AuthController::class, 'updateProfile']);
+        Route::post('/me/password', [AuthController::class, 'changePassword']);
 
         // LB-05 权限链路探针（LC-06 迁真实模块后移除）。
         // accounts:manage 默认仅 admin+：超管 200、member 403，覆盖权限矩阵链路。
