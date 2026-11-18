@@ -20,14 +20,20 @@ LB-06。
 
 ### 动作
 
-- [ ] 先写对拍：`scripts/verify-console.py` 参数化 `--base`（或独立 `scripts/verify-laravel-parity.py`），同一账户分别打旧/新栈断言响应形状与字段一致（数据允许时序差）
-- [ ] 实现 `App\Modules\Audit`：查询构造、`AUDIT_MAX_PAGE` 上限、`AuditPage` 形状（`items/total/page/size/timezone`）、时区从 `console_setting` 读取
-- [ ] 权限：`audit:read` 走 LB-05 中间件
+- [x] 先写对拍：`scripts/verify-console.py` 参数化 `--base`（或独立 `scripts/verify-laravel-parity.py`），同一账户分别打旧/新栈断言响应形状与字段一致（数据允许时序差）
+- [x] 实现 `App\Modules\Audit`：查询构造、`AUDIT_MAX_PAGE` 上限、`AuditPage` 形状（`items/total/page/size/timezone`）、时区从 `console_setting` 读取
+- [x] 权限：`audit:read` 走 LB-05 中间件
 
 ### 验收
 
 - 对拍脚本双栈全绿（证据：results 输出）
 - 现有 web 端不受影响（仍指旧栈）
+
+### 完成记录（2026-11-18，commit `30206cf`）
+
+- `scripts/e2e/audit-parity.py`：10 用例（默认分页/action/source/actor 模糊/时间窗/无结果/start>end 400/非法 action 400/**size 超限收敛 200**/page 边界）——**双栈全 PASS**（时区日界用 Carbon 本地时区零点，对齐 dayStart）。
+- 事实修正两则：Hono 对 `size>100` 是**收敛**而非拒绝（PHP 先 400 后按对拍改收敛）；查询校验文案为接口层中文（非 Laravel 默认英文，messages() 显式对齐）。
+- 新增 `enums.json` 产物（AUDIT_ACTIONS/ASSET_STAGES/ACTOR_SOURCES/ROLE_VALUES 单一事实源）；URL 查询参数不在契约产物覆盖内（契约管 body），查询规则按模块移植并经对拍锁定——如实记录口径。
 
 ### 影响面 / 回滚
 
@@ -51,11 +57,17 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 ### 动作
 
-- [ ] login：`credentialsSchema` 校验（JSON Schema 消费层）、argon2id 验证、写 `console_session`；错误形状与旧栈一致（不泄露账户存在性）
-- [ ] `/me`：账户信息 + `permissions` 数组（按矩阵计算，语义对齐 `core/permissions.ts`）
-- [ ] profile 更新走 `profileInputSchema`（防提权：拒绝 role/active/username/id——由 `.strict()` 映射 + fillable 白名单双保险）；密码修改走 `passwordChangeSchema`（current 校验）
-- [ ] logout 撤销当前会话；为 LC-05 的「强制下线」预留按账户撤销能力
-- [ ] 对拍：上述 4 组正反样本双栈一致
+- [x] login：`credentialsSchema` 校验（JSON Schema 消费层）、argon2id 验证、写 `console_session`；错误形状与旧栈一致（不泄露账户存在性）
+- [x] `/me`：账户信息 + `permissions` 数组（按矩阵计算，语义对齐 `core/permissions.ts`）
+- [x] profile 更新走 `profileInputSchema`（防提权：拒绝 role/active/username/id——由 `.strict()` 映射 + fillable 白名单双保险）；密码修改走 `passwordChangeSchema`（current 校验）
+- [x] logout 撤销当前会话；为 LC-05 的「强制下线」预留按账户撤销能力
+- [x] 对拍：上述 4 组正反样本双栈一致
+
+### 完成记录（2026-11-18，commit `8952cdb`）
+
+- `auth-parity.py` **12/12 PASS**：双栈 PATCH /me 形状一致；role 注入 400；**跨栈会话同库同死**（Hono 改密 → Laravel 会话即失效——共享库语义的实证）；新密码双栈可登；当前密码错误/新旧相同 400 同文案；经 Laravel 改回原密闭环。
+- 修复真实缺陷三处：控制器双 Request 参数不被解析（FormRequest 自身即 Request）；ConsoleResponse 导入缺失；use 重复（类加载致命致全线 500）。
+- 事故记录（如实）：首轮对拍因上述类加载 500 中断，密码停留在中间值——用容器内 bun 生成 argon2id 哈希直写库恢复，并给脚本加 finally 恢复保障与 WARN 语义修正。
 
 ### 验收
 
@@ -81,9 +93,14 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 ### 动作
 
-- [ ] `SystemStatusResponse`/`SystemSettingsResponse` 形状对齐；AI 状态按 D5 从 Node AI 服务获取（本 spec 先做只读透传或降级占位，真正接通在 LC-07）
-- [ ] 权限矩阵读：`SystemPermissionRow` 联动逻辑（默认目录 + DB 覆盖）与 `permissions.ts` 一致
-- [ ] 对拍：探针与矩阵读双栈一致
+- [x] `SystemStatusResponse`/`SystemSettingsResponse` 形状对齐；AI 状态按 D5 从 Node AI 服务获取（本 spec 先做只读透传或降级占位，真正接通在 LC-07）
+- [x] 权限矩阵读：`SystemPermissionRow` 联动逻辑（默认目录 + DB 覆盖）与 `permissions.ts` 一致
+- [x] 对拍：探针与矩阵读双栈一致
+
+### 完成记录（2026-11-18，commit `a41a3e0`）
+
+- 探针：db/延迟/activeSessions/uptime 实测一致；**nodeVersion 语义决策落地**——字段名保留（前端零改动），值为 `PHP_VERSION`；AI 段 configMode（disabled/client 按 env）、熔断态取共享库，`queue` 为 null（D5：Node 进程内水位不可见，LC-07 决定是否透传）——如实记录为已知降级。
+- settings/矩阵：`system-parity.py` **12/12 PASS**——读一致、写（Laravel 关 member 权限）双栈读一致、Hono/Laravel 双向 reset 一致、422 文案逐条同（未知权限码/专属码）、时区写双栈一致、熔断开关双栈同视（对拍需跨 **2s 快照缓存窗**，已加 2.5s 等待——两侧缓存语义同源）、member 访问系统权限 403「需要超级管理员权限」（**中间件次序对齐**：superadmin 先于 permission）。
 
 ### 验收
 

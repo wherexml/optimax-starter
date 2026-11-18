@@ -40,10 +40,10 @@
 | B | [LB-06](./docs/laravel/specs/phase-b-foundation.md) | 安全不变量移植 | LB-05 | ✅ 77fa2cf（脱敏对拍 IDENTICAL + 回滚同事务 + 生产拦截） |
 | B | [LB-07](./docs/laravel/specs/phase-b-foundation.md) | Laravel 数据管理特性接入 | LB-04 | ✅ a7fdce7（关系/Scope/Resource/缓存实测；CACHE_STORE=file） |
 | B | [LB-08](./docs/laravel/specs/phase-b-foundation.md) | 演示种子移植 | LB-04 | ✅ 3630f78（空库验收 + 幂等 + 12 资产对拍 IDENTICAL） |
-| C | [LC-01](./docs/laravel/specs/phase-c-parity.md) | audit 只读接口（首个真接口） | LB-06 | 未开始 |
-| C | [LC-02](./docs/laravel/specs/phase-c-parity.md) | auth 全套 | LB-06 | 未开始 |
-| C | [LC-03](./docs/laravel/specs/phase-c-parity.md) | system 读 | LC-01 | 未开始 |
-| C | [LC-04](./docs/laravel/specs/phase-c-parity.md) | system 写与最后超管保护 | LC-03 | 未开始 |
+| C | [LC-01](./docs/laravel/specs/phase-c-parity.md) | audit 只读接口（首个真接口） | LB-06 | ✅ 30206cf（对拍 10/10） |
+| C | [LC-02](./docs/laravel/specs/phase-c-parity.md) | auth 全套 | LB-06 | ✅ 8952cdb（对拍 12/12 + 跨栈会话实证） |
+| C | [LC-03](./docs/laravel/specs/phase-c-parity.md) | system 读 | LC-01 | ✅（并入 a41a3e0，system-parity 12/12） |
+| C | [LC-04](./docs/laravel/specs/phase-c-parity.md) | system 写与最后超管保护 | LC-03 | ✅ a41a3e0（矩阵/时区/熔断双栈同视；superadmin 次序对齐） |
 | C | [LC-05](./docs/laravel/specs/phase-c-parity.md) | accounts 全套 | LC-04 | 未开始 |
 | C | [LC-06](./docs/laravel/specs/phase-c-parity.md) | assets 全套 | LC-05 | 未开始 |
 | C | [LC-07](./docs/laravel/specs/phase-c-parity.md) | asset-agent 桥 | LC-06 | 未开始 |
