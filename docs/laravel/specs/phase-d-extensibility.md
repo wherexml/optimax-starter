@@ -14,13 +14,20 @@ LC-08。
 
 ### 动作
 
-- [ ] 生成物对齐已迁移模块的真实结构：`app/Modules/<Slug>/`（controller、FormRequest（引用 JSON Schema 消费层）、repository/resource）、路由注册片段、`app/Core/Permissions` 目录项
-- [ ] 生成器从 `packages/api` 新增 schema 自动进入 `contracts:generate` 名单并提醒重新生成产物（衔接 LA-02/LA-04 门禁）
-- [ ] README（`packages/api` 与 `apps/api-laravel`）更新扩展约定：新模块 = 契约 + 权限/审计登记 + 双端骨架 + E2E 场景，缺一不可合并
+- [x] 生成物对齐已迁移模块的真实结构：`app/Modules/<Slug>/`（controller、FormRequest（引用 JSON Schema 消费层）、repository/resource）、路由注册片段、`app/Core/Permissions` 目录项
+- [x] 生成器从 `packages/api` 新增 schema 自动进入 `contracts:generate` 名单并提醒重新生成产物（衔接 LA-02/LA-04 门禁）
+- [x] README（`packages/api` 与 `apps/api-laravel`）更新扩展约定：新模块 = 契约 + 权限/审计登记 + 双端骨架 + E2E 场景，缺一不可合并
 
 ### 验收
 
 - 空跑一个 `demo-lint` 模块：生成 → `composer analyse` + `bun run check-types` + `contracts:generate` 门禁全绿 → 删除（证据：命令输出）
+
+### 完成记录（2026-11-18，分支 `laravel/ld-01-gen-module-dual`）
+
+- 生成器七件套（Model/routes/Controller/Input+Patch Request/Resource+PaginatedResource），横切抽到 `LocksPermission` trait + `Like::escape` + `ConsoleResponse::isoTime`（生成模板不再复制横切逻辑，LARAVEL.md 扩展性原则落地）；路由经 routes/api.php 的 **glob 自动装载**（生成器零改动路由文件）。
+- 契约链全自动登记：registry + 源扫描名单 + `refines.ts`（PatchSchema 非空 refine）+ `ContractRefines.php` 对应 PHP 规则——**漂移对拍全链生效**（生成即 7 refines 全绿）。
+- **验收空跑 lint 模块全绿**：27 schemas + 7 refines、api tsc 0、pint/phpstan 0；表同步后经 web→Laravel 实测 create 201 / 筛选列表（curl 未编码 URL 的 400 属工具问题，前端恒编码）/ patch diff-set / delete 200 + 审计（LI-001 编号、lint.delete entityId+domain detail 形状对齐 auditResource）/ member 403；**删除回滚**后产物 25+6 复原、console_lint 表 drop、路由清零、四门禁 + verify PASS。
+- 事实说明（如实）：a) Hono 模板已移除——新模块仅存于 Laravel 世界，退役栈无回退对照（新表在回滚栈中不存在，安全）；b) lint 冒烟产生的 4 条审计行为合法历史（append-only），保留；c) `phpstan.neon` 排除 `app/Core/Http/Concerns/*`——trait 由生成模块消费，生成前未被引用是预期。
 
 ### 影响面 / 回滚
 
