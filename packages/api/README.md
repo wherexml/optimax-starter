@@ -14,6 +14,7 @@
 
 - 文件名 `<module>.<SchemaName>.json`（module = 源文件名：contracts / permissions / system / asset-agent），`index.json` 记录名单、来源与 Zod 版本。
 - `.strict()` 映射为 `additionalProperties: false`（防提权白名单跨语言保留）；`.trim()` 等不可表示检查按 `unrepresentable: "any"` 降级，`.refine()` 语义被丢弃——两者都必须在 refine 清单补登记（LA-03）。
+- **新增 `.refine()` 必须在 [refines.ts](./src/refines.ts) 登记**（schema、字段路径、语义、文案、Laravel 等价规则）；`contracts:generate` 对源码 refine 调用数与登记数做硬性对拍，缺失即生成失败，产物 `refines.json` 同步更新供 PHP 侧消费。
 - 新增公开 schema：在 `generate.ts` 的 registry 登记 → `bun run contracts:generate` → 产物随代码一起提交。
 
 ## 扩展约定

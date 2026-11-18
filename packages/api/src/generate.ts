@@ -4,7 +4,7 @@
 // 输出确定性：不含时间戳，二次执行必须零 diff；产物版本以 git 历史为准。
 // 扩展约定：新增公开 schema 时在本文件 registry 登记，并重新生成产物提交。
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import { z } from "zod";
 import * as assetAgent from "./asset-agent";
 import * as contracts from "./contracts";
 import * as permissions from "./permissions";
+import { CONTRACT_REFINES } from "./refines";
 import * as system from "./system";
 
 type Entry = { module: string; name: string; schema: z.ZodType };
@@ -49,7 +50,24 @@ const registry: Entry[] = [
 
 const outDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../json-schema");
 
+/** 源码 `.refine(` 调用数必须与 refines.ts 登记数一致，否则生成失败（语义不静默丢失）。 */
+function assertRefinesRegistered() {
+  const sources = ["asset-agent", "contracts", "permissions", "system"] as const;
+  let calls = 0;
+  for (const module of sources) {
+    const text = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), `${module}.ts`), "utf8");
+    calls += (text.match(/\.refine\(/g) ?? []).length;
+  }
+  if (calls !== CONTRACT_REFINES.length) {
+    throw new Error(
+      `contracts:generate: 源码有 ${calls} 处 .refine( 但 refines.ts 只登记 ${CONTRACT_REFINES.length} 条；` +
+        "请在 packages/api/src/refines.ts 补登记后重新生成。",
+    );
+  }
+}
+
 function main() {
+  assertRefinesRegistered();
   mkdirSync(outDir, { recursive: true });
   const require = createRequire(import.meta.url);
   const zodVersion = require("zod/package.json").version as string;
@@ -66,7 +84,12 @@ function main() {
     path.join(outDir, "index.json"),
     `${JSON.stringify({ zod: zodVersion, count: registry.length, schemas: index }, null, 2)}\n`,
   );
-  console.log(`contracts:generate: ${registry.length} schemas -> ${path.relative(process.cwd(), outDir)}`);
+  // refine 语义清单：JSON Schema 表达不了的部分，PHP 侧按 phpRule 补等价校验（LA-03）。
+  writeFileSync(
+    path.join(outDir, "refines.json"),
+    `${JSON.stringify({ count: CONTRACT_REFINES.length, refines: CONTRACT_REFINES }, null, 2)}\n`,
+  );
+  console.log(`contracts:generate: ${registry.length} schemas + ${CONTRACT_REFINES.length} refines -> ${path.relative(process.cwd(), outDir)}`);
 }
 
 main();
