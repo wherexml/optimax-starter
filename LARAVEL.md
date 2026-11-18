@@ -37,8 +37,8 @@
 | B | [LB-03](./docs/laravel/specs/phase-b-foundation.md) | JSON Schema 消费层与错误协议 | LB-01 | ✅ 8e86fcd（对拍 31/31 一致） |
 | B | [LB-04](./docs/laravel/specs/phase-b-foundation.md) | Eloquent 对接现有表 | LB-02 | ✅ 7e8d0f1（tinker 实测 + 只追加守卫） |
 | B | [LB-05](./docs/laravel/specs/phase-b-foundation.md) | 会话与认证底座 | LB-04 | ✅ e64311e（E2E 11/11 + 哈希双向互认） |
-| B | [LB-06](./docs/laravel/specs/phase-b-foundation.md) | 安全不变量移植 | LB-05 | ✅（脱敏对拍 IDENTICAL + 回滚同事务 + 生产拦截） |
-| B | [LB-07](./docs/laravel/specs/phase-b-foundation.md) | Laravel 数据管理特性接入 | LB-04 | ✅（关系/Scope/Resource/缓存实测；CACHE_STORE=file） |
+| B | [LB-06](./docs/laravel/specs/phase-b-foundation.md) | 安全不变量移植 | LB-05 | ✅ 77fa2cf（脱敏对拍 IDENTICAL + 回滚同事务 + 生产拦截） |
+| B | [LB-07](./docs/laravel/specs/phase-b-foundation.md) | Laravel 数据管理特性接入 | LB-04 | ✅ a7fdce7（关系/Scope/Resource/缓存实测；CACHE_STORE=file） |
 | B | [LB-08](./docs/laravel/specs/phase-b-foundation.md) | 演示种子移植 | LB-04 | ✅ 3630f78（空库验收 + 幂等 + 12 资产对拍 IDENTICAL） |
 | C | [LC-01](./docs/laravel/specs/phase-c-parity.md) | audit 只读接口（首个真接口） | LB-06 | 未开始 |
 | C | [LC-02](./docs/laravel/specs/phase-c-parity.md) | auth 全套 | LB-06 | 未开始 |
