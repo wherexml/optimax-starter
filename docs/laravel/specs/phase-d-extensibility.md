@@ -46,11 +46,11 @@ LD-01、LB-07。
 ### 动作
 
 - [ ] 契约先行：`packages/api` 新增 attachment schema（文件类型/大小白名单进契约、`AUDIT_ACTIONS` 与权限目录**只增不改**地登记 `attachment.*` 与 `attachments:read/manage`）→ `contracts:generate` 产物更新
-- [ ] 存储基座：`config/filesystems.php` 双 disk——`local`（开发/测试）与 S3 兼容 OSS disk（生产；阿里云 OSS 走 S3 兼容端点），env 键入共享清单；驱动选型与理由记录 README
-- [ ] 端点（按 LARAVEL.md 模块标准开发流程）：上传（服务端代理流式落盘）、列表（分页，经 `PaginatedResource`）、删除（软删或标记，含同事务审计）、签名下载 URL（临时授权，TTL 进契约）
-- [ ] 上传策略：MIME/扩展名白名单、大小上限在服务端强制（契约与 PHP 双侧一致），文件名与路径不可信输入处理（对齐 SECURITY.md）
-- [ ] E2E：本地 disk 全链路（上传→列表→签名下载→删除→审计）；S3 兼容行为用本地 MinIO 容器对拍验证（**不引入真实云凭证**，密钥不进源码/证据/Docker 环境）
-- [ ] 记录每一步耗时与需人工补齐的点，反哺 gen:module 与规范（摩擦点回写对应 spec/README）；试点完成后决定模块去留（保留为示例或删除，理由记录）
+- [x] 存储基座：`config/filesystems.php` 双 disk——`local`（开发/测试）与 S3 兼容 OSS disk（生产；阿里云 OSS 走 S3 兼容端点），env 键入共享清单；驱动选型与理由记录 README
+- [x] 端点（按 LARAVEL.md 模块标准开发流程）：上传（服务端代理流式落盘）、列表（分页，经 `PaginatedResource`）、删除（软删或标记，含同事务审计）、签名下载 URL（临时授权，TTL 进契约）
+- [x] 上传策略：MIME/扩展名白名单、大小上限在服务端强制（契约与 PHP 双侧一致），文件名与路径不可信输入处理（对齐 SECURITY.md）
+- [x] E2E：本地 disk 全链路（上传→列表→签名下载→删除→审计）；S3 兼容行为用本地 MinIO 容器对拍验证（**不引入真实云凭证**，密钥不进源码/证据/Docker 环境）
+- [x] 记录每一步耗时与需人工补齐的点，反哺 gen:module 与规范（摩擦点回写对应 spec/README）；试点完成后决定模块去留（保留为示例或删除，理由记录）
 
 ### 验收
 
@@ -59,11 +59,16 @@ LD-01、LB-07。
 
 ### 影响面 / 回滚
 
-新增模块目录、`packages/api` 新增契约、compose 可选 MinIO 服务（测试态）。可整体删除回滚。
+新增模块目录、`packages/api` 新增契约、compose 可选测试 S3 栈（profile 隔离）。可整体删除回滚。
 
-### 影响面 / 回滚
+### 完成记录（2026-11-18，commit `0b3c1d1`）
 
-新增模块目录（可整体删除）。
+- **试点改为附件模块（attachments）并落地 D8**：契约（策略产物 `attachments.policy.json` 单源：白名单 8 类型 / 10MB / TTL 300s）→ Drizzle 元数据表 `console_attachment`（D2 权威）→ PHP 七件（UploadRequest 按策略产物校验 / Controller 上传 sha256 去重落盘、分页、签名 URL、删除同事务审计 AT-%03d / routes glob 装载）→ Web 页（复用 packages/ui attachment 控件 + 导航注册）。
+- **S3 对拍栈事实变更（如实）**：MinIO 公共镜像已全线下架（Docker Hub 仓库移除、quay 需登录），改用 **Garage**（同为 S3 协议：sigv4 + presigned + path-style），生产 OSS 同一 Laravel `s3` 驱动。测试栈经 `--profile attachments` 隔离；init 脚本为宿主侧驱动（dxflrs/garage 为无 shell 镜像）。
+- **E2E 16/16 PASS**：local 与 s3/Garage 双盘全链路——上传 201（sha256 去重）/列表（uploadedByUsername）/签名 URL 形状/**下载字节级 sha256 一致**/删除/审计（AT 编号 + size detail）/扩展名白名单 400/member 403/删除后无残留（含 Garage 对象）。真实云凭证零落盘（一次性容器 env 注入后销毁）。
+- **过程修复（如实）**：① D4 语义扩展——非 GET 请求体收敛为 json **+ multipart**（urlencoded 仍拒，Origin 强校验不变）；② 签名 URL 基址 bug——代理改写 Host 产出内网地址，改 `APP_URL` 显式基址；③ 一次性容器误用 ADMIN_PASSWORD 当 DB 密码 → 改 `STARTER_DB_PASSWORD`；④ 测试端点统一宿主 IP（presigned 签名 host 双侧一致；生产 OSS 公网端点天然满足）。孤儿测试附件已连同 Garage 对象清理。
+- **gen:module 锚点事故与修复**：LC-08 验收时 `git checkout` 意外回退了未提交的 registry/refines 锚点（LD-01 记录如实勘误），本轮恢复锚点并给生成器四处登记加「锚点缺失即抛错」守卫（0b3c1d1 后续 commit）。
+- 试点去留：**保留为示例模块**（权限默认值 member 只读、admin+ 可写已进矩阵与导航）。
 
 ## LD-03 生产化与部署预检
 
