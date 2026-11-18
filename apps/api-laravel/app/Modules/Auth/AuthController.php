@@ -184,7 +184,9 @@ final class AuthController
             }
 
             ConsoleAccount::query()->where('id', $actor->id)->update(['hash' => Hash::make($password)]);
-            $removed = (int) ConsoleSession::query()->where('account', $actor->id)->count();
+            // Hono 对拍：tx.delete(sessions).returning()（auth.ts）；LC-02 移植时误写成
+            // 仅计数，改密后旧会话仍有效。delete 返回受影响行数，审计 detail 语义不变。
+            $removed = (int) ConsoleSession::query()->where('account', $actor->id)->delete();
 
             $party = new Party((int) $self->id, (string) $self->getAttributeValue('username'), (string) $self->getAttributeValue('name'));
             AuditWriter::audit('profile.password_change', $party, $party, ['sessions' => $removed]);

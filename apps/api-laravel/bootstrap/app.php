@@ -40,6 +40,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // { error } 错误协议（LB-03）：对齐现有 Hono 栈的响应形状。
         // ValidationException → 400 + 首条文案；HttpException 用自身状态码；其余 500 通用文案。
+        // 故意抛出的 HttpException（含 5xx，如 agent 上游 503）带消息时按 Hono Refusal 语义
+        // 直接透出；意外异常仍隐藏细节走通用文案（LD-03 修正 arm 次序）。
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($e instanceof ValidationException) {
                 $message = collect($e->errors())->flatten()->first();
@@ -49,9 +51,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
             $status = $e instanceof HttpException ? $e->getStatusCode() : 500;
             $message = match (true) {
+                $e instanceof HttpException && $e->getMessage() !== '' => $e->getMessage(),
                 $status >= 500 => '服务内部错误',
                 $status === 404 => '请求的资源不存在',
-                $e instanceof HttpException && $e->getMessage() !== '' => $e->getMessage(),
                 default => "请求失败（{$status}）",
             };
 
