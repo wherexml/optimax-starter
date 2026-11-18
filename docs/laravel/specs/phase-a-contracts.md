@@ -81,13 +81,19 @@ LA-02。
 
 ### 动作
 
-- [ ] 在 `packages/api/src/refines.ts` 建立登记表：每条 refine 记录 schema 名、字段路径、语义描述（中文）、跨语言规则建议（如「PHP 侧 required_without_all」）
-- [ ] `contracts:generate` 同时产出 `json-schema/refines.json`（由登记表序列化）
-- [ ] 将现有 6 处 refine 全部登记；后续新增 refine 必须登记（写进 `packages/api/README.md` 扩展约定）
+- [x] 在 `packages/api/src/refines.ts` 建立登记表：每条 refine 记录 schema 名、字段路径、语义描述（中文）、跨语言规则建议（如「PHP 侧 required_without_all」）
+- [x] `contracts:generate` 同时产出 `json-schema/refines.json`（由登记表序列化）
+- [x] 将现有 6 处 refine 全部登记；后续新增 refine 必须登记（写进 `packages/api/README.md` 扩展约定）
 
 ### 验收
 
 - `refines.json` 含 6 条记录且与源码 grep 结果一致（对拍命令写入 spec 执行记录）
+
+### 完成记录（2026-11-18，分支 `laravel/la-03-refine-manifest`）
+
+- 实现：`src/refines.ts` 登记 6 条（`email-format` / `account-patch-nonempty` / `profile-update-nonempty` / `asset-patch-nonempty` / `permission-roles-nonempty` / `agent-qop-requires-q`），含受影响 schema、字段路径、源码行、中文语义、Zod 文案与 Laravel 等价规则建议；`generate.ts` 输出 `refines.json` 并新增**漂移对拍**——扫描四个源文件的 `.refine(` 调用数与登记数硬性相等，不等即生成失败。
+- 验收实测：① 对拍命令 `grep -c "\.refine(" packages/api/src/{contracts,permissions,system,asset-agent}.ts` = 4+1+0+1 = 6，与 `refines.json` 的 count=6 一致；② **漂移拦截实证**——临时在 `passwordResetSchema` 追加未登记 refine，`contracts:generate` 以 code 1 失败并给出登记指引，还原后恢复输出；③ 幂等（二次执行零修改）；④ api 包 `tsc --noEmit` exit=0（正确捕获退出码）；⑤ `bun run verify` PASS（生成器与登记表为新增，运行时未触碰）。
+- 文案口径说明：4 处「至少一字段」refine 在源码中未自定义 message（Zod 默认），登记表如实标注，并注明接口层的既有中文错误（如「无效的账户变更」）——PHP 侧（LB-03）渲染以登记表 message 字段 + 接口层文案为准。
 
 ### 影响面 / 回滚
 

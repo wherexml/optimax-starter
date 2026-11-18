@@ -29,7 +29,7 @@
 | --- | --- | --- | --- | --- |
 | A | [LA-01](./docs/laravel/specs/phase-a-contracts.md) | 实体接口提升为 Zod schema | — | ✅ 5d14e17（浏览器 E2E 由 Playwright 套件覆盖） |
 | A | [LA-02](./docs/laravel/specs/phase-a-contracts.md) | `contracts:generate` 生成链 | LA-01 | ✅ laravel/la-02-contracts-generate（22 schema 产物） |
-| A | [LA-03](./docs/laravel/specs/phase-a-contracts.md) | refine 清单机制 | LA-02 | 未开始 |
+| A | [LA-03](./docs/laravel/specs/phase-a-contracts.md) | refine 清单机制 | LA-02 | ✅ laravel/la-03-refine-manifest（6 条 + 漂移对拍） |
 | A | [LA-04](./docs/laravel/specs/phase-a-contracts.md) | 契约 CI 门禁 | LA-02 | 未开始 |
 | A | [LA-05](./docs/laravel/specs/phase-a-contracts.md) | 规范落地与偏差记录 | LA-04 | 未开始 |
 | B | [LB-01](./docs/laravel/specs/phase-b-foundation.md) | Laravel 项目骨架与静态门禁 | LA-04 | 未开始 |
