@@ -119,14 +119,21 @@ LB-02。
 
 ### 动作
 
-- [ ] 模型：`Account`、`ConsoleSession`（配合 LB-05 的 handler）、`Asset`、`AuditEntry`（表名 `console_audit`）、`RolePermission`、`SystemSetting`；全部 `$timestamps = false`、显式 `$table`
-- [ ] `$fillable` 从 `packages/api` 对应输入 schema 字段集推导（`accountCreate/patch`、`assetInput/patch`、权限矩阵、系统设置写入），建立「schema 字段 ↔ fillable」对照表入 `apps/api-laravel/README.md`
-- [ ] `console_audit` 只追加约束：模型层禁止 update/delete（重写 save 触发或 repository 约束），并进 LB-06 对拍
-- [ ] 禁用 Laravel 迁移目录的使用约定（`database/migrations` 保持空并在 README 声明权威在 Drizzle；LD-04 再决策）
+- [x] 模型：`Account`、`ConsoleSession`（配合 LB-05 的 handler）、`Asset`、`AuditEntry`（表名 `console_audit`）、`RolePermission`、`SystemSetting`；全部 `$timestamps = false`、显式 `$table`
+- [x] `$fillable` 从 `packages/api` 对应输入 schema 字段集推导（`accountCreate/patch`、`assetInput/patch`、权限矩阵、系统设置写入），建立「schema 字段 ↔ fillable」对照表入 `apps/api-laravel/README.md`
+- [x] `console_audit` 只追加约束：模型层禁止 update/delete（重写 save 触发或 repository 约束），并进 LB-06 对拍
+- [x] 禁用 Laravel 迁移目录的使用约定（`database/migrations` 保持空并在 README 声明权威在 Drizzle；LD-04 再决策）
 
 ### 验收
 
 - `php artisan tinker` 连现有库：6 张表各一条真实 select 成功；对 `console_audit` 模型尝试 update 抛异常（证据）
+
+### 完成记录（2026-11-18，分支 `laravel/lb-04-eloquent-models`，commit `7e8d0f1`）
+
+- `app/Core/Models` 六模型（`ConsoleAccount/ConsoleSession/ConsoleAsset/ConsoleAudit/ConsoleRolePermission/ConsoleSystemSetting`）：`$timestamps=false`、显式 `$table`、字符串主键表（session/rolePermission/setting）标记 `$incrementing=false` + `$keyType='string'`；`ConsoleAudit::casts` 含 `detail: array` 与 `at: datetime`。
+- `$fillable` 与契约输入 schema 字段集对齐并落 README 对照表；`hash` 不入 fillable（密码只能经 Hash 服务写入，LB-05）。
+- **只追加守卫**：`ConsoleAudit::save()` 在 `exists` 时抛 `RuntimeException`、`delete()` 直接抛——不变量在模型层强制。
+- 验收实测（tinker 打现有库）：`account=10 / session=105 / asset=17 / audit=148 / roleperm=2 / setting=1` 六表 count + 样本读取正常；audit 尝试 update → `console_audit 只追加，禁止更新` 异常；delete → 拦截。PHP 门禁 lint/analyse 全绿。
 
 ### 影响面 / 回滚
 
