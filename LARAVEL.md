@@ -44,9 +44,9 @@
 | C | [LC-02](./docs/laravel/specs/phase-c-parity.md) | auth 全套 | LB-06 | ✅ 8952cdb（对拍 12/12 + 跨栈会话实证） |
 | C | [LC-03](./docs/laravel/specs/phase-c-parity.md) | system 读 | LC-01 | ✅（并入 a41a3e0，system-parity 12/12） |
 | C | [LC-04](./docs/laravel/specs/phase-c-parity.md) | system 写与最后超管保护 | LC-03 | ✅ a41a3e0（矩阵/时区/熔断双栈同视；superadmin 次序对齐） |
-| C | [LC-05](./docs/laravel/specs/phase-c-parity.md) | accounts 全套 | LC-04 | 未开始 |
-| C | [LC-06](./docs/laravel/specs/phase-c-parity.md) | assets 全套 | LC-05 | 未开始 |
-| C | [LC-07](./docs/laravel/specs/phase-c-parity.md) | asset-agent 桥 | LC-06 | 未开始 |
+| C | [LC-05](./docs/laravel/specs/phase-c-parity.md) | accounts 全套 | LC-04 | ✅ b2a412b（verify-console/governance/foundation/load 四套 PASS） |
+| C | [LC-06](./docs/laravel/specs/phase-c-parity.md) | assets 全套 | LC-05 | ✅（并入 b2a412b） |
+| C | [LC-07](./docs/laravel/specs/phase-c-parity.md) | asset-agent 桥 | LC-06 | ✅（D5 定案：直接代理透传 Node） |
 | C | [LC-08](./docs/laravel/specs/phase-c-parity.md) | 切流与观察期 | LC-01..07 | 未开始 |
 | D | [LD-01](./docs/laravel/specs/phase-d-extensibility.md) | `gen:module` 双轨化 | LC-08 | 未开始 |
 | D | [LD-02](./docs/laravel/specs/phase-d-extensibility.md) | 试点附件模块与 OSS 存储管理 | LD-01、LB-07 | 未开始 |

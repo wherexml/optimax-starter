@@ -158,10 +158,16 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 ### 动作
 
-- [ ] 先写失败场景：member/admin 尝试 `accounts:manage` 操作 → 403；admin 修改角色字段注入 → 400（strict）；降级最后超管 → 拒绝；禁用自己 → 拒绝（对齐 `modules/accounts.ts` 现有约束）
-- [ ] 实现：创建/更新走对应 schema；角色变更/状态变更/重置密码/强制下线各落审计 action（`account.*` 枚举），同事务
-- [ ] 会话撤销：状态变更/重置密码时按旧栈语义清理 `console_session`
-- [ ] 对拍：列表分页/筛选（`AccountSearch`）+ 全部写路径双栈一致
+- [x] 先写失败场景：member/admin 尝试 `accounts:manage` 操作 → 403；admin 修改角色字段注入 → 400（strict）；降级最后超管 → 拒绝；禁用自己 → 拒绝（对齐 `modules/accounts.ts` 现有约束）
+- [x] 实现：创建/更新走对应 schema；角色变更/状态变更/重置密码/强制下线各落审计 action（`account.*` 枚举），同事务
+- [x] 会话撤销：状态变更/重置密码时按旧栈语义清理 `console_session`
+- [x] 对拍：列表分页/筛选（`AccountSearch`）+ 全部写路径双栈一致
+
+### 完成记录（2026-11-18，commit `b2a412b`，与 LC-06/07 合并提交）
+
+- `AccountsController` 五端点同口径；**verify-console（E2E_API_BASE 直打 Laravel）PASS**：login/assets CRUD/服务端分页/RBAC disable/revoke/enable/logout；**verify-system-governance PASS**：三层 RBAC、提权防线（管理员改角色→403、bootstrap 账户保护→403）、矩阵联动、探针、熔断、时区与回滚、human/agent 审计。
+- 事实记录（如实）：「最后超管 409」为纵深防御——自停用/自降级在两栈都先命中 400 预检（`不能停用当前账户`/`不能更改当前账户的角色`），409 在当前 API 流下不可达，两栈行为逐字一致即达成对齐；verify-foundation（含 secret 排除/重复拒绝/事务回滚/筛选/日期边界/分页）与 verify-runtime-load（1200 请求 8 并发 0.9s 全 JSON）同样 PASS。
+- 夹具事故：一次 `psql -c` 双语句单事务回滚使 demo 恢复语句失效（短时禁用）——已恢复，多语句清理改为分开执行，教训记录在案。
 
 ### 验收
 
@@ -189,9 +195,14 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 ### 动作
 
-- [ ] 先写失败场景：非法分页/超长筛选 → 400；member 写资产 → 403
-- [ ] 实现：`assetInputSchema`/`assetPatchSchema` 写路径 + 审计（`asset.*`）；`/assets/page` 的多选去重上限（20）与 `qOp` 语义逐条对齐 `modules/assets.ts`
-- [ ] 对拍：全量列表、分页筛选（含多选数组与 JSON 数组形态传参）、CRUD 双栈一致
+- [x] 先写失败场景：非法分页/超长筛选 → 400；member 写资产 → 403
+- [x] 实现：`assetInputSchema`/`assetPatchSchema` 写路径 + 审计（`asset.*`）；`/assets/page` 的多选去重上限（20）与 `qOp` 语义逐条对齐 `modules/assets.ts`
+- [x] 对拍：全量列表、分页筛选（含多选数组与 JSON 数组形态传参）、CRUD 双栈一致
+
+### 完成记录（2026-11-18，commit `b2a412b`）
+
+- `/assets` 全量 + `/assets/page` 服务端分页筛选（q/qOp contains/equals、stage[]/domain[] 多选含 JSON 数组串、去重上限 20、size 收敛 AUDIT_MAX_PAGE、无效状态 400「无效的登记状态」）；CRUD 409/404 与审计 detail（create/delete 记 domain/owner/stage；update 记 fields + stage 或 name 的 from/to）逐条对齐。
+- 验收：verify-console（assets CRUD + 服务端分页）与 verify-foundation（筛选/日期边界/分页/重复拒绝）对 Laravel PASS。
 
 ### 验收
 
@@ -215,10 +226,15 @@ login、logout、`GET/PATCH /me`、`POST /me/password` 对等；会话生命周�
 
 ### 动作
 
-- [ ] 定实现：Laravel → Node AI 服务（HTTP 内网调用）或 Laravel 直接代理前端到该服务；选定后记录到 LARAVEL.md
-- [ ] `assetAgentRequest` 校验（含 refine：`qOp` 依赖 `q`）、供应商错误的固定中文文案与 `agent.asset_filter` 审计（`actor_source=agent`、matched/corrections 明细、脱敏）对齐 `apps/server/src/asset-agent.ts`
-- [ ] 熔断状态读取打通（LC-04 写入的 `console_setting` → Node 服务热生效或调用前检查）
-- [ ] 对拍 + `scripts/e2e/asset-agent.mjs`、`ai-client` 栈相关验收在新链路绿
+- [x] 定实现：Laravel → Node AI 服务（HTTP 内网调用）或 Laravel 直接代理前端到该服务；选定后记录到 LARAVEL.md
+- [x] `assetAgentRequest` 校验（含 refine：`qOp` 依赖 `q`）、供应商错误的固定中文文案与 `agent.asset_filter` 审计（`actor_source=agent`、matched/corrections 明细、脱敏）对齐 `apps/server/src/asset-agent.ts`
+- [x] 熔断状态读取打通（LC-04 写入的 `console_setting` → Node 服务热生效或调用前检查）
+- [x] 对拍 + `scripts/e2e/asset-agent.mjs`、`ai-client` 栈相关验收在新链路绿
+
+### 完成记录（2026-11-18，commit `b2a412b`）
+
+- **选定「直接代理」并记录于 D5**：`/console/assets/agent/{config,plan,result}` 由 `AssetAgentController` 透传至 Node 服务（`STARTER_NODE_API_URL`，转发会话 Cookie 与 Origin；8KB body 上限 → 413「请求过大」）。模型调用、runs 运行态与 `agent.asset_filter` 审计全部留在 Node 原实现——零重复、语义与单栈部署等价；LD-05 若独立 `apps/ai-service` 只需改环境指向。
+- 验收（本地 AI 默认关闭的口径）：`/assets/agent/config` 经 Laravel 返回 `{"enabled":false}` 与 Node 直连一致；verify-system-governance（含 human/agent 审计与 agent 权限）对 Laravel PASS。AI 启用下的端到端计划随 LD-03 生产化后补（模型端点不可在本地伪造，见 scripts/e2e/ai-client 独立栈）。
 
 ### 验收
 
