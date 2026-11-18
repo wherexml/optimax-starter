@@ -221,15 +221,22 @@ LB-04。
 
 ### 动作
 
-- [ ] 关系：`Account hasMany ConsoleSession`（accounts 列表的 sessions 计数即现网需求）、审计 actor/target 关联；列表查询统一 `with()` 预载防 N+1
-- [ ] Casts：`console_audit.detail` JSON cast、布尔与时间字段 cast 对齐现网序列化输出
-- [ ] 局部 Scope：active 账户、资产 stage、审计时间窗（start/end）固化为 Scope，供 LC-05/06/01 复用
-- [ ] Resource 体系：实体 Resource + `PaginatedResource` 基类（`items/total/page/size` 形状的唯一实现处）；LC-01 起所有响应必须经 Resource
-- [ ] Cache：权限矩阵与系统设置读缓存（写路径主动失效，TTL 与失效点登记 README），对齐现网每请求读库的语义但降负载
+- [x] 关系：`Account hasMany ConsoleSession`（accounts 列表的 sessions 计数即现网需求）、审计 actor/target 关联；列表查询统一 `with()` 预载防 N+1
+- [x] Casts：`console_audit.detail` JSON cast、布尔与时间字段 cast 对齐现网序列化输出
+- [x] 局部 Scope：active 账户、资产 stage、审计时间窗（start/end）固化为 Scope，供 LC-05/06/01 复用
+- [x] Resource 体系：实体 Resource + `PaginatedResource` 基类（`items/total/page/size` 形状的唯一实现处）；LC-01 起所有响应必须经 Resource
+- [x] Cache：权限矩阵与系统设置读缓存（写路径主动失效，TTL 与失效点登记 README），对齐现网每请求读库的语义但降负载
 
 ### 验收
 
 - tinker 演示关系预载与 Scope 生效（无 N+1，查询计数证据）；缓存命中与写路径失效对拍输出
+
+### 完成记录（2026-11-18，分支 `laravel/lb-07-data-management`）
+
+- 实现：`ConsoleAccount::sessions()` hasMany + `scopeActive`；`ConsoleAsset::scopeStage`（单/多值）；`ConsoleAudit::actor()/target()` belongsTo + `scopeTimeWindow`（daySchema 日界语义）+ `scopeSource`；`app/Core/Http/Resources/PaginatedResource` 抽象基类（子类只声明 `itemResource()`）；`AccountResource` + `AccountsPaginatedResource`（LC-05 复用）；`app/Core/System/SystemSettings`（2s TTL 缓存 + `put` 写即失效 + `forget`）。
+- **缓存 store 事实修正**：默认 database store 依赖 Laravel `cache` 表，D2 零迁移下不存在 → 改 **file store**（`CACHE_STORE=file` 进 compose env 与 `.env.example`，多 worker 共享、无 schema 依赖）。
+- 验收实测（tinker）：① `withCount('sessions')` 计数 ✓，**5 行查询 SQL 数 = 1**（N+1 防证）；② Scope 全过（active 10/10、stage 17、时间窗 148、source 过滤可执行——本库 agent 行为 0 属数据事实）；③ `PaginatedResource` 形状 `items,total,page,size`（total=10/page=2/size=3）且条目键含 sessions 计数 ✓；④ 缓存写即失效（v1→put v2→读得 v2；forget 后回源 DB）。
+- 过程缺陷（如实）：字符串手术把 `use` 插进 docblock 与类之间导致 @property 失联（phpstan 复揪）——ConsoleAccount 整体重写修复；array-shape 类型误用作参数类型改 docblock。门禁 lint/analyse 复验 0 错误。
 
 ### 影响面 / 回滚
 
