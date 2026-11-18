@@ -8,6 +8,19 @@ OptiMax Starter 的 Laravel 13 / PHP ≥8.3 API-only 后端，按 [LARAVEL.md](.
 - **零迁移**（LARAVEL.md D2）：schema 与迁移权威在 `packages/db`（Drizzle）；`database/migrations` 保持空，Eloquent 模型只对接现有 `console_*` 表（LB-04）。
 - 请求校验不手写规则：`SchemaRequest` 基类消费 `packages/api/json-schema/` 产物（LB-03），refine 语义按 `refines.json` 补齐。
 
+## Eloquent 对接（LB-04）
+
+schema 权威在 `packages/db`（Drizzle，D2 零迁移）；模型只对接现有表，`database/migrations` 保持空。`$fillable` 与契约输入 schema 字段集对齐（防提权白名单的第二道落地）：
+
+| 模型 | 表 | $fillable | 对齐契约 |
+| --- | --- | --- | --- |
+| `ConsoleAccount` | `console_account` | username/name/role/active/email/company（hash 只经密码服务写入） | `accountCreateSchema` / `accountPatchSchema` |
+| `ConsoleSession` | `console_session` | key/account/expires | D3 会话复用 |
+| `ConsoleAsset` | `console_asset` | name/domain/owner/stage | `assetInputSchema` / `assetPatchSchema` |
+| `ConsoleAudit` | `console_audit` | action/actor_*/target_*/detail；**模型层禁止 update/delete（只追加）** | AUDIT_ACTIONS 枚举 |
+| `ConsoleRolePermission` | `console_role_permission` | role/permissions/updated_by | `systemPermissionsUpdateSchema` |
+| `ConsoleSystemSetting` | `console_setting` | key/value/updated_by | 系统配置写入 |
+
 ## 结构
 
 - `app/Core/`：横切基础设施（权限/审计/系统设置），映射 `apps/server/src/core/`，见 [README](./app/Core/README.md)。
