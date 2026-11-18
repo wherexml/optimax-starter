@@ -50,7 +50,7 @@
 | C | [LC-08](./docs/laravel/specs/phase-c-parity.md) | 切流与观察期 | LC-01..07 | ✅ 8812a5e（web→Laravel 全量绿 + 回滚演练双向 PASS） |
 | D | [LD-01](./docs/laravel/specs/phase-d-extensibility.md) | `gen:module` 双轨化 | LC-08 | ✅（生成→全绿→CRUD/审计→干净删除 全闭环） |
 | D | [LD-02](./docs/laravel/specs/phase-d-extensibility.md) | 试点附件模块与 OSS 存储管理 | LD-01、LB-07 | ✅ 0b3c1d1（E2E 16/16 双盘字节级对拍；MinIO→Garage） |
-| D | [LD-03](./docs/laravel/specs/phase-d-extensibility.md) | 生产化与部署预检 | LC-08 | 未开始 |
+| D | [LD-03](./docs/laravel/specs/phase-d-extensibility.md) | 生产化与部署预检 | LC-08 | ✅ d9876f6 + 32ff2ee/fc8683f/2807cd2 三修复（FrankenPHP 单容器定稿；prod compose 演练四腿全绿：verify 六脚本 + Playwright 12/12 + 附件字节级 + agent 双态 + 回滚） |
 | D | [LD-04](./docs/laravel/specs/phase-d-extensibility.md) | DB 归属决策 | LD-02 | 未开始 |
 | D | [LD-05](./docs/laravel/specs/phase-d-extensibility.md) | 旧栈退役与文档收口 | LD-03、LD-04 | 未开始 |
 

@@ -82,13 +82,13 @@ LC-08。
 
 ### 动作
 
-- [ ] `Dockerfile.prod`：Laravel 生产镜像（按 D6 选型：FrankenPHP 单容器），多阶段构建、不带入源码敏感文件；静态页托管方式维持「单 app 容器同源」（web dist 合并进 Laravel public，Caddy 同容器分流 `/console` 与 SPA）；不启用 worker 模式（vanilla Laravel 未经 Octane 适配，保持每请求干净状态）
-- [ ] `compose.prod.yaml` 对齐：`app`（Laravel + 静态页）、`db`、`migrate`（D2 权威 Drizzle 的 db:push/migrate:deploy 一次性前置服务，app `service_completed_successfully` 依赖）；健康检查（`/healthz` DB 探测）与重启策略。队列/Horizon 不引入：D5 触发条件未满足（asset-agent 直接代理 Node 服务，无 Laravel 侧异步任务），记录为暂缓项
-- [ ] 顶层 `/healthz` 探针（执行中发现）：旧栈生产冒烟与 compose 健康检查都打 `/healthz`，Laravel 侧此前只有 `/console/health`；api 组内补同语义路由（`{status,db}` + DB 连通探测，DB 不可达 503）
-- [ ] `console:admin` 生产引导命令（执行中发现）：`console:seed` 生产拒绝（LB-08）后，生产栈缺少首个管理员入口，全量 E2E 演练无法登录；补 CLI 引导命令（创建/轮转 super_admin，argon2id，密码 ≥10 对齐契约、拒绝演示密码；不落审计，与种子同性质并在命令描述里写明）
-- [ ] `deploy-production.sh`：预检扩至 PHP 栈（`STARTER_SEED_DEMO`、`APP_KEY`/`APP_URL` 等 env 完整性、契约产物门禁、D2 零迁移门禁）；回滚步骤（镜像回退 + 跨栈回退路径写清）
-- [ ] `compose.ai.prod.yaml` 随栈重构（执行中发现）：AI 客户端随栈切不在 app 进程内，overlay 改为独立 `ai` 服务（观察期复用旧单容器镜像，仅 compose 内网可达）+ `app` 经 `STARTER_NODE_API_URL` 代理；代理上游未配置/不可达时返回 503 `{ error }` 而非 500
-- [ ] DEPLOYMENT.md 更新：环境变量表（含 PHP 侧）、部署步骤（含首个管理员引导）、回滚
+- [x] `Dockerfile.prod`：Laravel 生产镜像（按 D6 选型：FrankenPHP 单容器），多阶段构建、不带入源码敏感文件；静态页托管方式维持「单 app 容器同源」（web dist 合并进 Laravel public，Caddy 同容器分流 `/console` 与 SPA）；不启用 worker 模式（vanilla Laravel 未经 Octane 适配，保持每请求干净状态）
+- [x] `compose.prod.yaml` 对齐：`app`（Laravel + 静态页）、`db`、`migrate`（D2 权威 Drizzle 的 db:push/migrate:deploy 一次性前置服务，app `service_completed_successfully` 依赖）；健康检查（`/healthz` DB 探测）与重启策略。队列/Horizon 不引入：D5 触发条件未满足（asset-agent 直接代理 Node 服务，无 Laravel 侧异步任务），记录为暂缓项
+- [x] 顶层 `/healthz` 探针（执行中发现）：旧栈生产冒烟与 compose 健康检查都打 `/healthz`，Laravel 侧此前只有 `/console/health`；api 组内补同语义路由（`{status,db}` + DB 连通探测，DB 不可达 503）
+- [x] `console:admin` 生产引导命令（执行中发现）：`console:seed` 生产拒绝（LB-08）后，生产栈缺少首个管理员入口，全量 E2E 演练无法登录；补 CLI 引导命令（创建/轮转 super_admin，argon2id，密码 ≥10 对齐契约、拒绝演示密码；不落审计，与种子同性质并在命令描述里写明）
+- [x] `deploy-production.sh`：预检扩至 PHP 栈（`STARTER_SEED_DEMO`、`APP_KEY`/`APP_URL` 等 env 完整性、契约产物门禁、D2 零迁移门禁）；回滚步骤（镜像回退 + 跨栈回退路径写清）
+- [x] `compose.ai.prod.yaml` 随栈重构（执行中发现）：AI 客户端随栈切不在 app 进程内，overlay 改为独立 `ai` 服务（观察期复用旧单容器镜像，仅 compose 内网可达）+ `app` 经 `STARTER_NODE_API_URL` 代理；代理上游未配置/不可达时返回 503 `{ error }` 而非 500
+- [x] DEPLOYMENT.md 更新：环境变量表（含 PHP 侧）、部署步骤（含首个管理员引导）、回滚
 
 ### 验收
 
@@ -97,6 +97,15 @@ LC-08。
 ### 影响面 / 回滚
 
 Dockerfile.prod、compose.prod、deploy 脚本、DEPLOYMENT.md。
+
+### 完成记录（2026-11-18，commits `d9876f6` feat + `32ff2ee`/`fc8683f` fix）
+
+- **生产形态定稿（D6）**：FrankenPHP 1.13.5-php8.4 单容器多阶段镜像（bun→vite→composer→frankenphp，pdo_pgsql、非 root `www-data`、契约产物/web dist/third_party 同容器分发）；Caddyfile 以 `handle @spa` 分流（实验定稿，坑见下）；`migrate` 一次性服务前置 D2 schema 同步（Drizzle 权威，migrations SQL 优先否则 push）；`console:admin` 补齐生产首个管理员唯一入口。
+- **演练事务四腿全绿**：`--check`（新增 APP_KEY/APP_URL/契约产物/D2 零迁移/ATTACHMENT_DISK 门禁）→ 首次部署 → 增量发布 → `--rollback` → 复部署，备份与 accepted-sha 全程落 `.deploy-state/`（已入 `.gitignore`，连同 `.env.production`）。
+- **行为验收指向 prod 栈（38150）**：verify 六脚本全绿（easm 对跑按「settings 保留 fixture→rollback 消费→settings --cleanup」的正确阶段序）；Playwright **12/12**；附件 multipart 上传→签名 URL→会话+HMAC 下载 sha256 **字节级 MATCH**→删除→AT 审计；agent 双态：无 overlay 503（故意 5xx 消息透出）/ 有 overlay Laravel→Node 200。证据 `evidence/laravel-ld-03/`（镜像 digest 已存档，演练栈 `down -v` 拆除）。
+- **演练抓出九处缺陷（如实，含四处既有）**：① bun frozen 缺 server 清单；② migrate 误触 web 构建（独立 `workspace` stage 修正）；③ Docker COPY 目录摊平（逐目录显式目标）；④ Caddy `try_files` 不吃请求匹配器 + 同类型匹配器被 OR（`handle` 块定稿）；⑤ 镜像落 sqlite（compose 显式 `DB_CONNECTION: pgsql`）；⑥ 镜像烤入宿主 storage 运行态（删 COPY、`.dockerignore` 收口）；⑦ **既有**：改密不吊销旧会话（LC-02 移植把 Hono delete 误写为 count，`32ff2ee` 修复 + 异常 arm 次序对齐）；⑧ **既有**：旧根镜像 CMD 的 varlock cwd 缺陷（overlay `working_dir` 对齐 dev 同构）——旧生产形态从未被真实运行过，本次首跑暴露；⑨ **既有**：Playwright 凭证无视进程 env（`fc8683f` env 优先对齐 verify 约定）。
+- **已知边界（如实）**：E2E 脚本 DB 清理假设默认 compose 项目，指非默认栈需 `COMPOSE_PROJECT_NAME`（acceptance 已记操作步骤）；自动回滚（有上一验收版时的激活失败）与真实生产机发布 NOT_RUN（模板仓无生产机，跨栈回退路径已文档化）。
+- 顺带清理：删除上会话误存的 `scripts/contracts-pararity.ts` 废稿（typo 文件名 + 旧 fixture 格式，运行即崩；现行实现是已提交的 `contracts-parity.ts`）。
 
 ## LD-04 DB 归属决策
 
