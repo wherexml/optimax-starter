@@ -5,10 +5,11 @@ import type { Page } from "@playwright/test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-/** 演示管理员凭证只从本地 .env 读取，绝不写入源码或证据文件。 */
+/** 演示管理员凭证优先取进程 env（与 verify-*.py 同约定，支持 E2E_BASE_URL 指向非默认栈），本地 .env 兜底；绝不写入源码或证据文件。 */
 export function readEnvCredentials(): { username: string; password: string } {
   const env = readFileSync(path.join(repoRoot, ".env"), "utf8");
-  const pick = (key: string) => env.match(new RegExp(`^${key}=(.*)$`, "m"))?.[1]?.trim();
+  const pick = (key: string) =>
+    process.env[key] || env.match(new RegExp(`^${key}=(.*)$`, "m"))?.[1]?.trim();
   return {
     username: pick("STARTER_ADMIN_USERNAME") || "demo@optimax.hk",
     password: pick("STARTER_ADMIN_PASSWORD") || "",
