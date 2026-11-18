@@ -22,9 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         apiPrefix: '',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // 空串保留语义（LB-03 对拍结论）：zod 把 "" 当字符串（如 optionalEmail 的空串合法），
-        // ConvertEmptyStringsToNull 会把 "" 转 null 造成跨语言行为分叉；TrimStrings 保留（对齐 .trim()）。
-        $middleware->api(remove: [ConvertEmptyStringsToNull::class]);
+        // 空串保留语义（LB-03/LC-05 实测修正）：Laravel 13 的 ConvertEmptyStringsToNull 在
+        // 全局栈（仅从 api 组 remove 无效——浏览器空 email/company 被 null 化即此因）；
+        // zod 把 "" 当字符串（如 optionalEmail 空串合法），TrimStrings 保留（对齐 .trim()）。
+        $middleware->remove([ConvertEmptyStringsToNull::class]);
 
         $middleware->alias([
             'console.actor' => ResolveConsoleActor::class,

@@ -9,9 +9,9 @@
 | 仓库 | https://github.com/wherexml/optimax-starter |
 | 状态 | 本地开发栈（`compose.yaml` + `compose.override.yaml` 源码热更新）与生产多阶段容器栈（`Dockerfile.prod` + `compose.prod.yaml`）并存 |
 | 包管理 | Bun 1.3.14 workspaces（`apps/*`、`packages/*`） |
-| 运行 | 本地 Docker Compose：`web`、`api`、`db`；生产 Compose：`app`（同源托管静态页 + API）、`db` |
+| 运行 | 本地 Docker Compose：`web`、`api`、`api-laravel`（**LC-08 起 `/console` 主管流量**）、`db`（Node `api` 保留为 AI 服务与回滚备份，切回只需改 `API_PROXY_TARGET`）；生产 Compose：`app`（同源托管静态页 + API）、`db` |
 | Compose 项目 / 镜像 | 本地默认 `optimax-starter-preview` / `optimax-starter-preview:local`（为延续已有数据卷沿用此名）；新项目通过 `./scripts/bootstrap-project.sh <slug>` 自动改名隔离 |
-| 端口 | 本地默认 web `127.0.0.1:38140`，api `127.0.0.1:38141`（由 `.env` 中 `WEB_PORT` / `API_PORT` 驱动），db 仅在 Compose 内部可访问 |
+| 端口 | 本地默认 web `127.0.0.1:38140`，api `127.0.0.1:38141`，Laravel 栈 `127.0.0.1:38142`（`WEB_PORT` / `API_PORT` / `API_LARAVEL_PORT`），db 仅在 Compose 内部可访问 |
 | API 运行时 | Node 24（本地开发 `node --watch --import tsx src/node.ts`，生产 `node apps/server/dist/node.mjs`）；Bun 执行包管理、前端开发与数据库迁移/同步 |
 | 数据库 | PostgreSQL 17，Drizzle ORM（开发 `db:push`，生产优先版本化 `db:migrate:deploy`） |
 | 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；共享弹窗、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与品牌统一在 `apps/web/src/config/app-config.ts`，列表页使用 `ResourceTableSlot`；支持 `bun run gen:module` 生成新业务模块 |
