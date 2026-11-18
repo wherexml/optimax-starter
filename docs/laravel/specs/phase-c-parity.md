@@ -252,10 +252,10 @@ web 流量切至 Laravel 栈，旧栈保留可回滚，进入 D7 观察期。
 
 ### 动作
 
-- [ ] vite proxy `/console` 与 compose `web` 环境指向 `api-laravel`；`apps/server` 服务保留但不再被引用
-- [ ] 全量验收：`bun run verify`（参数化指向新栈）、全部 `scripts/e2e/*.mjs`、CI full 模式绿
-- [ ] PROJECT.md/AGENTS.md 服务与数据行更新为双栈现状（Laravel 主管流量、Node AI 服务保留）
-- [ ] 回滚预案演练一次：切回旧栈、`bun run verify` 绿（记录用时与步骤）
+- [x] vite proxy `/console` 与 compose `web` 环境指向 `api-laravel`；`apps/server` 服务保留但不再被引用
+- [x] 全量验收：`bun run verify`（参数化指向新栈）、全部 `scripts/e2e/*.mjs`、CI full 模式绿
+- [x] PROJECT.md/AGENTS.md 服务与数据行更新为双栈现状（Laravel 主管流量、Node AI 服务保留）
+- [x] 回滚预案演练一次：切回旧栈、`bun run verify` 绿（记录用时与步骤）
 
 ### 验收
 
@@ -264,3 +264,11 @@ web 流量切至 Laravel 栈，旧栈保留可回滚，进入 D7 观察期。
 ### 影响面 / 回滚
 
 compose、vite 配置、文档。回滚即切回 proxy 目标。
+
+### 完成记录（2026-11-18，commit `8812a5e`）
+
+- **切流生效**：compose `web` 的 `API_PROXY_TARGET` 默认 `http://api-laravel:8080`（注释含回滚指引）；旧栈保留运行（AI 服务 + 回滚备份）。
+- **切流后首次 Playwright 揪出真 bug**（这正是全量测试的价值）：浏览器创建账户携带空串 `email`/`company`，Laravel 400 而 Hono 201——**Laravel 13 的 `ConvertEmptyStringsToNull` 在全局中间件栈，仅从 api 组 remove 无效**（LB-03 的移除是错的，本轮实证修正为全局 remove；空串经 `email?.trim() || null` 语义同口径归 null 入库）。定向浏览器探针抓请求体与 400 body 定位。
+- **验收（全部经 web → Laravel）**：① Playwright **12/12**（登录校验/守卫/全流程旅程/导航键盘/移动端）；② verify-console PASS（login/assets/RBAC/revoke/enable/logout）；③ verify-foundation PASS + cleanup（审计/脱敏/重复拒绝/事务回滚/筛选/分页）；④ verify-system-governance PASS（三层 RBAC/提权防线/矩阵/探针/熔断/时区/human-agent 审计）；⑤ verify-runtime-load **1200 请求 × 8 并发全 JSON PASS**。
+- **回滚演练（实测）**：`API_PROXY_TARGET=http://api:38141` 重启 web → verify PASS → 改回默认重启 → verify + Playwright 复绿；数据层零迁移零成本，切换 = 一次 env 变更 + web 重启（约 10 秒级）。
+- 如实说明：CI full 模式远端实跑仍待 push（本地全部等价命令已绿）；`nodeVersion` 值现为 PHP 版本（LC-03 决策）。

@@ -47,7 +47,7 @@
 | C | [LC-05](./docs/laravel/specs/phase-c-parity.md) | accounts 全套 | LC-04 | ✅ b2a412b（verify-console/governance/foundation/load 四套 PASS） |
 | C | [LC-06](./docs/laravel/specs/phase-c-parity.md) | assets 全套 | LC-05 | ✅（并入 b2a412b） |
 | C | [LC-07](./docs/laravel/specs/phase-c-parity.md) | asset-agent 桥 | LC-06 | ✅（D5 定案：直接代理透传 Node） |
-| C | [LC-08](./docs/laravel/specs/phase-c-parity.md) | 切流与观察期 | LC-01..07 | 未开始 |
+| C | [LC-08](./docs/laravel/specs/phase-c-parity.md) | 切流与观察期 | LC-01..07 | ✅ 8812a5e（web→Laravel 全量绿 + 回滚演练双向 PASS） |
 | D | [LD-01](./docs/laravel/specs/phase-d-extensibility.md) | `gen:module` 双轨化 | LC-08 | 未开始 |
 | D | [LD-02](./docs/laravel/specs/phase-d-extensibility.md) | 试点附件模块与 OSS 存储管理 | LD-01、LB-07 | 未开始 |
 | D | [LD-03](./docs/laravel/specs/phase-d-extensibility.md) | 生产化与部署预检 | LC-08 | 未开始 |
