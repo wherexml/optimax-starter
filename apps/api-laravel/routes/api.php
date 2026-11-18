@@ -1,6 +1,7 @@
 <?php
 
 use App\Core\Http\Middleware\ResolveConsoleActor;
+use App\Modules\Audit\AuditController;
 use App\Modules\Auth\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,9 @@ Route::prefix('console')->group(function (): void {
     Route::middleware(ResolveConsoleActor::class)->group(function (): void {
         Route::post('/login', [AuthController::class, 'login']);
         Route::get('/auth/providers', fn () => response()->json([]));
+
+        Route::get('/audit', AuditController::class.'@index')
+            ->middleware('console.permission:audit:read');
 
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);

@@ -13,6 +13,9 @@ import * as assetAgent from "./asset-agent";
 import * as contracts from "./contracts";
 import * as permissions from "./permissions";
 import { SUPER_ADMIN_ONLY_PERMISSIONS, defaultPermissionCodes } from "./permissions";
+import { AUDIT_ACTIONS, ASSET_STAGES } from "./contracts";
+import { ACTOR_SOURCES } from "./system";
+import { ROLE_VALUES } from "./permissions";
 import { CONTRACT_REFINES } from "./refines";
 import * as system from "./system";
 
@@ -116,6 +119,20 @@ function main() {
   writeFileSync(
     path.join(outDir, "refines.json"),
     `${JSON.stringify({ count: CONTRACT_REFINES.length, refines: CONTRACT_REFINES }, null, 2)}\n`,
+  );
+  // 枚举单一事实源（LC 各模块消费：审计 action、资产阶段、来源、角色）。
+  writeFileSync(
+    path.join(outDir, "enums.json"),
+    `${JSON.stringify(
+      {
+        auditActions: AUDIT_ACTIONS,
+        assetStages: ASSET_STAGES,
+        actorSources: ACTOR_SOURCES,
+        roleValues: ROLE_VALUES,
+      },
+      null,
+      2,
+    )}\n`,
   );
   // 权限默认值/目录/超管独占集（LB-05 PHP 侧 getEffectivePermissions 的单一事实来源）。
   writeFileSync(

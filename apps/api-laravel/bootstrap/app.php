@@ -1,5 +1,6 @@
 <?php
 
+use App\Core\Http\ConsoleResponse;
 use App\Core\Http\Middleware\RequirePermission;
 use App\Core\Http\Middleware\ResolveConsoleActor;
 use Illuminate\Foundation\Application;
@@ -40,7 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($e instanceof ValidationException) {
                 $message = collect($e->errors())->flatten()->first();
 
-                return response()->json(['error' => $message ?? '请求参数无效'], 400);
+                return ConsoleResponse::json(['error' => $message ?? '请求参数无效'], 400);
             }
 
             $status = $e instanceof HttpException ? $e->getStatusCode() : 500;
@@ -51,6 +52,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 default => "请求失败（{$status}）",
             };
 
-            return response()->json(['error' => $message], $status);
+            return ConsoleResponse::json(['error' => $message], $status);
         });
     })->create();
