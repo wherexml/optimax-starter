@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "timezone": {
+      "type": "string"
+    },
+    "timezoneLabel": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "database",
+        "env",
+        "default"
+      ]
+    },
+    "updatedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timezoneOptions": {
+      "readOnly": true,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "timezone",
+    "timezoneLabel",
+    "source",
+    "updatedAt",
+    "timezoneOptions"
+  ],
+  "additionalProperties": false
+}

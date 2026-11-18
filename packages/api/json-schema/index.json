@@ -1,6 +1,6 @@
 {
   "zod": "4.6.7",
-  "count": 22,
+  "count": 25,
   "schemas": [
     {
       "name": "credentialsSchema",
@@ -111,6 +111,12 @@
       "source": "packages/api/src/permissions.ts"
     },
     {
+      "name": "systemPermissionMatrixPayloadSchema",
+      "module": "permissions",
+      "file": "permissions.systemPermissionMatrixPayloadSchema.json",
+      "source": "packages/api/src/permissions.ts"
+    },
+    {
       "name": "systemSettingsUpdateSchema",
       "module": "system",
       "file": "system.systemSettingsUpdateSchema.json",
@@ -120,6 +126,18 @@
       "name": "aiCircuitUpdateSchema",
       "module": "system",
       "file": "system.aiCircuitUpdateSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "systemStatusResponseSchema",
+      "module": "system",
+      "file": "system.systemStatusResponseSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "systemSettingsResponseSchema",
+      "module": "system",
+      "file": "system.systemSettingsResponseSchema.json",
       "source": "packages/api/src/system.ts"
     },
     {

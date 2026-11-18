@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "checkedAt": {
+      "type": "string"
+    },
+    "overall": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "degraded"
+      ]
+    },
+    "probe": {
+      "type": "object",
+      "properties": {
+        "db": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "unreachable"
+          ]
+        },
+        "dbLatencyMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "activeSessions": {
+          "type": "number"
+        },
+        "uptimeSec": {
+          "type": "number"
+        },
+        "nodeVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "db",
+        "dbLatencyMs",
+        "activeSessions",
+        "uptimeSec",
+        "nodeVersion"
+      ],
+      "additionalProperties": false
+    },
+    "ai": {
+      "type": "object",
+      "properties": {
+        "configMode": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "invalid",
+            "client",
+            "legacy"
+          ]
+        },
+        "configReason": {
+          "type": "string"
+        },
+        "circuitOpen": {
+          "type": "boolean"
+        },
+        "effectiveEnabled": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeoutMs": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "concurrency": {
+                  "type": "number"
+                },
+                "queueLimit": {
+                  "type": "number"
+                },
+                "queueWaitMs": {
+                  "type": "number"
+                },
+                "actorLimit": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "concurrency",
+                "queueLimit",
+                "queueWaitMs",
+                "actorLimit"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "queue": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "active": {
+                  "type": "number"
+                },
+                "waiting": {
+                  "type": "number"
+                },
+                "activeActors": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "active",
+                "waiting",
+                "activeActors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "configMode",
+        "circuitOpen",
+        "effectiveEnabled",
+        "model",
+        "timeoutMs",
+        "limits",
+        "queue",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "checkedAt",
+    "overall",
+    "probe",
+    "ai"
+  ],
+  "additionalProperties": false
+}

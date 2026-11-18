@@ -17,6 +17,27 @@ import * as system from "./system";
 
 type Entry = { module: string; name: string; schema: z.ZodType };
 
+/**
+ * 输入模式（io:"input"）：非 strict 对象不生成 additionalProperties:false——zod 对未知键是
+ * 剥离而非拒绝，输出模式会引入 PHP 拒绝 / Zod 通过的行为分叉（LB-03 对拍发现）。
+ * 响应实体与分页/搜索形状保持默认输出模式。
+ */
+const INPUT_SCHEMAS = new Set([
+  "contracts.credentialsSchema",
+  "contracts.accountCreateSchema",
+  "contracts.accountPatchSchema",
+  "contracts.passwordResetSchema",
+  "contracts.profileInputSchema",
+  "contracts.passwordChangeSchema",
+  "contracts.assetInputSchema",
+  "contracts.assetPatchSchema",
+  "permissions.systemPermissionsUpdateSchema",
+  "system.systemSettingsUpdateSchema",
+  "system.aiCircuitUpdateSchema",
+  "asset-agent.assetAgentFilters",
+  "asset-agent.assetAgentRequest",
+]);
+
 // 全部公开 schema 的唯一登记名单（Laravel 侧 JSON Schema 消费面）。
 const registry: Entry[] = [
   // contracts — 写入（请求体）校验
@@ -38,11 +59,14 @@ const registry: Entry[] = [
   { module: "contracts", name: "assetSearchSchema", schema: contracts.assetSearchSchema },
   { module: "contracts", name: "accountSearchSchema", schema: contracts.accountSearchSchema },
   { module: "contracts", name: "auditSearchSchema", schema: contracts.auditSearchSchema },
-  // permissions — 系统权限矩阵更新
+  // permissions — 系统权限矩阵更新与响应（响应侧补提升见 LB-03 完成记录）
   { module: "permissions", name: "systemPermissionsUpdateSchema", schema: permissions.systemPermissionsUpdateSchema },
-  // system — 时区与熔断写入
+  { module: "permissions", name: "systemPermissionMatrixPayloadSchema", schema: permissions.systemPermissionMatrixPayloadSchema },
+  // system — 时区与熔断写入 + 响应实体（LB-03）
   { module: "system", name: "systemSettingsUpdateSchema", schema: system.systemSettingsUpdateSchema },
   { module: "system", name: "aiCircuitUpdateSchema", schema: system.aiCircuitUpdateSchema },
+  { module: "system", name: "systemStatusResponseSchema", schema: system.systemStatusResponseSchema },
+  { module: "system", name: "systemSettingsResponseSchema", schema: system.systemSettingsResponseSchema },
   // asset-agent — 自然语言筛选参数
   { module: "asset-agent", name: "assetAgentFilters", schema: assetAgent.assetAgentFilters },
   { module: "asset-agent", name: "assetAgentRequest", schema: assetAgent.assetAgentRequest },
@@ -75,7 +99,10 @@ function main() {
   for (const { module, name, schema } of registry) {
     // unrepresentable: "any" 让 .trim() 等纯 TS 侧检查降级为无约束而不是抛错；
     // 语义丢失部分由 refines.json 清单补（LA-03）。
-    const json = z.toJSONSchema(schema, { unrepresentable: "any" });
+    const json = z.toJSONSchema(schema, {
+      unrepresentable: "any",
+      ...(INPUT_SCHEMAS.has(`${module}.${name}`) ? { io: "input" as const } : {}),
+    });
     const file = `${module}.${name}.json`;
     writeFileSync(path.join(outDir, file), `${JSON.stringify(json, null, 2)}\n`);
     index.push({ name, module, file, source: `packages/api/src/${module}.ts` });

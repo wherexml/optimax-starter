@@ -39,6 +39,5 @@
     "password",
     "name",
     "role"
-  ],
-  "additionalProperties": false
+  ]
 }

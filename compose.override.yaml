@@ -35,3 +35,4 @@ services:
     volumes:
       - ./apps/api-laravel:/var/www/html
       - ./packages/api/json-schema:/var/www/html/storage/contracts
+      - ./scripts/e2e/fixtures/contract-parity.json:/var/www/html/storage/contracts/parity-fixtures.json:ro

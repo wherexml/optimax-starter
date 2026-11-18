@@ -321,13 +321,22 @@ export function toggleModulePermissionAction(
   return sortPermissionCodes(next);
 }
 
-export interface SystemPermissionMatrixPayload {
-  catalog: readonly PermissionCatalogEntry[];
-  roles: Record<AccountRole, string[]>;
-  defaults: Record<AccountRole, string[]>;
-  immutable: { super_admin: string[] };
-  updatedAt: string | null;
-}
+export const permissionCatalogEntrySchema = z.object({
+  code: z.string(),
+  label: z.string(),
+  module: z.string(),
+  kind: z.enum(["view", "operate", "system"]),
+  immutable: z.boolean().optional(),
+});
+
+export const systemPermissionMatrixPayloadSchema = z.object({
+  catalog: z.array(permissionCatalogEntrySchema).readonly(),
+  roles: z.record(z.enum(ROLE_VALUES), z.array(z.string())),
+  defaults: z.record(z.enum(ROLE_VALUES), z.array(z.string())),
+  immutable: z.object({ super_admin: z.array(z.string()) }),
+  updatedAt: z.string().nullable(),
+});
+export type SystemPermissionMatrixPayload = z.infer<typeof systemPermissionMatrixPayloadSchema>;
 
 export const systemPermissionsUpdateSchema = z
   .object({
