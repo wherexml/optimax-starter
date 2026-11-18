@@ -1042,6 +1042,9 @@ writeFileSync(contractsFile, contracts);
 const genFile = path.join(ROOT, "packages/api/src/generate.ts");
 let genSrc = readFileSync(genFile, "utf-8");
 if (!genSrc.includes(`import * as ${camel} from "./${slug}";`)) {
+  if (!genSrc.includes('  // ---- gen:module 追加业务模块契约（勿删锚点）----')) {
+    throw new Error("generate.ts 缺少 registry 锚点（// ---- gen:module 追加业务模块契约）——请核对 packages/api/src/generate.ts");
+  }
   genSrc = genSrc.replace(
     'import * as system from "./system";',
     `import * as ${camel} from "./${slug}";\nimport * as system from "./system";`,
@@ -1056,8 +1059,12 @@ if (!genSrc.includes(`import * as ${camel} from "./${slug}";`)) {
 // 3b. 把新模块加入 generate.ts 的 refine 源扫描（漂移对拍覆盖新契约文件）
 genSrc = readFileSync(genFile, "utf-8");
 if (!genSrc.includes(`const sources = ["asset-agent", "contracts", "permissions", "system", "${slug}"]`)) {
+  const sourcesLine = 'const sources = ["asset-agent", "contracts", "permissions", "system"] as const;';
+  if (!genSrc.includes(sourcesLine)) {
+    throw new Error("generate.ts 源扫描名单行与预期不符——请核对 assertRefinesRegistered 的 sources 数组");
+  }
   genSrc = genSrc.replace(
-    'const sources = ["asset-agent", "contracts", "permissions", "system"] as const;',
+    sourcesLine,
     `const sources = ["asset-agent", "contracts", "permissions", "system", "${slug}"] as const;`,
   );
   writeFileSync(genFile, genSrc);
@@ -1066,6 +1073,9 @@ if (!genSrc.includes(`const sources = ["asset-agent", "contracts", "permissions"
 // 3c. 登记 PatchSchema 的非空 refine（refines.ts 锚点；漂移对拍要求逐条登记）
 const refinesFile = path.join(ROOT, "packages/api/src/refines.ts");
 let refinesSrc = readFileSync(refinesFile, "utf-8");
+if (!refinesSrc.includes("  // ---- gen:module 追加 refine 登记（勿删锚点）----")) {
+  throw new Error("refines.ts 缺少登记锚点——请核对 packages/api/src/refines.ts");
+}
 refinesSrc = refinesSrc.replace(
   "  // ---- gen:module 追加 refine 登记（勿删锚点）----",
   `  {
@@ -1084,6 +1094,9 @@ writeFileSync(refinesFile, refinesSrc);
 // 3d. ContractRefines.php 追加对应 PHP 规则实现（清单与实现双侧登记）
 const phpRefinesFile = path.join(ROOT, "apps/api-laravel/app/Core/Contracts/ContractRefines.php");
 let phpRefinesSrc = readFileSync(phpRefinesFile, "utf-8");
+if (!phpRefinesSrc.includes("            // ---- gen:module 追加 refine 实现（勿删锚点）----")) {
+  throw new Error("ContractRefines.php 缺少实现锚点——请核对 app/Core/Contracts/ContractRefines.php");
+}
 phpRefinesSrc = phpRefinesSrc.replace(
   "            // ---- gen:module 追加 refine 实现（勿删锚点）----",
   `            '${slug}-patch-nonempty' => fn (mixed \$data): bool => is_array(\$data)
