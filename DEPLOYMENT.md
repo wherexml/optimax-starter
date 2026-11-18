@@ -36,6 +36,8 @@
 | `VITE_APP_TITLE` | `web` / `apps/web/src/config/app-config.ts` | 侧栏品牌显示名称 | 默认 `OptiMax` | 构建/开发 | 公开 |
 | `VITE_ENABLE_DEMOS` | `web` / `apps/web/src/config/app-config.ts` | 控制 `/demo/*` 与侧栏 Demo 分组显隐 | 开发默认 `true`，生产固定 `false` | 构建/开发 | 公开 |
 | `WEB_PORT` / `API_PORT` | `compose.yaml`、`apps/web/vite.config.ts`、`scripts/verify-*.py` | 本地相邻五位监听端口 | 默认 `38140` / `38141` | 运行（本地） | 内部 |
+| `API_LARAVEL_PORT` | `compose.yaml`（`api-laravel` 服务，LARAVEL.md 阶段 B） | Laravel 迁移栈本地监听端口（与 api 并行，不接管流量） | 默认 `38142` | 运行（本地） | 内部 |
+| `DATABASE_URL`（Laravel 侧） | `compose.yaml`、`apps/api-laravel/config/database.php` | Laravel pgsql 连接（与 TS 侧同名共享键，接线见 LB-02） | compose 注入 `postgres://starter:<pw>@db:5432/starter` | 运行（本地） | 密钥 |
 | `API_PROXY_TARGET` | `web` / `apps/web/vite.config.ts` | Vite `/console` 同源代理转发地址 | 默认 `http://api:${API_PORT}` | 运行（本地） | 内部 |
 | `PROD_PORT` | `compose.prod.yaml`、`scripts/deploy-production.sh` | 生产容器绑定宿主机回环端口 | 默认 `38140` | 部署/运行 | 内部 |
 | `CORS_ORIGIN` | `api` / `apps/server/src/core/config.ts` | 非 GET 请求 `Origin` 强校验基准 URL | 必填；本地默认 `http://127.0.0.1:38140` | 运行 | 内部 |

@@ -53,6 +53,34 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+  api-laravel:
+    # Laravel 13 迁移栈（LARAVEL.md 阶段 B）：与 api 并行运行，不接管前端流量。
+    build:
+      context: apps/api-laravel
+      dockerfile: Dockerfile.dev
+    image: optimax-starter-laravel:local
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["127.0.0.1:${API_LARAVEL_PORT:-38142}:8080"]
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      LOG_LEVEL: debug
+      DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+      # 契约产物（packages/api/json-schema 经 compose.override 挂载；LB-03 消费）。
+      CONTRACTS_DIR: /var/www/html/storage/contracts
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-optimax_console}
+      STARTER_ADMIN_USERNAME: ${STARTER_ADMIN_USERNAME:-demo@optimax.hk}
+      STARTER_SEED_DEMO: ${STARTER_SEED_DEMO:-true}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:${WEB_PORT:-38140}}
+      PHP_CLI_SERVER_WORKERS: "4"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/console/health"]
+      start_period: 15s
+      interval: 10s
+      timeout: 3s
+      retries: 3
   web:
     <<: *app
     ports: ["127.0.0.1:${WEB_PORT:-38140}:${WEB_PORT:-38140}"]

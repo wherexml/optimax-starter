@@ -29,3 +29,9 @@ services:
         [ -f apps/web/src/env.ts ] || bun run --filter web env:generate
         cd apps/web
         exec bun run dev
+  # Laravel 栈：挂载宿主机应用目录（含 vendor 与本地 .env 的 APP_KEY）与契约产物。
+  # PHP 每请求重载源文件，源码热更新天然成立；.env 变更需重启容器。
+  api-laravel:
+    volumes:
+      - ./apps/api-laravel:/var/www/html
+      - ./packages/api/json-schema:/var/www/html/storage/contracts
