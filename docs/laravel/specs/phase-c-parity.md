@@ -272,3 +272,19 @@ compose、vite 配置、文档。回滚即切回 proxy 目标。
 - **验收（全部经 web → Laravel）**：① Playwright **12/12**（登录校验/守卫/全流程旅程/导航键盘/移动端）；② verify-console PASS（login/assets/RBAC/revoke/enable/logout）；③ verify-foundation PASS + cleanup（审计/脱敏/重复拒绝/事务回滚/筛选/分页）；④ verify-system-governance PASS（三层 RBAC/提权防线/矩阵/探针/熔断/时区/human-agent 审计）；⑤ verify-runtime-load **1200 请求 × 8 并发全 JSON PASS**。
 - **回滚演练（实测）**：`API_PROXY_TARGET=http://api:38141` 重启 web → verify PASS → 改回默认重启 → verify + Playwright 复绿；数据层零迁移零成本，切换 = 一次 env 变更 + web 重启（约 10 秒级）。
 - 如实说明：CI full 模式远端实跑仍待 push（本地全部等价命令已绿）；`nodeVersion` 值现为 PHP 版本（LC-03 决策）。
+
+#### 切流后行为差异审计（2026-11-18，经 web→Laravel 与直打 HONO 双向实探）
+
+逐项对照（BEFORE=切流前 web→HONO，AFTER=现在 web→Laravel）：
+
+| 面 | BEFORE | AFTER | 判定 |
+| --- | --- | --- | --- |
+| 功能行为 | — | Playwright 12/12 + verify 四套件全 PASS | **等价**（对拍三套 34/34） |
+| 前端/DB schema/种子 | — | git log 实证 Phase C 零触碰 | **零改动** |
+| `system/status.probe.nodeVersion` | `v24.10.0` | `8.4.27`（容器 PHP） | LC-03 既定决策 |
+| `probe.uptimeSec` | node 进程 uptime | **审计修复**：原实现恒 0（缺陷）→ `/proc/self/stat` 进程级 uptime，实测 74s 稳定累计 | 已对齐 |
+| 响应头 | `connection: keep-alive`、无 x-powered-by、`cache-control: no-store` | `connection: close`（php -S）、**审计修复**：原暴露 `x-powered-by: PHP/8.4.27` → expose_php=Off 消除；`cache-control: no-store, private`（Symfony prepare 对带 Cookie 响应的标准追加，更严格无害，保留） | x-powered-by 已修 |
+| 未匹配路由 404 | 纯文本 `404 Not Found` | `{"error":"请求的资源不存在"}` JSON | **改进**（前端 request() 两者都可处理，JSON 更符合本栈错误协议） |
+| Cookie 属性 | `Path=/; HttpOnly; SameSite=Strict`（大写） | 同语义小写 + expires 顺序差异 | 浏览器大小写不敏感，**等价** |
+| 单请求延迟（直打中位×80） | 1.8ms | 12.4ms | **真实差异**：dev 形态 php -S 每请求全量引导、无 opcache；生产 D6（FrankenPHP+opcache/preload）将大幅收窄；管理后台负载下无感（runtime-load 1200×8 通过） |
+| 运行形态 | 单 Node 进程 | web→Laravel + Node（AI 代理+回滚备份）并存，端口 38142 新增 | 双栈过渡期既定形态 |

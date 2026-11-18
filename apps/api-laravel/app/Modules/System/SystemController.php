@@ -7,6 +7,7 @@ use App\Core\Auth\Actor;
 use App\Core\Auth\ConsoleAuth;
 use App\Core\Http\ConsoleResponse;
 use App\Core\Permissions\PermissionMatrix;
+use App\Core\System\ConsoleRuntime;
 use App\Core\System\SystemSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,7 +63,7 @@ final class SystemController
                 'db' => $dbState,
                 'dbLatencyMs' => $dbLatencyMs !== null ? (float) $dbLatencyMs : null,
                 'activeSessions' => $activeSessions,
-                'uptimeSec' => defined('LARAVEL_START') ? max(0, (int) (time() - LARAVEL_START)) : 0,
+                'uptimeSec' => ConsoleRuntime::uptimeSeconds(),
                 'nodeVersion' => PHP_VERSION,
             ],
             'ai' => $ai,
