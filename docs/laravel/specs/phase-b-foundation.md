@@ -83,15 +83,25 @@ LB-01。
 
 ### 动作
 
-- [ ] 引入 JSON Schema 校验依赖（opis/json-schema 或 swaggest，按 PHP 8.3 兼容性选一并记录理由）；实现 `SchemaRequest` 基类：按路由声明 schema 名，校验失败统一 `ValidationException` → `{ "error": <首条中文文案> }`
-- [ ] refine 补规则：按 `refines.json` 6 条逐条实现（after 钩子/自定义规则），并在测试脚本中对拍「合法/非法样本各一组」与 Zod 行为一致
-- [ ] 错误协议中间件：所有异常（含 HttpException）渲染为 `{ error }`；401 保持触发前端跳转的语义（无 body 要求）
-- [ ] `.meta()` 中文文案传递验证：schema 内错误消息在 PHP 校验失败时原样返回
-- [ ] **补提升（Phase A 审计发现 ①）**：把 `SystemStatusResponse`、`SystemSettingsResponse`、`SystemPermissionMatrixPayload`（现仍为 TS interface）提升为 zod schema 并登记进 `contracts:generate` 产物，使 system/permissions 端点的响应形状进入 PHP 可对照范围；含 trim 边界样本（发现 ③）加入对拍用例
+- [x] 引入 JSON Schema 校验依赖（opis/json-schema 或 swaggest，按 PHP 8.3 兼容性选一并记录理由）；实现 `SchemaRequest` 基类：按路由声明 schema 名，校验失败统一 `ValidationException` → `{ "error": <首条中文文案> }`
+- [x] refine 补规则：按 `refines.json` 6 条逐条实现（after 钩子/自定义规则），并在测试脚本中对拍「合法/非法样本各一组」与 Zod 行为一致
+- [x] 错误协议中间件：所有异常（含 HttpException）渲染为 `{ error }`；401 保持触发前端跳转的语义（无 body 要求）
+- [x] `.meta()` 中文文案传递验证：schema 内错误消息在 PHP 校验失败时原样返回
+- [x] **补提升（Phase A 审计发现 ①）**：把 `SystemStatusResponse`、`SystemSettingsResponse`、`SystemPermissionMatrixPayload`（现仍为 TS interface）提升为 zod schema 并登记进 `contracts:generate` 产物，使 system/permissions 端点的响应形状进入 PHP 可对照范围；含 trim 边界样本（发现 ③）加入对拍用例
 
 ### 验收
 
 - 构造临时探针路由挂 2 个真实 schema（`accountCreateSchema`、`assetInputSchema`）：正/反样本各 ≥3 组双语言对拍（Node 端用 Zod 直接跑、PHP 端走消费层），结果一致（证据：对拍脚本输出）
+
+### 完成记录（2026-11-18，分支 `laravel/lb-03-contract-consumption`，commit `8e86fcd`）
+
+- 选型：**opis/json-schema 2.6.2**（Apache-2.0，上周仍在发版；swaggest 相对不活跃）。实测其 2.x API（ValidationError::data()->path() 取指针；要求对象形态数据）后落地 `SchemaRegistry`（数组→对象统一转换、产物缺失即 RuntimeException 指引重新生成）。
+- 消费层：`SchemaRequest` 基类（子类只声明 contract 名 + 接口层文案）；`ContractRefines` 按 id 实现 6 条语义并以 `assertCovers` 拦截「产物登记了但未实现」；bootstrap 错误渲染器——ValidationException → 400 `{error: 首条}`，404/500 → 通用中文文案（实测 `curl /console/nonexistent` → `{"error":"请求的资源不存在"}` 404 JSON）。
+- **双语言对拍：31 样本 / 31 一致**（`bun scripts/contracts-parity.ts` vs `php artisan contracts:parity`，diff 零差异）。样本覆盖 6 处 refine、strict 拒绝、enum、trim/空串边界。
+- **对拍揪出并修复三处真实差异**（这是本 spec 的核心价值）：① zod `toJSONSchema` 默认按输出形状给非 strict 输入加 `additionalProperties:false`（zod 实际剥离未知键）→ 13 个输入 schema 改 `io:"input"` 生成；② `ConvertEmptyStringsToNull` 会把 zod 视为字符串的 `""` 转 null → 从 api 组移除；③ CLI 对拍补 `TrimStrings` 等价（HTTP 层由中间件承担）。
+- 响应侧补提升（审计发现 ①）：`SystemStatusResponse`/`SystemSettingsResponse`/`SystemPermissionMatrixPayload` 提升 + 登记，产物 22→25；readonly 语义经 `.readonly()` 恢复，全仓 `check-types` 复验 5/5（提交后产物同步门禁 0）。
+- **偏差与事实修正（如实）**：a) `.meta()` 消息挂载取消——勘察确认现网 Hono 对校验失败返回**接口层通用文案**（如「无效的资产变更」），zod 字段文案只用于前端 RHF 表单；故 PHP 对齐接口层文案（`SchemaRequest::contractError()` 各端点声明），挂 `.meta()` 无消费者；b) 临时探针路由以 artisan CLI 对拍替代（避免遗留一次性路由；HTTP 层协议由 404 实测 + 后续 LC 真实端点覆盖）；c) 事实修正：`accountCreateSchema` 本就**非 strict**（zod 剥离未知键），fixture 预期按真实行为修正；d) 误入库的 0 字节 `packages/api/json-schema/parity-fixtures.json`（Write 异常残留被 git add 扫入）已移除，样本唯一路径 `scripts/e2e/fixtures/contract-parity.json`。
+- `nodeVersion` 字段语义遗留：切流后由 Laravel 上报时指向 PHP 运行时版本，重命名决策归 **LC-03**（届时是破坏性契约变更，需同步前端展示）。
 
 ### 影响面 / 回滚
 
