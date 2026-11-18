@@ -2,6 +2,7 @@
 
 use App\Core\Http\ConsoleResponse;
 use App\Core\Http\Middleware\RequirePermission;
+use App\Core\Http\Middleware\RequireSuperAdmin;
 use App\Core\Http\Middleware\ResolveConsoleActor;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'console.actor' => ResolveConsoleActor::class,
             'console.permission' => RequirePermission::class,
+            'console.superadmin' => RequireSuperAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

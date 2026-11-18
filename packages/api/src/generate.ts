@@ -14,7 +14,7 @@ import * as contracts from "./contracts";
 import * as permissions from "./permissions";
 import { SUPER_ADMIN_ONLY_PERMISSIONS, defaultPermissionCodes } from "./permissions";
 import { AUDIT_ACTIONS, ASSET_STAGES } from "./contracts";
-import { ACTOR_SOURCES } from "./system";
+import { ACTOR_SOURCES, SYSTEM_TIMEZONE_OPTIONS } from "./system";
 import { ROLE_VALUES } from "./permissions";
 import { CONTRACT_REFINES } from "./refines";
 import * as system from "./system";
@@ -133,6 +133,11 @@ function main() {
       null,
       2,
     )}\n`,
+  );
+  // 时区预设（LC-03 settings payload 的 timezoneOptions/label 单一事实源）。
+  writeFileSync(
+    path.join(outDir, "timezone-options.json"),
+    `${JSON.stringify(SYSTEM_TIMEZONE_OPTIONS, null, 2)}\n`,
   );
   // 权限默认值/目录/超管独占集（LB-05 PHP 侧 getEffectivePermissions 的单一事实来源）。
   writeFileSync(

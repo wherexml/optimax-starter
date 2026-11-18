@@ -184,7 +184,7 @@ final class AuthController
             }
 
             ConsoleAccount::query()->where('id', $actor->id)->update(['hash' => Hash::make($password)]);
-            $removed = ConsoleSession::query()->where('account', $actor->id)->get(['key'])->count();
+            $removed = (int) ConsoleSession::query()->where('account', $actor->id)->count();
 
             $party = new Party((int) $self->id, (string) $self->getAttributeValue('username'), (string) $self->getAttributeValue('name'));
             AuditWriter::audit('profile.password_change', $party, $party, ['sessions' => $removed]);

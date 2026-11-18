@@ -25,7 +25,7 @@ final class AuditController
             throw new HttpException(400, '结束日期不能早于开始日期');
         }
 
-        $timezone = (string) (SystemSettings::get('timezone') ?? 'Asia/Shanghai');
+        $timezone = (string) (SystemSettings::snapshot()['timezone'] ?? SystemSettings::DEFAULT_TIMEZONE);
 
         $query = ConsoleAudit::query()
             ->when($request->validated('action') !== null,
