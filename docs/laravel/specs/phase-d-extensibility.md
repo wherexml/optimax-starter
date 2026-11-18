@@ -82,11 +82,13 @@ LC-08。
 
 ### 动作
 
-- [ ] `Dockerfile.prod`：Laravel 生产镜像（按 D6 选型：FrankenPHP/Octane 单容器或 fpm 多进程），多阶段构建、不带入源码敏感文件；静态页托管方式维持「单 app 容器同源」或明确分容器并记录理由
-- [ ] `compose.prod.yaml` 对齐：`app`（Laravel + 静态页）、`db`、（如启用队列）worker 服务；健康检查与重启策略
-- [ ] `deploy-production.sh`：预检扩至 PHP 栈（`STARTER_SEED_DEMO`、env 完整性、产物门禁、迁移状态按 D2 结论）；回滚步骤（镜像回退 + proxy 切回）
-- [ ] DEPLOYMENT.md 更新：环境变量表（含 PHP 侧）、部署步骤、回滚
-- [ ] 若引入 Laravel 队列/Horizon（复查 D5 触发条件满足时），worker 编排与水位监控并入本 spec 补充条目
+- [ ] `Dockerfile.prod`：Laravel 生产镜像（按 D6 选型：FrankenPHP 单容器），多阶段构建、不带入源码敏感文件；静态页托管方式维持「单 app 容器同源」（web dist 合并进 Laravel public，Caddy 同容器分流 `/console` 与 SPA）；不启用 worker 模式（vanilla Laravel 未经 Octane 适配，保持每请求干净状态）
+- [ ] `compose.prod.yaml` 对齐：`app`（Laravel + 静态页）、`db`、`migrate`（D2 权威 Drizzle 的 db:push/migrate:deploy 一次性前置服务，app `service_completed_successfully` 依赖）；健康检查（`/healthz` DB 探测）与重启策略。队列/Horizon 不引入：D5 触发条件未满足（asset-agent 直接代理 Node 服务，无 Laravel 侧异步任务），记录为暂缓项
+- [ ] 顶层 `/healthz` 探针（执行中发现）：旧栈生产冒烟与 compose 健康检查都打 `/healthz`，Laravel 侧此前只有 `/console/health`；api 组内补同语义路由（`{status,db}` + DB 连通探测，DB 不可达 503）
+- [ ] `console:admin` 生产引导命令（执行中发现）：`console:seed` 生产拒绝（LB-08）后，生产栈缺少首个管理员入口，全量 E2E 演练无法登录；补 CLI 引导命令（创建/轮转 super_admin，argon2id，密码 ≥10 对齐契约、拒绝演示密码；不落审计，与种子同性质并在命令描述里写明）
+- [ ] `deploy-production.sh`：预检扩至 PHP 栈（`STARTER_SEED_DEMO`、`APP_KEY`/`APP_URL` 等 env 完整性、契约产物门禁、D2 零迁移门禁）；回滚步骤（镜像回退 + 跨栈回退路径写清）
+- [ ] `compose.ai.prod.yaml` 随栈重构（执行中发现）：AI 客户端随栈切不在 app 进程内，overlay 改为独立 `ai` 服务（观察期复用旧单容器镜像，仅 compose 内网可达）+ `app` 经 `STARTER_NODE_API_URL` 代理；代理上游未配置/不可达时返回 503 `{ error }` 而非 500
+- [ ] DEPLOYMENT.md 更新：环境变量表（含 PHP 侧）、部署步骤（含首个管理员引导）、回滚
 
 ### 验收
 

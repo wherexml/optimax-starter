@@ -16,3 +16,5 @@ docs/sprints
 apps/web/src/routeTree.gen.ts
 apps/*/src/env.ts
 packages/*/src/env.ts
+# Laravel 宿主运行态（dev 日志/缓存/测试附件）不进任何镜像（LD-03 实测踩坑）
+apps/api-laravel/storage

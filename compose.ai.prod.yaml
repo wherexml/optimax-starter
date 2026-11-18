@@ -1,10 +1,40 @@
 # Opt-in production configuration only; using this file does not authorize a deployment.
+# LD-03 随栈重构：切流后 AI 客户端不在 app 进程内（D5）。本 overlay 起独立 ai 服务
+# （观察期复用根 Dockerfile.prod 旧单容器镜像：完整 apps/server 栈，仅 compose 内网
+# 可达、不发布端口；LD-05 收口为独立最小镜像），app 经 STARTER_NODE_API_URL 代理
+# asset-agent。密钥文件只挂载进 ai 服务，不进 app。
 services:
-  app:
+  ai:
+    image: ${STARTER_PROD_IMAGE_AI:-optimax-starter-prod-ai:release}
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
     environment:
+      NODE_ENV: production
+      PORT: 38141
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
+      # 代理转发会话 Cookie，Node 侧校验需要同名 Cookie。
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?Set SESSION_COOKIE_NAME in .env.production}
+      STARTER_SEED_DEMO: "false"
+      DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+      STARTER_AI_BASE_URL: ${STARTER_AI_BASE_URL:-}
+      STARTER_AI_MODEL: ${STARTER_AI_MODEL:-}
       STARTER_AI_API_KEY_FILE: /run/secrets/starter_ai_key
+      STARTER_AI_CA_FILE: ${STARTER_AI_CA_FILE:-}
+      STARTER_AI_TOKEN_FIELD: ${STARTER_AI_TOKEN_FIELD:-}
+      STARTER_AI_TIMEOUT_MS: ${STARTER_AI_TIMEOUT_MS:-}
+      STARTER_AI_CONCURRENCY: ${STARTER_AI_CONCURRENCY:-}
+      STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
+      STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
+      STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
     secrets:
       - starter_ai_key
+  app:
+    environment:
+      STARTER_NODE_API_URL: http://ai:38141
 secrets:
   starter_ai_key:
     file: ${STARTER_AI_SECRET_FILE:?Set the path of your existing private API key file}

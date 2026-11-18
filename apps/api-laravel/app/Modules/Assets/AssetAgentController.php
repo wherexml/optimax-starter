@@ -2,6 +2,7 @@
 
 namespace App\Modules\Assets;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
@@ -30,11 +31,17 @@ final class AssetAgentController
             .'/console/assets/agent/'.$path
             .($request->getQueryString() !== null ? '?'.$request->getQueryString() : '');
 
-        $response = Http::withHeaders([
-            'Origin' => (string) (getenv('CORS_ORIGIN') ?: 'http://127.0.0.1:38140'),
-            'Content-Type' => 'application/json',
-            'Cookie' => (string) $request->headers->get('Cookie', ''),
-        ])->{strtolower($request->method())}($target, $body === '' ? null : $body);
+        try {
+            $response = Http::withHeaders([
+                'Origin' => (string) (getenv('CORS_ORIGIN') ?: 'http://127.0.0.1:38140'),
+                'Content-Type' => 'application/json',
+                'Cookie' => (string) $request->headers->get('Cookie', ''),
+            ])->{strtolower($request->method())}($target, $body === '' ? null : $body);
+        } catch (ConnectionException) {
+            // 上游 Node 服务未部署/不可达（LD-03：生产未挂 ai overlay 的常态），
+            // 明确 503 { error } 而非 500；错误形状经 LB-03 异常渲染器。
+            throw new HttpException(503, '筛选服务不可用');
+        }
 
         return response($response->body(), $response->status(), [
             'Content-Type' => $response->header('Content-Type', 'application/json'),

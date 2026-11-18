@@ -11,6 +11,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
+// 顶层健康探针（LD-03）：与旧栈 /healthz 同语义——数据库连通即 200，否则 503。
+// compose 健康检查与部署冒烟入口；api 组无会话中间件，探针不触碰 console_session。
+Route::get('/healthz', function () {
+    $started = microtime(true);
+    try {
+        DB::select('select 1');
+    } catch (Throwable) {
+        return response()->json(['status' => 'degraded', 'db' => 'unreachable'], 503);
+    }
+
+    return response()->json([
+        'status' => 'ok',
+        'db' => 'ok',
+        'dbLatencyMs' => (int) round((microtime(true) - $started) * 1000),
+    ]);
+});
+
 // /console 前缀与现有 Hono 栈一致。守卫中间件对齐 console.ts 挂载层：
 // 所有非 GET（含 login）强校验 Origin 与 JSON；login/auth-providers 豁免会话；
 // ping/health 为公开探针（compose 健康检查），不进守卫组。

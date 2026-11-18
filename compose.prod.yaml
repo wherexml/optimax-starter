@@ -14,39 +14,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 15
-  app:
+  # D2 权威 Drizzle（LD-03）：schema 同步一次性前置服务。存在版本化迁移 SQL 时
+  # 按 db:migrate:deploy 回放，否则 db:push 安全同步；app 等它成功完成才启动。
+  # workspace 目标含完整源码与 bun（无 web 构建，与 app 镜像共享依赖层缓存）。
+  migrate:
     build:
       context: .
-      dockerfile: Dockerfile.prod
-      args:
-        VITE_APP_SLUG: ${VITE_APP_SLUG:-optimax-starter}
-        VITE_APP_TITLE: ${VITE_APP_TITLE:-OptiMax}
-        VITE_ENABLE_DEMOS: "false"
-        VITE_SERVER_URL: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
-    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}
+      dockerfile: apps/api-laravel/Dockerfile.prod
+      target: workspace
+    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}-migrate
     depends_on:
       db: { condition: service_healthy }
-    restart: unless-stopped
-    ports: ["127.0.0.1:${PROD_PORT:-38140}:38140"]
+    restart: "no"
     environment:
-      NODE_ENV: production
-      PORT: 38140
-      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?Set SESSION_COOKIE_NAME in .env.production}
-      STARTER_SEED_DEMO: "false"
-      SERVE_WEB_DIST: /app/apps/web/dist
-      STARTER_AI_BASE_URL: ${STARTER_AI_BASE_URL:-}
-      STARTER_AI_MODEL: ${STARTER_AI_MODEL:-}
-      STARTER_AI_API_KEY_FILE: ${STARTER_AI_API_KEY_FILE:-}
-      STARTER_AI_CA_FILE: ${STARTER_AI_CA_FILE:-}
-      STARTER_AI_TOKEN_FIELD: ${STARTER_AI_TOKEN_FIELD:-}
-      STARTER_AI_TIMEOUT_MS: ${STARTER_AI_TIMEOUT_MS:-}
-      STARTER_AI_CONCURRENCY: ${STARTER_AI_CONCURRENCY:-}
-      STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
-      STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
-      STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
-    # Uses versioned migrations when packages/db/src/migrations contains SQL, otherwise syncs schema safely.
     command:
       - sh
       - -ec
@@ -56,12 +37,51 @@ services:
         else
           bun run --filter @optimax-starter/db db:push
         fi
-        exec node apps/server/dist/node.mjs
+  # 单 app 容器（D6）：Laravel API 与前端静态页同容器（FrankenPHP）。
+  app:
+    build:
+      context: .
+      dockerfile: apps/api-laravel/Dockerfile.prod
+      args:
+        VITE_APP_SLUG: ${VITE_APP_SLUG:-optimax-starter}
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-OptiMax}
+        VITE_ENABLE_DEMOS: "false"
+        VITE_SERVER_URL: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
+    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+    ports: ["127.0.0.1:${PROD_PORT:-38140}:8080"]
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:?Set APP_KEY in .env.production}
+      # 签名 URL 基址（LD-02）：附件签名下载必须公网可解析。
+      APP_URL: ${APP_URL:?Set APP_URL in .env.production}
+      LOG_LEVEL: ${LOG_LEVEL:-warning}
+      # D2 零迁移：无 Laravel cache 表，文件 store（LB-07）。
+      CACHE_STORE: file
+      # 镜像不带 .env（运行态只走 compose 注入）：默认连接必须显式给 pgsql。
+      DB_CONNECTION: pgsql
+      DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?Set SESSION_COOKIE_NAME in .env.production}
+      SESSION_LIFETIME: ${SESSION_LIFETIME:-480}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env.production}
+      STARTER_SEED_DEMO: "false"
+      # asset-agent 桥上游（D5）：默认未启用（503 明确语义）；挂 compose.ai.prod.yaml 时
+      # 由 overlay 注入 http://ai:38141。
+      STARTER_NODE_API_URL: ${STARTER_NODE_API_URL:-}
+      # 附件盘（LD-02/D8）：local 挂下方卷；S3 兼容 OSS 配 ATTACHMENT_S3_* 并设 s3。
+      ATTACHMENT_DISK: ${ATTACHMENT_DISK:-local}
+    volumes:
+      - prod_attachments:/srv/storage/app/attachments
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38140/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
       start_period: 20s
       interval: 10s
       timeout: 3s
       retries: 3
 volumes:
   prod_data:
+  prod_attachments:

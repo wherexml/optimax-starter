@@ -12,11 +12,11 @@
 | --- | --- | --- | --- | --- | --- |
 | 本地 | `http://127.0.0.1:${WEB_PORT:-38140}`（API `:${API_PORT:-38141}`） | Docker Compose（`compose.yaml` + `compose.override.yaml`） | `./scripts/init-local.sh` 或 `./scripts/bootstrap-project.sh` 后 `docker compose up -d` | 本地授权范围 | 项目开发者 |
 | 测试/演示 | 新项目按实际域名/内网地址填写 | Docker Compose（`compose.prod.yaml`） | `./scripts/deploy-production.sh` | 按授权填写 | 项目负责人 |
-| 生产 | 模板仓未绑定公网机器；派生项目绑定 `127.0.0.1:${PROD_PORT:-38140}` 由宿主机 Nginx/Caddy 反代 | 多阶段非 root 镜像 `Dockerfile.prod` + `compose.prod.yaml` | `./scripts/deploy-production.sh`（由 `.github/workflows/deploy-production.yml` 调用） | 默认只读；变更需明确授权 | Steve / 项目负责人 |
+| 生产 | 模板仓未绑定公网机器；派生项目绑定 `127.0.0.1:${PROD_PORT:-38140}` 由宿主机 Nginx/Caddy 反代 | 多阶段非 root 镜像 `apps/api-laravel/Dockerfile.prod`（FrankenPHP 单容器，PHP 8.4，静态页同容器分流）+ `compose.prod.yaml` | `./scripts/deploy-production.sh`（由 `.github/workflows/deploy-production.yml` 调用） | 默认只读；变更需明确授权 | Steve / 项目负责人 |
 
 | 项 | 必须记录的真实配置 |
 | --- | --- |
-| 运行时与依赖 | 语言/运行时版本、数据库、缓存、队列、对象存储、外部服务及兼容版本 |
+| 运行时与依赖 | 生产 app：PHP 8.4（FrankenPHP 1.13.5 单容器，非 root `www-data`，扩展 `pdo_pgsql`）；PostgreSQL 17；缓存文件 store（D2 零迁移，无 cache 表）；无队列（D5 触发条件未满足，LD-03 暂缓）；Node 24 仅可选 `ai` overlay（asset-agent 桥上游） |
 | 服务与网络 | 服务名称、监听地址、五位非标准端口、前后端相近端口、网关、域名、TLS、回调及跨域配置 |
 | 目录与持久化 | 代码/制品、Web 根目录、私有配置、数据、上传、日志、备份路径及读写权限 |
 | 发布单元 | 镜像 digest、制品校验、commit SHA；版本记录位置 |
@@ -36,21 +36,29 @@
 | `VITE_APP_TITLE` | `web` / `apps/web/src/config/app-config.ts` | 侧栏品牌显示名称 | 默认 `OptiMax` | 构建/开发 | 公开 |
 | `VITE_ENABLE_DEMOS` | `web` / `apps/web/src/config/app-config.ts` | 控制 `/demo/*` 与侧栏 Demo 分组显隐 | 开发默认 `true`，生产固定 `false` | 构建/开发 | 公开 |
 | `WEB_PORT` / `API_PORT` | `compose.yaml`、`apps/web/vite.config.ts`、`scripts/verify-*.py` | 本地相邻五位监听端口 | 默认 `38140` / `38141` | 运行（本地） | 内部 |
-| `API_LARAVEL_PORT` | `compose.yaml`（`api-laravel` 服务，LARAVEL.md 阶段 B） | Laravel 迁移栈本地监听端口（与 api 并行，不接管流量） | 默认 `38142` | 运行（本地） | 内部 |
-| `DATABASE_URL`（Laravel 侧） | `compose.yaml`、`apps/api-laravel/config/database.php` | Laravel pgsql 连接（与 TS 侧同名共享键，接线见 LB-02） | compose 注入 `postgres://starter:<pw>@db:5432/starter` | 运行（本地） | 密钥 |
-| `API_PROXY_TARGET` | `web` / `apps/web/vite.config.ts` | Vite `/console` 同源代理转发地址 | 默认 `http://api:${API_PORT}` | 运行（本地） | 内部 |
-| `PROD_PORT` | `compose.prod.yaml`、`scripts/deploy-production.sh` | 生产容器绑定宿主机回环端口 | 默认 `38140` | 部署/运行 | 内部 |
-| `CORS_ORIGIN` | `api` / `apps/server/src/core/config.ts` | 非 GET 请求 `Origin` 强校验基准 URL | 必填；本地默认 `http://127.0.0.1:38140` | 运行 | 内部 |
-| `SESSION_COOKIE_NAME` | `api` / `apps/server/src/core/config.ts` | HttpOnly Session Cookie 名称 | 本地默认 `optimax_console`；生产预检强制要求改为项目专属名 | 运行 | 内部 |
-| `STARTER_DB_PASSWORD` | `db`、`api` | PostgreSQL `starter` 库连接密码（不少于 16 位） | 必填，随机生成 | 运行 | 密钥 |
-| `STARTER_SEED_DEMO` | `api` / `apps/server/src/core/seed.ts` | 是否幂等写入演示管理员与 12 条示例资产 | 本地默认 `true`；生产强制 `false` | 运行 | 内部 |
-| `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `api` / `apps/server/src/core/seed.ts` | 本地演示管理员账号与初始密码 | 仅 `STARTER_SEED_DEMO=true` 时读取；生产拒绝 `demo@2026!` | 运行（本地） | 密钥 |
-| `SERVE_WEB_DIST` | `api` / `apps/server/src/index.ts` | 生产单容器模式下托管的前端静态产物目录 | 生产镜像默认 `/app/apps/web/dist` | 运行 | 内部 |
+| `API_LARAVEL_PORT` | `compose.yaml`（`api-laravel` 服务） | Laravel 迁移栈本地监听端口（LC-08 起主管 `/console`） | 默认 `38142` | 运行（本地） | 内部 |
+| `API_PROXY_TARGET` | `web` / `apps/web/vite.config.ts` | 本地 Vite `/console` 同源代理转发地址（LC-08 切流后指向 Laravel） | 默认 `http://api-laravel:8080` | 运行（本地） | 内部 |
+| `PROD_PORT` | `compose.prod.yaml`、`scripts/deploy-production.sh` | 生产容器绑定宿主机回环端口（映射容器内 8080） | 默认 `38140` | 部署/运行 | 内部 |
+| `CORS_ORIGIN` | `app`（Laravel 守卫，非 GET `Origin` 强校验）；`ai` overlay 的 Node 服务同源校验 | 非 GET 请求 `Origin` 强校验基准 URL | 必填；本地默认 `http://127.0.0.1:38140` | 运行 | 内部 |
+| `SESSION_COOKIE_NAME` | `app`（`config/session.php`，D3 复用 `console_session` 表）；`ai` overlay 转发会话校验 | HttpOnly Session Cookie 名称 | 本地默认 `optimax_console`；生产预检强制要求改为项目专属名 | 运行 | 内部 |
+| `SESSION_LIFETIME` | `app` / `config/session.php` | 会话生命周期（分钟），对齐现有栈 8h | 默认 `480` | 运行 | 内部 |
+| `APP_KEY` | `app` / `config/app.php` | Laravel 加密密钥（`base64:` 前缀，`php artisan key:generate --show` 生成） | 生产预检必填 | 运行 | 密钥 |
+| `APP_URL` | `app` / 附件签名 URL 基址（LD-02） | 公网可解析的应用基址 | 生产预检必填 | 运行 | 内部 |
+| `LOG_LEVEL` | `app` / `config/logging.php` | 生产日志级别 | 默认 `warning` | 运行 | 内部 |
+| `CACHE_STORE` | `app` / `config/cache.php` | 缓存后端；D2 零迁移期固定文件 store | 固定 `file` | 运行 | 内部 |
+| `DATABASE_URL` | `app`、`migrate`（Drizzle 权威）、`ai` overlay | PostgreSQL 连接串（TS/PHP 双栈同名共享键） | compose 注入 `postgres://starter:<pw>@db:5432/starter` | 运行 | 密钥 |
+| `STARTER_DB_PASSWORD` | `db`、`app`、`migrate` | PostgreSQL `starter` 库连接密码（不少于 16 位） | 必填，随机生成 | 运行 | 密钥 |
+| `STARTER_SEED_DEMO` | `app` / `console:seed`（生产拒绝执行） | 是否幂等写入演示管理员与 12 条示例资产 | 本地默认 `true`；生产强制 `false` | 运行 | 内部 |
+| `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `app` / `console:seed`（本地演示）与 `console:admin`（首个管理员引导，LD-03） | 引导管理员账户名与密码（预检拒绝 `demo@2026!`） | `console:seed` 仅 `STARTER_SEED_DEMO=true` 时读取；`console:admin` 优先取 env/隐式输入 | 运行（本地）/部署 | 密钥 |
+| `STARTER_NODE_API_URL` | `app` / `AssetAgentController`（asset-agent 桥，D5） | 上游 Node AI 服务基址 | 本地默认 `http://api:38141`；生产由 `compose.ai.prod.yaml` 注入，未配置时 agent 端点返回 503 | 运行 | 内部 |
+| `ATTACHMENT_DISK` | `app` / `config/filesystems.php`（LD-02） | 附件存储盘：`local`（挂 `prod_attachments` 卷）或 `s3`（S3 兼容 OSS） | 默认 `local` | 运行 | 内部 |
+| `ATTACHMENT_S3_KEY` / `ATTACHMENT_S3_SECRET` / `ATTACHMENT_S3_BUCKET` / `ATTACHMENT_S3_ENDPOINT` / `ATTACHMENT_S3_REGION` | `app` / `config/filesystems.php` `attachments_s3` 盘 | S3 兼容 OSS 凭证与桶（LD-02：阿里云 OSS 走 S3 兼容端点） | 仅 `ATTACHMENT_DISK=s3` 时必填（预检校验） | 运行 | 密钥 |
 
 | 同名变量 | 本地来源 | 测试来源 | 生产来源 | 修改生效方式 | 缺失/非法时行为 |
 | --- | --- | --- | --- | --- | --- |
-| `VITE_APP_*` / `VITE_ENABLE_DEMOS` | `.env` | 构建参数 | `compose.prod.yaml` build args | 本地热更/重启；生产需重新构建镜像 | 回退安全默认值 |
+| `VITE_*` / `VITE_ENABLE_DEMOS` | `.env` | 构建参数 | `compose.prod.yaml` build args | 本地热更/重启；生产需重新构建镜像 | 回退安全默认值 |
 | `CORS_ORIGIN` / `SESSION_COOKIE_NAME` / `STARTER_DB_PASSWORD` | `.env` | `.env.production` | 服务器私有 `.env.production`（权限 `0600`） | 重启容器生效 | `deploy-production.sh --check` 与服务启动直接拒绝 |
+| `APP_KEY` / `APP_URL` / `SESSION_LIFETIME` / `STARTER_NODE_API_URL` / `ATTACHMENT_DISK` | 本地默认值（`apps/api-laravel/.env.example`） | — | 服务器私有 `.env.production` | 重启容器生效 | `--check` 预检拒绝（`APP_KEY`/`APP_URL` 必填；其余回退默认） |
 
 审查时至少覆盖以下类别。下表仅为检查示例，不能直接当作项目必填变量清单：
 
@@ -83,11 +91,13 @@
 
 | 操作 | 命令/平台入口 | 前置条件 | 成功证据 | 失败处理 |
 | --- | --- | --- | --- | --- |
-| 配置预检 | `./scripts/deploy-production.sh --check` | 存在私有 `.env.production`，已关闭演示种子与默认密码 | 输出 `PASS precheck` | 停止发布，不触碰线上容器 |
+| 配置预检 | `./scripts/deploy-production.sh --check` | 存在私有 `.env.production`；已关闭演示种子与默认密码；`APP_KEY`/`APP_URL` 已设置；契约产物已提交（LD-03 预检门禁） | 输出 `PASS precheck` | 停止发布，不触碰线上容器 |
 | 备份与校验 | `deploy-production.sh` 自动执行 `pg_dump` 至 `.deploy-state/backups/` | `db` 容器在线且磁盘空间充足 | 非空 `.sql.gz` 归档及 `PASS backup_db` | 备份为空或失败立即终止构建与激活 |
 | 首次部署 / 增量发布 | `./scripts/deploy-production.sh --deploy <commit-sha>`（或 GitHub Actions `Deploy Production`） | CI `Application release gate` 通过，目标机器具备 Docker Compose v2 | `/healthz` 返回 `200`、匿名 `/console/me` 返回 `401`、`/login` 返回 SPA HTML，写入 `.deploy-state/accepted-sha` | 激活前失败不回滚健康生产；激活后冒烟失败自动回切上一 `accepted-sha` |
-| 数据迁移 | `compose.prod.yaml` 启动时自动检测 `packages/db/src/migrations/*.sql` 执行 `db:migrate:deploy` | 已通过 `bun run db:generate` 提交迁移 SQL 并完成备份 | 迁移退出码 `0` 且 `/healthz` 正常 | 回切旧镜像并按备份恢复说明人工核查 |
-| 代码回滚 | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
+| 首个管理员引导（首次部署后必做） | `STARTER_ADMIN_PASSWORD=<私有密码> docker compose -f compose.prod.yaml exec -T app php artisan console:admin --username=<账户名>` | 部署已验收（`/healthz` 绿）；密码 ≥10 位且非演示密码 | 输出 `已创建超级管理员 <账户名>`，可用该账号登录 | 检查 `app` 容器日志与数据库连接；账号已存在时命令改为轮转语义（更新密码并修正为启用超管） |
+| 数据迁移 | `compose.prod.yaml` 的 `migrate` 一次性服务在 app 启动前自动执行（D2 权威 Drizzle）：存在 `packages/db/src/migrations/*.sql` 时按 `db:migrate:deploy` 回放，否则 `db:push` 安全同步 | 已通过 `bun run db:generate` 提交迁移 SQL（如走版本化迁移）并完成备份 | `migrate` 容器退出码 `0` 且 `/healthz` 正常 | `app` 不会启动（`service_completed_successfully` 未满足）；修复后重跑 `--deploy`，必要时按备份恢复 |
+| 代码回滚（同栈） | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收 Laravel 镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
+| 跨栈回滚（回到 LD-03 前的 node 形态） | `git revert` 本 spec 提交取回旧 `compose.prod.yaml` 与根 `Dockerfile.prod`，再 `--deploy <旧 SHA>` | 明确授权；数据库无仅新栈使用的表变更（D2 零迁移下通常满足） | 旧形态冒烟通过 | 按备份恢复说明人工核查 |
 | 数据恢复 | 停止 `app` 写入后用 `gunzip -c <backup.sql.gz> \| docker compose -f compose.prod.yaml exec -T db psql -U starter -d starter` | 明确授权、已确认恢复点 | 核心表行数与业务抽样核验通过 | 停止继续写入，保留原库卷快照 |
 
 ## 4. 部署步骤与脚本契约
@@ -278,11 +288,12 @@ API 冒烟应覆盖：
 
 ## API 运行时
 
-- 预览环境用 Node 24 运行 API，并配置了重启策略和健康检查；说明见 [RUNTIME.md](./RUNTIME.md)。
+- 本地/预览环境事实见 [RUNTIME.md](./RUNTIME.md)（LC-08 切流后 `/console` 由 Laravel 栈主管）。
+- 生产（LD-03）：单 `app` 容器为 FrankenPHP（PHP 8.4，非 root `www-data`），同时托管 `/console` API、`/healthz` 探针与前端静态页；schema 同步由 `migrate` 一次性服务（Drizzle 权威）在启动前完成。
 
 ## 可选服务端模型 API
 
-新客户端直连 OpenAI-compatible API，不需要 Magpie。默认不配置时不影响应用启动；环境变量与边界见 [core/ai](./apps/server/src/core/ai/README.md#配置)，根 `.env.example` 只保存非敏感模板。
+新客户端直连 OpenAI-compatible API，不需要 Magpie。默认不配置时不影响应用启动；环境变量与边界见 [core/ai](./apps/server/src/core/ai/README.md#配置)，根 `.env.example` 只保存非敏感模板。切流后模型客户端不在 `app` 进程内（D5）：asset-agent 由 Laravel 经 `STARTER_NODE_API_URL` 代理到独立 Node 服务；未配置上游时 agent 端点返回 `503 { error }`。
 
 将 `STARTER_AI_BASE_URL`、`STARTER_AI_MODEL` 配为明确的供应商 Base URL 和模型。密钥值来自已有私有文件，`STARTER_AI_SECRET_FILE` 仅填该文件的宿主机路径。不要把密钥值写入 `.env`、Docker environment、前端或仓库。可选开发挂载入口：
 
@@ -290,10 +301,10 @@ API 冒烟应覆盖：
 docker compose -f compose.yaml -f compose.override.yaml -f compose.ai.yaml up -d --build api web
 ```
 
-`compose.ai.yaml` 将文件只读挂载为 `/run/secrets/starter_ai_key`，只对 API 服务可见；未选择该 overlay 时默认不要求文件存在。生产配置对应 `compose.prod.yaml` 加 `compose.ai.prod.yaml`，后者挂载到 `app` 服务。本段提供配置入口，不授予生产发布权限。
+`compose.ai.yaml` 将文件只读挂载为 `/run/secrets/starter_ai_key`，只对 API 服务可见；未选择该 overlay 时默认不要求文件存在。生产配置对应 `compose.prod.yaml` 加 `compose.ai.prod.yaml`：overlay 起独立 `ai` 服务（观察期复用根 `Dockerfile.prod` 旧单容器镜像，内网 `38141`，不发布端口），并把密钥只读挂载到 `ai` 服务、向 `app` 注入 `STARTER_NODE_API_URL=http://ai:38141`。本段提供配置入口，不授予生产发布权限。
 
-现有 `deploy-production.sh` 默认只加载 `compose.prod.yaml`；实际启用生产模型时，需要在经授权的发布配置中持久化该 secret 挂载，不能仅临时启动 overlay 后依赖默认发布脚本保留它。
+现有 `deploy-production.sh` 默认只加载 `compose.prod.yaml`；实际启用生产模型时，需要在经授权的发布配置中持久化该 overlay（把 `-f compose.ai.prod.yaml` 写入部署入口并保存 `STARTER_AI_SECRET_FILE` 指向的私有文件），不能仅临时启动 overlay 后依赖默认发布脚本保留它。
 
-生产镜像以 `node` 用户运行，挂载的文件必须对容器内该用户可读；使用受控 uid/gid 或密钥管理服务映射权限，不通过全局放宽文件权限解决。轮换文件或修改配置后重启 API，首次读取后配置缓存在进程中。新增来源和完整 MIT 许可随镜像位于 `/app/third_party/`。
+`ai` 服务镜像以 `node` 用户运行，挂载的密钥文件必须对容器内该用户可读；使用受控 uid/gid 或密钥管理服务映射权限，不通过全局放宽文件权限解决。轮换文件或修改配置后重启 `ai` 服务，首次读取后配置缓存在进程中。新增来源和完整 MIT 许可随镜像位于 `/app/third_party/`。
 
 HTTPS 默认采用系统信任。内部 CA 可通过额外的只读 secret 挂载并设置 `STARTER_AI_CA_FILE`；不关闭证书验证。明文 HTTP 仅在开发/测试通过 `STARTER_AI_ALLOW_HTTP_HOSTS` 显式允许，生产拒绝。URL 禁止 userinfo、query、fragment；供应商要求 query 参数的接口暂不支持。
