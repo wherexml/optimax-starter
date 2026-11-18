@@ -12,6 +12,7 @@ import { z } from "zod";
 import * as assetAgent from "./asset-agent";
 import * as contracts from "./contracts";
 import * as permissions from "./permissions";
+import { SUPER_ADMIN_ONLY_PERMISSIONS, defaultPermissionCodes } from "./permissions";
 import { CONTRACT_REFINES } from "./refines";
 import * as system from "./system";
 
@@ -115,6 +116,23 @@ function main() {
   writeFileSync(
     path.join(outDir, "refines.json"),
     `${JSON.stringify({ count: CONTRACT_REFINES.length, refines: CONTRACT_REFINES }, null, 2)}\n`,
+  );
+  // 权限默认值/目录/超管独占集（LB-05 PHP 侧 getEffectivePermissions 的单一事实来源）。
+  writeFileSync(
+    path.join(outDir, "permissions.defaults.json"),
+    `${JSON.stringify(
+      {
+        defaults: {
+          member: defaultPermissionCodes("member"),
+          admin: defaultPermissionCodes("admin"),
+          super_admin: defaultPermissionCodes("super_admin"),
+        },
+        catalog: permissions.PERMISSION_CATALOG,
+        superAdminOnly: [...SUPER_ADMIN_ONLY_PERMISSIONS],
+      },
+      null,
+      2,
+    )}\n`,
   );
   console.log(`contracts:generate: ${registry.length} schemas + ${CONTRACT_REFINES.length} refines -> ${path.relative(process.cwd(), outDir)}`);
 }

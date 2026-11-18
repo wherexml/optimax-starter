@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Http\Middleware\RequirePermission;
+use App\Core\Http\Middleware\ResolveConsoleActor;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -21,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // 空串保留语义（LB-03 对拍结论）：zod 把 "" 当字符串（如 optionalEmail 的空串合法），
         // ConvertEmptyStringsToNull 会把 "" 转 null 造成跨语言行为分叉；TrimStrings 保留（对齐 .trim()）。
         $middleware->api(remove: [ConvertEmptyStringsToNull::class]);
+
+        $middleware->alias([
+            'console.actor' => ResolveConsoleActor::class,
+            'console.permission' => RequirePermission::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
