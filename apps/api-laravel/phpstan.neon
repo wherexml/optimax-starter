@@ -2,6 +2,9 @@ includes:
     - vendor/larastan/larastan/extension.neon
 parameters:
     level: 5
+    # LocksPermission 等横切 trait 由 gen:module 生成的模块消费（LD-01），生成前未被引用是预期。
+    excludePaths:
+        - app/Core/Http/Concerns/*
     paths:
         - app
         - routes

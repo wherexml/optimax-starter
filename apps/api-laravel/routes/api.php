@@ -106,5 +106,11 @@ Route::prefix('console')->group(function (): void {
             'ok' => true,
             'actor' => $request->attributes->get('consoleActor')->username,
         ]))->middleware('console.permission:accounts:manage');
+
+        // gen:module 生成的业务模块（LD-01）：每个模块自带 routes.php，
+        // 自动获得本组的 /console 前缀与守卫；生成器无需改动本文件。
+        foreach (glob(__DIR__.'/../app/Modules/*/routes.php') ?: [] as $moduleRoutes) {
+            require $moduleRoutes;
+        }
     });
 });

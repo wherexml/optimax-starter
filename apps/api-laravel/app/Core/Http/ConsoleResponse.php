@@ -2,6 +2,7 @@
 
 namespace App\Core\Http;
 
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -13,5 +14,11 @@ final class ConsoleResponse
     public static function json(mixed $data, int $status = 200): JsonResponse
     {
         return response()->json($data, $status, [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /** JS Date.toJSON 同构（毫秒 + Z），供实体资源与审计时间字段统一使用。 */
+    public static function isoTime(?CarbonInterface $time): ?string
+    {
+        return $time?->utc()->format('Y-m-d\TH:i:s.v\Z');
     }
 }
