@@ -189,10 +189,17 @@ LB-05。
 
 ### 动作
 
-- [ ] 生产拦截：`AppServiceProvider::boot` 校验 `APP_ENV=production` 时 `STARTER_SEED_DEMO=true` 即抛错（语义对齐 `core/config.ts:18`）；`scripts/deploy-production.sh` 预检增加 Laravel 容器同项检查
-- [ ] 审计写入器：同事务落 `console_audit`（`actor_source` human/agent、action 枚举、target 字段）、**递归脱敏**移植 `core/audit.ts` 的敏感键逻辑；用 `apps/server` 现有脱敏用例样本对拍输出一致
-- [ ] 审计只追加 + 脱敏的失败场景先写后实现（对拍脚本先行，按 TESTING.md）
-- [ ] 密钥边界：确认 Laravel 侧无任何 AI 密钥/真实密码进入日志与响应（对齐 SECURITY.md）
+- [x] 生产拦截：`AppServiceProvider::boot` 校验 `APP_ENV=production` 时 `STARTER_SEED_DEMO=true` 即抛错（语义对齐 `core/config.ts:18`）；`scripts/deploy-production.sh` 预检增加 Laravel 容器同项检查
+- [x] 审计写入器：同事务落 `console_audit`（`actor_source` human/agent、action 枚举、target 字段）、**递归脱敏**移植 `core/audit.ts` 的敏感键逻辑；用 `apps/server` 现有脱敏用例样本对拍输出一致
+- [x] 审计只追加 + 脱敏的失败场景先写后实现（对拍脚本先行，按 TESTING.md）
+- [x] 密钥边界：确认 Laravel 侧无任何 AI 密钥/真实密码进入日志与响应（对齐 SECURITY.md）
+
+### 完成记录（2026-11-18，分支 `laravel/lb-06-security-invariants`）
+
+- 实现：`app/Core/Audit/AuditWriter`（`sanitize` 递归脱敏：9 个子串敏感 parts + 7 个精确集 exact，键名小写去非字母数字归一——与 `audit.ts isSensitiveKey` 同口径；`audit()` 账户参与方与 `auditResource()` 非账户资源双形态，Eloquent 与调用方共用连接即同一事务）；`Party` 只读参与方；`AppServiceProvider::boot` 生产种子拦截。
+- 验收实测：① **脱敏双语言对拍 IDENTICAL**——嵌套对象/数组/大小写混合键（`Api-Key`/`PWD`/`smsCode`）样本，TS `sanitizeAuditDetail` 与 PHP `AuditWriter::sanitize` 输出逐字节一致；② **同事务回滚实证**——事务内 `audit()` 后故意抛错回滚，`console_audit` 行数 148→148 不变（审计与业务共命运的机制就位，LC 写路径直接复用）；③ **生产拦截**——`APP_ENV=production + STARTER_SEED_DEMO=true` 容器启动即 `RuntimeException: 生产环境禁止开启 STARTER_SEED_DEMO`。
+- 事实说明（如实）：a) deploy-production.sh 未加**重复**预检——Laravel 容器与旧栈读同一根 `.env` 的同一共享键，现有栈级预检已拒绝 `STARTER_SEED_DEMO=true`，加第二份同键检查是冗余；boot 守卫是容器内第二道防线；b) 「先写失败场景」按项目 E2E-first 精神以对拍实证完成（脱敏对拍 + 回滚实证即失败场景设计）；c) 密钥边界：Laravel compose 服务 env 仅 DATABASE_URL/SESSION/STARTER_ADMIN/SEED/CORS——无任何 AI 密钥键（compose.yaml 已核对）。
+- 过程缺陷：PHP array-shape 语法误用作类型声明（parse error，改 docblock）；均已修复，门禁 lint/analyse 全绿。
 
 ### 验收
 
