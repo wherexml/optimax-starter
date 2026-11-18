@@ -15,6 +15,8 @@ const GATE_SCRIPTS = new Set([
 
 function kind(file) {
   if (GATE_SCRIPTS.has(file)) return "application";
+  // 契约源或 JSON Schema 产物的任何变更都强制 full CI（LA-04：产物必须与源同步提交）。
+  if (/^packages\/api\/(?:src|json-schema)\//.test(file)) return "application";
   if (/^[A-Za-z0-9_-]+\.md$/.test(file) || /^docs\/.+\.md$/.test(file)) {
     return "document";
   }

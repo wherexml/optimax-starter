@@ -109,14 +109,47 @@ try {
   assert.equal(JSON.parse(readFileSync(reportPath, "utf8")).full, true, "moving app file must trigger full CI");
   results.push({ scenario: "rename_out_of_app_forces_full", status: "PASS" });
 
-  // 6. workflow_dispatch or missing SHA => fail-closed full=true
-  writeFileSync(eventPath, JSON.stringify({}));
+  // 6. Contract source or JSON Schema artifact change => must force full=true (LA-04)
+  mkdirSync(path.join(repo, "packages/api/src"), { recursive: true });
+  mkdirSync(path.join(repo, "packages/api/json-schema"), { recursive: true });
+  writeFileSync(path.join(repo, "packages/api/src/contracts.ts"), "export const x = 1;\n");
+  writeFileSync(path.join(repo, "packages/api/json-schema/index.json"), "{}\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-m", "contract source and artifact");
+  const contractHead = git(repo, "rev-parse", "HEAD");
+  writeFileSync(eventPath, JSON.stringify({ before: moveHead, after: contractHead }));
   const r6 = runScope(repo, {
-    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_EVENT_NAME: "push",
     GITHUB_EVENT_PATH: eventPath,
     CI_SCOPE_REPORT: reportPath,
   });
   assert.equal(r6.status, 0);
+  assert.equal(JSON.parse(readFileSync(reportPath, "utf8")).full, true, "contract src/artifact changes must trigger full CI");
+  results.push({ scenario: "contract_changes_force_full", status: "PASS" });
+
+  // 7. Contract artifact-only change => still full=true (artifact edits are application changes)
+  writeFileSync(path.join(repo, "packages/api/json-schema/index.json"), '{"touched":true}\n');
+  git(repo, "add", ".");
+  git(repo, "commit", "-m", "artifact only");
+  const artifactHead = git(repo, "rev-parse", "HEAD");
+  writeFileSync(eventPath, JSON.stringify({ before: contractHead, after: artifactHead }));
+  const r7 = runScope(repo, {
+    GITHUB_EVENT_NAME: "push",
+    GITHUB_EVENT_PATH: eventPath,
+    CI_SCOPE_REPORT: reportPath,
+  });
+  assert.equal(r7.status, 0);
+  assert.equal(JSON.parse(readFileSync(reportPath, "utf8")).full, true, "artifact-only change must trigger full CI");
+  results.push({ scenario: "artifact_only_forces_full", status: "PASS" });
+
+  // 8. workflow_dispatch or missing SHA => fail-closed full=true
+  writeFileSync(eventPath, JSON.stringify({}));
+  const r8 = runScope(repo, {
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_EVENT_PATH: eventPath,
+    CI_SCOPE_REPORT: reportPath,
+  });
+  assert.equal(r8.status, 0);
   assert.equal(JSON.parse(readFileSync(reportPath, "utf8")).full, true, "workflow_dispatch must force full CI");
   results.push({ scenario: "workflow_dispatch_fail_closed_full", status: "PASS" });
 

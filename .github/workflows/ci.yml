@@ -107,6 +107,13 @@ jobs:
         run: node scripts/e2e/ci-scope-e2e.mjs
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
+      - name: Contract artifacts are up to date
+        run: |
+          bun run contracts:generate
+          git diff --exit-code -- packages/api/json-schema || {
+            echo "::error::packages/api/json-schema 产物与 src 不同步：请运行 bun run contracts:generate 并随代码一起提交产物（LARAVEL.md LA-04 门禁）" >&2
+            exit 1
+          }
       - name: Typecheck and production build
         env:
           CORS_ORIGIN: http://127.0.0.1:38140
