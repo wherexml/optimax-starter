@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import * as assetAgent from "./asset-agent";
+import * as attachments from "./attachments";
 import * as contracts from "./contracts";
 import * as permissions from "./permissions";
 import { SUPER_ADMIN_ONLY_PERMISSIONS, defaultPermissionCodes } from "./permissions";
@@ -74,6 +75,10 @@ const registry: Entry[] = [
   // asset-agent — 自然语言筛选参数
   { module: "asset-agent", name: "assetAgentFilters", schema: assetAgent.assetAgentFilters },
   { module: "asset-agent", name: "assetAgentRequest", schema: assetAgent.assetAgentRequest },
+  // attachments — 附件（LD-02）
+  { module: "attachments", name: "attachmentRecordSchema", schema: attachments.attachmentRecordSchema },
+  { module: "attachments", name: "attachmentSignedUrlSchema", schema: attachments.attachmentSignedUrlSchema },
+  // ---- gen:module 追加业务模块契约（勿删锚点）----
 ];
 
 const outDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../json-schema");
@@ -129,6 +134,19 @@ function main() {
         assetStages: ASSET_STAGES,
         actorSources: ACTOR_SOURCES,
         roleValues: ROLE_VALUES,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  // 附件策略（LD-02）：上传白名单/大小/签名 URL TTL —— PHP 消费物。
+  writeFileSync(
+    path.join(outDir, "attachments.policy.json"),
+    `${JSON.stringify(
+      {
+        mimeWhitelist: attachments.ATTACHMENT_MIME_WHITELIST,
+        maxBytes: attachments.ATTACHMENT_MAX_BYTES,
+        urlTtlSeconds: attachments.ATTACHMENT_URL_TTL_SECONDS,
       },
       null,
       2,

@@ -24,8 +24,9 @@ final class ResolveConsoleActor
         // 对齐 console.ts：所有非 GET（含 /login）强校验 Origin 与 JSON 类型；登录仅豁免会话。
         if ($request->method() !== 'GET'
             && (($request->headers->get('Origin') !== ConsoleAuth::corsOrigin()
-                || ! str_starts_with((string) $request->headers->get('Content-Type'), 'application/json'))
-            )) {
+                || ! (str_starts_with((string) $request->headers->get('Content-Type'), 'application/json')
+                    || str_starts_with((string) $request->headers->get('Content-Type'), 'multipart/form-data'))
+            ))) {
             throw new HttpException(403, '请求来源无效');
         }
 

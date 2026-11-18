@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "number"
+    },
+    "name": {
+      "type": "string"
+    },
+    "mime": {
+      "type": "string"
+    },
+    "size": {
+      "type": "number"
+    },
+    "uploadedByUsername": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "mime",
+    "size",
+    "uploadedByUsername",
+    "createdAt"
+  ],
+  "additionalProperties": false
+}

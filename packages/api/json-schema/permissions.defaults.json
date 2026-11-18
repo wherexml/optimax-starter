@@ -2,12 +2,15 @@
   "defaults": {
     "member": [
       "workbench:read",
-      "assets:read"
+      "assets:read",
+      "attachments:read"
     ],
     "admin": [
       "workbench:read",
       "assets:read",
       "assets:manage",
+      "attachments:read",
+      "attachments:manage",
       "accounts:read",
       "accounts:manage",
       "system:settings:read",
@@ -18,6 +21,8 @@
       "workbench:read",
       "assets:read",
       "assets:manage",
+      "attachments:read",
+      "attachments:manage",
       "accounts:read",
       "accounts:manage",
       "system:settings:read",
@@ -47,6 +52,18 @@
       "code": "assets:manage",
       "label": "维护资产台账",
       "module": "资产台账",
+      "kind": "operate"
+    },
+    {
+      "code": "attachments:read",
+      "label": "查看附件管理",
+      "module": "附件管理",
+      "kind": "view"
+    },
+    {
+      "code": "attachments:manage",
+      "label": "维护附件",
+      "module": "附件管理",
       "kind": "operate"
     },
     {

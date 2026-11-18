@@ -15,7 +15,9 @@
     "agent.asset_filter",
     "asset.create",
     "asset.update",
-    "asset.delete"
+    "asset.delete",
+    "attachment.create",
+    "attachment.delete"
   ],
   "assetStages": [
     "已登记",

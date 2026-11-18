@@ -65,10 +65,14 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
+      # 签名 URL 基址（LD-02）：代理转发会改写 Host，显式 APP_URL 保证公网可解析。
+      APP_URL: ${APP_URL:-http://127.0.0.1:38140}
       LOG_LEVEL: debug
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
       # 契约产物（packages/api/json-schema 经 compose.override 挂载；LB-03 消费）。
       CONTRACTS_DIR: /var/www/html/storage/contracts
+      # 附件盘（LD-02）：local 开发态默认；S3 兼容 OSS 由 E2E 用一次性容器覆盖验证。
+      ATTACHMENT_DISK: ${ATTACHMENT_DISK:-local}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-optimax_console}
       STARTER_ADMIN_USERNAME: ${STARTER_ADMIN_USERNAME:-demo@optimax.hk}
       STARTER_SEED_DEMO: ${STARTER_SEED_DEMO:-true}
@@ -83,6 +87,23 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+  # Garage（LD-02 附件 S3 兼容/OSS 对拍；MinIO 公共镜像已下架，见 spec 记录）
+  # 启动：docker compose --profile attachments up -d garage
+  # 初始化：bash scripts/e2e/fixtures/garage/init.sh（布局/桶/密钥，密钥写回 fixtures/garage/keys.env）
+  garage:
+    image: dxflrs/garage:v2.1.0
+    profiles: ["attachments"]
+    command: "/garage -c /etc/garage/garage.toml server"
+    # 测试栈放宽到全接口（profile 隔离）：容器与宿主同用宿主 IP 访问，presigned 签名 host 两侧一致。
+    ports: ["${ATTACHMENT_S3_PORT:-38470}:3900"]
+    volumes:
+      - ./scripts/e2e/fixtures/garage:/etc/garage
+      - garage_data:/var/lib/garage
+    healthcheck:
+      test: ["CMD", "/garage", "-c", "/etc/garage/garage.toml", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
   web:
     <<: *app
     ports: ["127.0.0.1:${WEB_PORT:-38140}:${WEB_PORT:-38140}"]
@@ -98,3 +119,4 @@ services:
     command: ["sh", "-ec", "cd apps/web && exec bun run dev"]
 volumes:
   data:
+  garage_data:

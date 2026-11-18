@@ -1,6 +1,6 @@
 {
   "zod": "4.6.7",
-  "count": 25,
+  "count": 27,
   "schemas": [
     {
       "name": "credentialsSchema",
@@ -151,6 +151,18 @@
       "module": "asset-agent",
       "file": "asset-agent.assetAgentRequest.json",
       "source": "packages/api/src/asset-agent.ts"
+    },
+    {
+      "name": "attachmentRecordSchema",
+      "module": "attachments",
+      "file": "attachments.attachmentRecordSchema.json",
+      "source": "packages/api/src/attachments.ts"
+    },
+    {
+      "name": "attachmentSignedUrlSchema",
+      "module": "attachments",
+      "file": "attachments.attachmentSignedUrlSchema.json",
+      "source": "packages/api/src/attachments.ts"
     }
   ]
 }

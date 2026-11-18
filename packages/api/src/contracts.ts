@@ -24,6 +24,8 @@ export const AUDIT_ACTIONS = [
   "asset.create",
   "asset.update",
   "asset.delete",
+  "attachment.create",
+  "attachment.delete",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -44,6 +46,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "asset.create": "新增资产",
   "asset.update": "编辑资产",
   "asset.delete": "删除资产",
+  "attachment.create": "上传附件",
+  "attachment.delete": "删除附件",
 };
 
 // Response entities are declared as Zod schemas so their shapes are generatable

@@ -47,6 +47,24 @@ return [
             'report' => false,
         ],
 
+        'attachments_local' => [
+            'driver' => 'local',
+            'root' => storage_path('app/attachments'),
+            'throw' => false,
+            'report' => false,
+        ],
+        // S3 兼容 OSS（LD-02/D8）：MinIO 验证与生产 OSS 同一驱动。
+        'attachments_s3' => [
+            'driver' => 's3',
+            'key' => env('ATTACHMENT_S3_KEY'),
+            'secret' => env('ATTACHMENT_S3_SECRET'),
+            'region' => env('ATTACHMENT_S3_REGION', 'us-east-1'),
+            'bucket' => env('ATTACHMENT_S3_BUCKET'),
+            'endpoint' => env('ATTACHMENT_S3_ENDPOINT'),
+            'use_path_style_endpoint' => env('ATTACHMENT_S3_PATH_STYLE', true),
+            'throw' => false,
+            'report' => false,
+        ],
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

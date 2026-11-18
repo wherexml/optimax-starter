@@ -34,6 +34,8 @@ export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
   { code: "workbench:read", label: "查看工作台", module: "工作台", kind: "view" },
   { code: "assets:read", label: "查看资产台账", module: "资产台账", kind: "view" },
   { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },
+  { code: "attachments:read", label: "查看附件管理", module: "附件管理", kind: "view" },
+  { code: "attachments:manage", label: "维护附件", module: "附件管理", kind: "operate" },
   { code: "accounts:read", label: "查看账户管理", module: "账户管理", kind: "view" },
   { code: "accounts:manage", label: "维护成员账户", module: "账户管理", kind: "operate" },
   { code: "system:settings:read", label: "查看系统配置", module: "系统配置", kind: "view" },
@@ -95,6 +97,8 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<AccountRole, readonly string[
     "assets:manage",
     "accounts:read",
     "accounts:manage",
+    "attachments:read",
+    "attachments:manage",
     "system:settings:read",
     "system:ai:read",
     "audit:read",
@@ -102,6 +106,7 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<AccountRole, readonly string[
   member: [
     "workbench:read",
     "assets:read",
+    "attachments:read",
   ],
 };
 
@@ -208,6 +213,14 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
     actions: ALL_ACTIONS,
     viewCodes: { default: ["assets:read"] },
     operateCodes: { default: ["assets:manage"] },
+  },
+  {
+    id: "attachments",
+    label: "附件管理",
+    description: "附件上传、列表、签名下载与删除",
+    actions: ALL_ACTIONS,
+    viewCodes: { default: ["attachments:read"] },
+    operateCodes: { default: ["attachments:manage"] },
   },
   {
     id: "accounts",
