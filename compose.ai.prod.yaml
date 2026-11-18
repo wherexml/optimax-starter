@@ -9,6 +9,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
+    # 旧镜像 CMD 在 /app 下运行时 varlock 找不到 .env.schema（空配置启动、
+    # DATABASE_URL 不可见即崩——LD-03 演练实测）；与 dev 栈同构改从 server 目录运行。
+    working_dir: /app/apps/server
+    command: ["node", "dist/node.mjs"]
     depends_on:
       db: { condition: service_healthy }
     restart: unless-stopped
