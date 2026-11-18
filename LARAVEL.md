@@ -17,7 +17,7 @@
 | D3 | 会话 | 自定义 SessionHandler 复用 `console_session` 表（迁移期数据连续，不强制下线）；argon2id 参数对齐现有 PHC（m=65536,t=2,p=1）；cookie 名与生命周期沿用 `SESSION_COOKIE_NAME` 与 8h | 已定 |
 | D4 | CSRF | `/console` JSON API 组不引入 CSRF token（同源 BFF + cookie SameSite + JSON-only；沿用现状）；跨域消费方出现时复查 | 已定，LB-05 论证 |
 | D5 | AI 模块 | 现有 Node AI 客户端（`apps/server/src/core/ai`）保留为独立可选服务，不移植 Laravel；asset-agent 由 Laravel 代理或直连该服务（LC-07 定实现）；触发统一队列治理时复查 | 已定 |
-| D6 | 运行时形态 | 本地 compose 用 php-fpm；生产单容器形态（FrankenPHP/Octane vs fpm）在 LB-02 小规模验证后定，原则是贴合现「单 app 容器」部署边界 | 待 LB-02 定 |
+| D6 | 运行时形态 | **已定（LB-02 实测）：生产选 FrankenPHP 单容器**——同一 hello 接口 10s×20 并发实测 fpm+nginx 860 RPS（p50 20.7ms）vs FrankenPHP 767 RPS（p50 23.0ms），差距 <12% 且均远超管理后台负载；FrankenPHP 单进程同时托管 PHP 与静态资源，贴合「单 app 容器」边界。fpm+nginx 保留为备选。本地开发用 php 内建服务器（`PHP_CLI_SERVER_WORKERS=4`，443 RPS 基线）。LD-03 生产镜像按此执行 | 已定 |
 | D7 | 退役策略 | 双栈并行至 LC 全绿；切流后旧 `apps/server` 进入观察期，LD-05 才删除；观察期内 compose/CI 不拆 | 已定 |
 | D8 | 数据与存储形态 | 充分利用 Laravel 数据生态：Eloquent 关系预载/Cast/Scope/API Resource、Cache；存储用 Laravel Filesystem 抽象（本地 driver 开发与测试、S3 兼容 OSS driver 生产、签名 URL），附件能力作为扩展性试点模块落地（LD-02） | 已定（Steve 要求） |
 
@@ -33,7 +33,7 @@
 | A | [LA-04](./docs/laravel/specs/phase-a-contracts.md) | 契约 CI 门禁 | LA-02 | ✅ laravel/la-04-ci-gate（ci.yml + ci-scope 回归 9/9） |
 | A | [LA-05](./docs/laravel/specs/phase-a-contracts.md) | 规范落地与偏差记录 | LA-04 | ✅ laravel/la-05-spec-adoption（Phase A 收口） |
 | B | [LB-01](./docs/laravel/specs/phase-b-foundation.md) | Laravel 项目骨架与静态门禁 | LA-04 | ✅ 558f307（Laravel 13.43 API-only） |
-| B | [LB-02](./docs/laravel/specs/phase-b-foundation.md) | 运行时形态验证与 compose 接入 | LB-01 | 未开始 |
+| B | [LB-02](./docs/laravel/specs/phase-b-foundation.md) | 运行时形态验证与 compose 接入 | LB-01 | ✅ 9516b72（D6 定：FrankenPHP） |
 | B | [LB-03](./docs/laravel/specs/phase-b-foundation.md) | JSON Schema 消费层与错误协议 | LB-01 | 未开始 |
 | B | [LB-04](./docs/laravel/specs/phase-b-foundation.md) | Eloquent 对接现有表 | LB-02 | 未开始 |
 | B | [LB-05](./docs/laravel/specs/phase-b-foundation.md) | 会话与认证底座 | LB-04 | 未开始 |

@@ -49,15 +49,23 @@ LB-01。
 
 ### 动作
 
-- [ ] compose 增 `api-laravel` 服务（php-fpm + nginx，或 Octane 单进程），挂载源码热更新；db 复用现有实例；端口按 `API_LARAVEL_PORT`（.env 驱动，`scripts/init-local.sh`/bootstrap 分配逻辑同步）
-- [ ] 健康检查端点 `/console/health`（对应现有探针语义，返回 DB 连通）
-- [ ] D6 验证：同一「hello 接口」分别以 fpm 与 FrankenPHP/Octane 各跑一轮容器内压测对比（wrk/ab，本地即可），按「贴合单 app 容器边界 + 运维复杂度」记录结论到 LARAVEL.md 决策表
-- [ ] `compose.override.yaml` 不影响现有 `web`/`api` 服务定义
+- [x] compose 增 `api-laravel` 服务（php-fpm + nginx，或 Octane 单进程），挂载源码热更新；db 复用现有实例；端口按 `API_LARAVEL_PORT`（.env 驱动，`scripts/init-local.sh`/bootstrap 分配逻辑同步）
+- [x] 健康检查端点 `/console/health`（对应现有探针语义，返回 DB 连通）
+- [x] D6 验证：同一「hello 接口」分别以 fpm 与 FrankenPHP/Octane 各跑一轮容器内压测对比（wrk/ab，本地即可），按「贴合单 app 容器边界 + 运维复杂度」记录结论到 LARAVEL.md 决策表
+- [x] `compose.override.yaml` 不影响现有 `web`/`api` 服务定义
 
 ### 验收
 
 - `docker compose up` 后 `curl http://127.0.0.1:<port>/console/health` 返回 DB 连通 JSON（证据）
 - 现有 `bun run verify`（打旧栈）不受影响仍绿
+
+### 完成记录（2026-11-18，分支 `laravel/lb-02-compose-runtime`，commit `9516b72`）
+
+- compose：`api-laravel` 服务（php:8.4-cli + pdo_pgsql，`Dockerfile.dev`），`compose.override` 挂载应用目录（含 vendor 与本地 .env 的 APP_KEY）+ `packages/api/json-schema → storage/contracts`（LB-03 消费），端口 `API_LARAVEL_PORT`（默认 38142），env 健康检查 `/console/health`。
+- **三个真实问题的根因修复**（全部实测定位，不用 workaround 掩盖）：① Laravel 13 pgsql 的 url 键读 `DB_URL` 而非共享键 → `config/database.php` 接线 `DATABASE_URL`（对齐 LARAVEL.md 配置对齐）；② `bootstrap/app.php` 未注册 `api:` 路由文件且默认叠 `/api` 前缀 → 注册 + `apiPrefix: ''` 对齐 `/console`；③ **`artisan serve` 按静态白名单过滤传给 `php -S` worker 的环境变量**（compose 注入的 DATABASE_URL 在 HTTP 上下文不可见，envdiag 三探针证实）→ 弃用 artisan serve，改原生 `php -S` + 框架路由脚本（cwd=public）+ `PHP_CLI_SERVER_WORKERS=4`。该发现已写入 Dockerfile.dev 注释。
+- **D6 决策（实测记录进 LARAVEL.md 决策表）**：同一 `/console/ping`，10s × 20 并发——php-cli dev 形态 443 RPS（p50 39.7ms）；fpm+nginx 860 RPS（p50 20.7ms）；**FrankenPHP 单容器 767 RPS（p50 23.0ms）**。差距 <12% 且均远超管理后台负载；按「贴合单 app 容器边界」**生产选 FrankenPHP 单容器**，fpm+nginx 备选，LD-03 生产镜像执行。压测用自研 node 负载脚本（仓库无 wrk/ab），临时容器与镜像即时清理。
+- 验收实测：`curl /console/health` → `{"ok":true,"db":"ok","dbLatencyMs":9}`；`bun run verify` PASS（旧栈零影响）；`docker compose ps`：api-laravel healthy；热更新实证（诊断期间多次路由修改即时生效、无重建）；PHP 门禁 lint/analyse 复跑全绿。
+- 偏差说明：dev 形态用 php 内建服务器而非 fpm（spec 原文给了二选一）；压测工具为自研脚本而非 wrk/ab（本机无此二件套）。
 
 ### 影响面 / 回滚
 
