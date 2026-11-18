@@ -111,13 +111,19 @@ LA-02。
 
 ### 动作
 
-- [ ] CI 增加 step：`bun run contracts:generate && git diff --exit-code -- packages/api/json-schema`，失败信息提示重新生成
-- [ ] `scripts/ci-scope.mjs`：`packages/api/**` 与 `packages/api/json-schema/**` 不一致视为应用变更（触发 full）
-- [ ] TESTING.md 命令表登记该门禁与本地自检命令
+- [x] CI 增加 step：`bun run contracts:generate && git diff --exit-code -- packages/api/json-schema`，失败信息提示重新生成
+- [x] `scripts/ci-scope.mjs`：`packages/api/**` 与 `packages/api/json-schema/**` 不一致视为应用变更（触发 full）
+- [x] TESTING.md 命令表登记该门禁与本地自检命令
 
 ### 验收
 
 - 故意改一处 schema 不重新生成，CI（或本地等价命令）失败；恢复后绿（证据保存）
+
+### 完成记录（2026-11-18，分支 `laravel/la-04-ci-gate`）
+
+- 实现：ci.yml `quality` job 在依赖安装后新增「Contract artifacts are up to date」step（重新生成 + `git diff --exit-code`，失败提示运行 `contracts:generate` 并提交产物；step 无任何不可信输入注入面）；`ci-scope.mjs` 显式将 `packages/api/src/**` 与 `packages/api/json-schema/**` 归为 application（强制 full）；`ci-scope-e2e.mjs` 新增两个回归场景（契约源+产物变更 → full、仅产物变更 → full），回归共 9 场景全 PASS；TESTING.md 静态检查命令行登记门禁。
+- 验收实测（本地等价命令）：① 结构性漂移（username max 64→60）→ 重新生成后产物 diff 非空 → 门禁退出码 1 拦截，还原后退出码 0；② `node scripts/e2e/ci-scope-e2e.mjs` 9/9 PASS。
+- 覆盖口径说明（如实）：错误**文案**改动不触发产物 diff——JSON Schema 不含 message 字符串，属预期设计；文案一致性由 `refines.ts` 登记与 LB-03 PHP 渲染层共同保证，不在本门禁范围。
 
 ### 影响面 / 回滚
 
