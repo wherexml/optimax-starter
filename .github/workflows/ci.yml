@@ -131,6 +131,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  php:
+    needs: scope
+    if: needs.scope.outputs.full == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --working-dir=apps/api-laravel --no-interaction --no-progress
+      - name: Lint (Pint)
+        run: composer run lint --working-dir=apps/api-laravel
+      - name: Static analysis (Larastan)
+        run: composer run analyse --working-dir=apps/api-laravel
+
   api-e2e:
     needs: scope
     if: needs.scope.outputs.full == 'true'
