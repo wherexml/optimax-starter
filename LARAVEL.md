@@ -32,7 +32,7 @@
 | A | [LA-03](./docs/laravel/specs/phase-a-contracts.md) | refine 清单机制 | LA-02 | ✅ laravel/la-03-refine-manifest（6 条 + 漂移对拍） |
 | A | [LA-04](./docs/laravel/specs/phase-a-contracts.md) | 契约 CI 门禁 | LA-02 | ✅ laravel/la-04-ci-gate（ci.yml + ci-scope 回归 9/9） |
 | A | [LA-05](./docs/laravel/specs/phase-a-contracts.md) | 规范落地与偏差记录 | LA-04 | ✅ laravel/la-05-spec-adoption（Phase A 收口） |
-| B | [LB-01](./docs/laravel/specs/phase-b-foundation.md) | Laravel 项目骨架与静态门禁 | LA-04 | 未开始 |
+| B | [LB-01](./docs/laravel/specs/phase-b-foundation.md) | Laravel 项目骨架与静态门禁 | LA-04 | ✅ 558f307（Laravel 13.43 API-only） |
 | B | [LB-02](./docs/laravel/specs/phase-b-foundation.md) | 运行时形态验证与 compose 接入 | LB-01 | 未开始 |
 | B | [LB-03](./docs/laravel/specs/phase-b-foundation.md) | JSON Schema 消费层与错误协议 | LB-01 | 未开始 |
 | B | [LB-04](./docs/laravel/specs/phase-b-foundation.md) | Eloquent 对接现有表 | LB-02 | 未开始 |

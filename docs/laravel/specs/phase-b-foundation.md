@@ -14,17 +14,24 @@ LA-04（契约产物已存在）。
 
 ### 动作
 
-- [ ] `composer create-project` 引导后裁剪：移除前端脚手架/Blade/Vite 相关，保留 artisan、config、routes/api 体系；`APP_ENV=local`、`APP_DEBUG=false` 基线
-- [ ] 目录映射：`app/Core/`（Guards、Audit、Permissions、SystemSettings）与 `app/Modules/`（Auth、Accounts、Assets、Audit、System），对应 `apps/server/src/core|modules`
-- [ ] 接入 Pint（格式）与 Larastan（静态），配 `composer lint`/`composer analyse` 脚本；CI 增加 PHP job（install → lint → analyse），`scripts/ci-scope.mjs` 识别 `apps/api-laravel/**` 为应用路径
-- [ ] 共享 env 键清单：建 `apps/api-laravel/.env.example`，与 varlock `.env.schema` 的共享键（`SESSION_COOKIE_NAME`、`STARTER_ADMIN_USERNAME/PASSWORD`、`STARTER_SEED_DEMO`、`CORS_ORIGIN`、DB 键）逐一命名对齐；DEPLOYMENT.md 登记
-- [ ] 新建 `apps/api-laravel/README.md`：定位、启动、分层、与 `apps/server` 的关系；开头即链接 [LARAVEL.md 模块标准开发流程](../../../LARAVEL.md)（LD-05 收口后该正文迁入 BACKEND.md，README 改链）
-- [ ] SPEC_ADOPTION.md 记偏差：BACKEND.md §2 框架建议——后端迁移至 Laravel 13（`apps/api-laravel`），Hono 栈进入退役观察期；证据指向本骨架与 LARAVEL.md
+- [x] `composer create-project` 引导后裁剪：移除前端脚手架/Blade/Vite 相关，保留 artisan、config、routes/api 体系；`APP_ENV=local`、`APP_DEBUG=false` 基线
+- [x] 目录映射：`app/Core/`（Guards、Audit、Permissions、SystemSettings）与 `app/Modules/`（Auth、Accounts、Assets、Audit、System），对应 `apps/server/src/core|modules`
+- [x] 接入 Pint（格式）与 Larastan（静态），配 `composer lint`/`composer analyse` 脚本；CI 增加 PHP job（install → lint → analyse），`scripts/ci-scope.mjs` 识别 `apps/api-laravel/**` 为应用路径
+- [x] 共享 env 键清单：建 `apps/api-laravel/.env.example`，与 varlock `.env.schema` 的共享键（`SESSION_COOKIE_NAME`、`STARTER_ADMIN_USERNAME/PASSWORD`、`STARTER_SEED_DEMO`、`CORS_ORIGIN`、DB 键）逐一命名对齐；DEPLOYMENT.md 登记
+- [x] 新建 `apps/api-laravel/README.md`：定位、启动、分层、与 `apps/server` 的关系
+- [x] SPEC_ADOPTION.md 记偏差：BACKEND.md §2 框架建议——后端迁移至 Laravel 13（`apps/api-laravel`），Hono 栈进入退役观察期；证据指向本骨架与 LARAVEL.md
 
 ### 验收
 
 - compose 外可独立 `php artisan --version` 与 `composer analyse` 通过（证据：命令输出）
 - CI 对仅改 `apps/api-laravel` 的提交触发 PHP job 且绿
+
+### 完成记录（2026-11-18，分支 `laravel/lb-01-laravel-skeleton`，commit `558f307`）
+
+- 实现：Laravel **13.43.0**（PHP 8.4.1 / herd-lite 工具链）API-only 骨架——移除 Blade/Vite/package.json/默认迁移与 User 模型（D2 零迁移，`database/migrations` 置空并在 seeder 注释声明权威在 Drizzle）；`app/Core`、`app/Modules` 分层 README 落位（映射表 + spec 指针）；`routes/api.php` 统一 `/console` 前缀含 `ping` 占位。
+- 静态门禁：Pint 1.32（`composer lint` passed）+ Larastan 3.15 level 5（`composer analyse` 0 errors）；默认 `inspire` 命令的 `$this` 报错按根因处理——删除演示命令而非压制。CI 新增 `php` job（setup-php 8.4 → composer install → lint → analyse，full 范围触发）；`ci-scope.mjs` 显式将 `apps/api-laravel/**` 归为应用路径。
+- 其余：`.env.example` 共享键对齐（`SESSION_COOKIE_NAME`/`STARTER_ADMIN_*`/`STARTER_SEED_DEMO`/`CORS_ORIGIN`/`DATABASE_URL`，config 接线注记 LB-05）；README 定位双栈关系；SPEC_ADOPTION 新增 BACKEND.md §2 偏差行。
+- 验收实测：`php artisan --version`（Laravel 13.43.0）、`composer lint`/`analyse` 全 passed（证据：命令输出）；`ci-scope-e2e` 9/9。**如实说明**：① CI `php` job 为本地等价验证，远端 GitHub Actions 实跑待 push 后首轮；② DEPLOYMENT.md 的 env 键登记随 LB-02（compose 服务实际接线）一并更新，避免先写未验证的部署事实。
 
 ### 影响面 / 回滚
 
