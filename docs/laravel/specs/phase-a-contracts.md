@@ -27,7 +27,7 @@
 ### 完成记录（2026-11-17，commit `5d14e17`，分支 `laravel/la-01-entity-schemas`）
 
 - 实现：`Account`/`Asset`/`AuditEntry`/`AuthProviderInfo`/三个 Search 类型提升为 zod schema + `z.infer`；`PaginatedResult` 保留手写泛型并新增 `paginatedResultSchema` 工厂 + `paginatedShapeLock` 编译期一致性锁；`assetPageSchema`/`auditPageSchema` 导出供 LA-02 生成。**偏差说明**：`AuditDetail` 未提升——它是服务端构造辅助类型（响应路径 `AuditEntry.detail` 已是 `Record<string, unknown>`），保留精确键约束价值更高，宽松性在响应侧已成立。
-- 验证（`evidence/la-01/verification.txt`，本地不入库）：① 全仓 `check-types` 绿；② `z.toJSONSchema` 可表达性 9/9 PASS；③ `bun run verify`（verify-console.py 打运行中容器栈，api 容器热加载本分支源码）PASS：healthz/匿名守卫/login/资产 CRUD+服务端分页/RBAC/禁用/强制下线/启用/登出。
+- 验证（`evidence/la-01/verification.txt`，本地不入库）：① 全仓 `check-types` 绿；② `z.toJSONSchema` 可表达性 9/9 PASS；③ `bun run verify`（verify-console.py 打运行中容器栈，api 容器热加载本分支源码）PASS：healthz/匿名守卫/login/资产 CRUD+服务端分页/RBAC/禁用/强制下线/启用/登出。**勘误（2026-11-18）：①的结论当时被 zsh 管道退出码遮蔽，api 包实际存在 TS6133（`ActorSource` 未用导入），已在 LA-02 分支修复并复验全绿，详见 LA-02 完成记录。**
 - NOT_RUN 及原因：login-brand.mjs、system-admin.mjs 需 Ego TaskSpace 浏览器 task 环境（本会话无此 harness）；asset-agent-api.py 前置为 AI 筛选启用（默认关闭、需真实模型端点）。浏览器 E2E 待环境可用时补跑，不阻塞 LA-02（本次改动为类型级，运行时 schema 集未变）。
 - 补充（2026-11-17）：浏览器 E2E 缺口已由新增的 Playwright 套件覆盖（`bun run test:e2e:pw`，12/12 连续两轮绿，含登录/守卫/全流程旅程/导航键盘与移动端），证据与范围见 [scripts/e2e/playwright/README.md](../../../scripts/e2e/playwright/README.md)。asset-agent-api 仍依赖 AI 启用，保持 NOT_RUN。
 
@@ -47,15 +47,23 @@ LA-01。
 
 ### 动作
 
-- [ ] 新建 `packages/api/src/generate.ts`（或 scripts 下脚本）：集中登记导出的 schema 名单（输入 schema + LA-01 实体 schema + `asset-agent`/`permissions`/`system` 全部），调用 `z.toJSONSchema()` 逐个输出
-- [ ] 产物命名与目录约定：`packages/api/json-schema/<module>.<SchemaName>.json`，附带一份 `index.json` 清单（schema 名、来源文件、zod 版本、生成时间戳）
-- [ ] 根 `package.json` 增加脚本；`postinstall` 不自动执行（产物必须显式生成并提交）
-- [ ] 验证 `.strict()` 映射为 `additionalProperties: false`、枚举/中文 label（经 `.meta()`）按预期出现在产物中
+- [x] 新建 `packages/api/src/generate.ts`（或 scripts 下脚本）：集中登记导出的 schema 名单（输入 schema + LA-01 实体 schema + `asset-agent`/`permissions`/`system` 全部），调用 `z.toJSONSchema()` 逐个输出
+- [x] 产物命名与目录约定：`packages/api/json-schema/<module>.<SchemaName>.json`，附带一份 `index.json` 清单（schema 名、来源文件、zod 版本、生成时间戳）
+- [x] 根 `package.json` 增加脚本；`postinstall` 不自动执行（产物必须显式生成并提交）
+- [x] 验证 `.strict()` 映射为 `additionalProperties: false`、枚举/中文 label（经 `.meta()`）按预期出现在产物中
 
 ### 验收
 
 - `bun run contracts:generate` 幂等（二次执行无 diff）
 - 产物包含 6 处已知 refine 所在 schema（LA-03 处理其语义丢失）
+
+### 完成记录（2026-11-18，分支 `laravel/la-02-contracts-generate`）
+
+- 实现：`packages/api/src/generate.ts` registry 登记 **22 个 schema**（contracts 17 / permissions 1 / system 2 / asset-agent 2），`z.toJSONSchema` 输出 22 个 `<module>.<SchemaName>.json` + `index.json`（名单、来源、Zod 版本）；根脚本 `bun run contracts:generate`；产物入库、`postinstall` 不自动执行。
+- 验收实测：① 幂等——连续执行零 diff（两次运行 `git status` 无产物变更）；② `.strict()` → `additionalProperties: false`（accountCreate / assetAgentFilters / systemPermissionsUpdate 抽查）；③ 枚举在产物中（`role: [member, admin, super_admin]`、stage 中文枚举 anyOf）；④ 6 处 refine 所在 schema 全部在产物中。
+- 偏差两处：**index.json 不含生成时间戳**——幂等性（验收硬性要求）与时间戳互斥，取确定性输出，产物版本时间以 git 历史为准；**中文 label 经 `.meta()` 暂未挂载**——现有标签在独立常量表（`ROLE_LABELS` 等），挂载推迟到 LB-03（PHP 错误渲染消费时），枚举值本身已按预期出现。
+- 附带修复与勘误：LA-01 在 `contracts.ts` 遗留未使用的 `type ActorSource` 导入（TS6133），**且 LA-01 完成记录中「全仓 check-types 绿」的结论当时被 zsh 管道退出码遮蔽（`${PIPESTATUS}` 为 bash 语法），实际 api 包未通过**。本分支已移除该导入，并以逐 workspace 退出码复验：db / api / ui / server / web 全部 `Exited with code 0`。LA-01 其余证据（`z.toJSONSchema` 9/9、verify-console PASS、Playwright 12/12×3）不受影响。
+- 行为验证：`bun run verify`（verify-console.py）PASS（healthz/守卫/login/资产 CRUD+分页/RBAC/停用启用/登出）——生成器为新增脚本，运行时契约未触碰。
 
 ### 影响面 / 回滚
 
