@@ -72,6 +72,7 @@ LB-01。
 - [ ] refine 补规则：按 `refines.json` 6 条逐条实现（after 钩子/自定义规则），并在测试脚本中对拍「合法/非法样本各一组」与 Zod 行为一致
 - [ ] 错误协议中间件：所有异常（含 HttpException）渲染为 `{ error }`；401 保持触发前端跳转的语义（无 body 要求）
 - [ ] `.meta()` 中文文案传递验证：schema 内错误消息在 PHP 校验失败时原样返回
+- [ ] **补提升（Phase A 审计发现 ①）**：把 `SystemStatusResponse`、`SystemSettingsResponse`、`SystemPermissionMatrixPayload`（现仍为 TS interface）提升为 zod schema 并登记进 `contracts:generate` 产物，使 system/permissions 端点的响应形状进入 PHP 可对照范围；含 trim 边界样本（发现 ③）加入对拍用例
 
 ### 验收
 
