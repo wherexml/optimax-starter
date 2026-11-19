@@ -32,11 +32,17 @@ final class AssetAgentController
             .($request->getQueryString() !== null ? '?'.$request->getQueryString() : '');
 
         try {
-            $response = Http::withHeaders([
-                'Origin' => (string) (getenv('CORS_ORIGIN') ?: 'http://127.0.0.1:38140'),
-                'Content-Type' => 'application/json',
-                'Cookie' => (string) $request->headers->get('Cookie', ''),
-            ])->{strtolower($request->method())}($target, $body === '' ? null : $body);
+            // 显式超时（Laravel best practices / http-client；LD-04 审查修复）：
+            // 上游截止时间 STARTER_AI_TIMEOUT_MS 默认 60s、上限 120s 且已覆盖排队与修正，
+            // 代理超时必须 ≥ 上游上限，否则合法长调用会在 30s 默认值处被截断成 503。
+            // connectTimeout 单独收紧，死上游 3 秒即拒（503）。
+            $response = Http::connectTimeout(3)
+                ->timeout(125)
+                ->withHeaders([
+                    'Origin' => (string) (getenv('CORS_ORIGIN') ?: 'http://127.0.0.1:38140'),
+                    'Content-Type' => 'application/json',
+                    'Cookie' => (string) $request->headers->get('Cookie', ''),
+                ])->{strtolower($request->method())}($target, $body === '' ? null : $body);
         } catch (ConnectionException) {
             // 上游 Node 服务未部署/不可达（LD-03：生产未挂 ai overlay 的常态），
             // 明确 503 { error } 而非 500；错误形状经 LB-03 异常渲染器。
