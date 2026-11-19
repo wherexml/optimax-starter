@@ -32,11 +32,11 @@ try {
   git(repo, "config", "user.email", "ci@optimax.local");
   git(repo, "config", "user.name", "CI Verifier");
 
-  mkdirSync(path.join(repo, "apps/server/src"), { recursive: true });
+  mkdirSync(path.join(repo, "apps/ai-service/src"), { recursive: true });
   mkdirSync(path.join(repo, "scripts/e2e"), { recursive: true });
   mkdirSync(path.join(repo, "docs"), { recursive: true });
   writeFileSync(path.join(repo, "README.md"), "# Starter\n");
-  writeFileSync(path.join(repo, "apps/server/src/index.ts"), "export const ok = 1;\n");
+  writeFileSync(path.join(repo, "apps/ai-service/src/index.ts"), "export const ok = 1;\n");
   git(repo, "add", ".");
   git(repo, "commit", "-m", "initial");
   const base = git(repo, "rev-parse", "HEAD");
@@ -96,7 +96,7 @@ try {
   results.push({ scenario: "gate_script_forces_full", status: "PASS" });
 
   // 5. Move application file into docs/ => --no-renames must detect deletion in apps/ and force full=true
-  git(repo, "mv", "apps/server/src/index.ts", "docs/index.md");
+  git(repo, "mv", "apps/ai-service/src/index.ts", "docs/index.md");
   git(repo, "commit", "-m", "move app file out");
   const moveHead = git(repo, "rev-parse", "HEAD");
   writeFileSync(eventPath, JSON.stringify({ before: gateHead, after: moveHead }));

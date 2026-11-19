@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
- * 全局入口守卫（LB-05）：逐条对齐 apps/server/src/console.ts 的挂载中间件。
+ * 全局入口守卫（LB-05）：逐条对齐 apps/ai-service/src/console.ts 的挂载中间件。
  *
  * - 响应统一 Cache-Control: no-store。
  * - 非 GET 请求强校验 Origin === CORS_ORIGIN 且 Content-Type 为 JSON，

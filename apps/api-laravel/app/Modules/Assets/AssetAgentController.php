@@ -11,7 +11,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 /**
  * 资产自然语言筛选桥（LC-07）：按 D5「直接代理」实现。
  *
- * 模型调用、运行态（runs）、agent 审计仍由保留的 Node AI 服务（apps/server，
+ * 模型调用、运行态（runs）、agent 审计仍由保留的 Node AI 服务（apps/ai-service，
  * LC-08 切流后经 STARTER_NODE_API_URL 指向）原样承担；本控制器把 /console/assets/agent
  * 透传过去并转发会话 Cookie 与 Origin，语义与单栈部署完全等价。
  * bodyLimit 8192 → 413「请求过大」对齐 asset-agent.ts。
@@ -27,7 +27,7 @@ final class AssetAgentController
             throw new HttpException(413, '请求过大');
         }
 
-        $target = rtrim((string) (getenv('STARTER_NODE_API_URL') ?: 'http://api:38141'), '/')
+        $target = rtrim((string) (getenv('STARTER_NODE_API_URL') ?: 'http://ai:38141'), '/')
             .'/console/assets/agent/'.$path
             .($request->getQueryString() !== null ? '?'.$request->getQueryString() : '');
 

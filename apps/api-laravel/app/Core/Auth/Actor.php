@@ -3,7 +3,7 @@
 namespace App\Core\Auth;
 
 /**
- * 已认证操作者（对齐 apps/server/src/core/guards.ts 的 Actor）。
+ * 已认证操作者（对齐 apps/ai-service/src/core/guards.ts 的 Actor）。
  */
 final class Actor
 {

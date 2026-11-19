@@ -5,7 +5,7 @@ namespace App\Core\Audit;
 use App\Core\Models\ConsoleAudit;
 
 /**
- * 审计写入器（LB-06）：唯一写入口，语义逐条对齐 apps/server/src/core/audit.ts。
+ * 审计写入器（LB-06）：唯一写入口，语义逐条对齐 apps/ai-service/src/core/audit.ts。
  *
  * - 只追加（ConsoleAudit 模型层拒绝 update/delete，LB-04）。
  * - 必须与状态变更同一事务：调用方在 DB::transaction 内调用，

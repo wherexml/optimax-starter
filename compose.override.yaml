@@ -1,17 +1,17 @@
 # 本地开发热更新覆盖层（docker compose up 默认自动合并；CI 与生产显式指定 -f compose.yaml 不加载本文件）。
 # 仅挂载源码与静态目录，保留容器内部 Linux 原生 node_modules（如 @node-rs/argon2）不被宿主机覆盖。
 services:
-  api:
+  ai:
     volumes:
-      - ./apps/server/src:/app/apps/server/src
+      - ./apps/ai-service/src:/app/apps/ai-service/src
       - ./packages/api/src:/app/packages/api/src
       - ./packages/db/src:/app/packages/db/src
     command:
       - sh
       - -ec
       - |
-        ([ -f apps/server/src/env.ts ] && [ -f packages/db/src/env.ts ]) || bun run env:generate
-        cd apps/server
+        ([ -f apps/ai-service/src/env.ts ] && [ -f packages/db/src/env.ts ]) || bun run env:generate
+        cd apps/ai-service
         exec node --watch --import tsx src/node.ts
   web:
     volumes:

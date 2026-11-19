@@ -1,8 +1,8 @@
 # Opt-in production configuration only; using this file does not authorize a deployment.
 # LD-03 随栈重构：切流后 AI 客户端不在 app 进程内（D5）。本 overlay 起独立 ai 服务
-# （观察期复用根 Dockerfile.prod 旧单容器镜像：完整 apps/server 栈，仅 compose 内网
-# 可达、不发布端口；LD-05 收口为独立最小镜像），app 经 STARTER_NODE_API_URL 代理
-# asset-agent。密钥文件只挂载进 ai 服务，不进 app。
+# （LD-05：独立 apps/ai-service 镜像，仅 compose 内网可达、不发布端口；其完整
+# console API 仅存于内网与 ai-client 隔离 E2E——生产流量只经 Laravel 代理 agent 路径），
+# app 经 STARTER_NODE_API_URL 代理 asset-agent。密钥文件只挂载进 ai 服务，不进 app。
 services:
   ai:
     image: ${STARTER_PROD_IMAGE_AI:-optimax-starter-prod-ai:release}
@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile.prod
     # 旧镜像 CMD 在 /app 下运行时 varlock 找不到 .env.schema（空配置启动、
     # DATABASE_URL 不可见即崩——LD-03 演练实测）；与 dev 栈同构改从 server 目录运行。
-    working_dir: /app/apps/server
+    working_dir: /app/apps/ai-service
     command: ["node", "dist/node.mjs"]
     depends_on:
       db: { condition: service_healthy }

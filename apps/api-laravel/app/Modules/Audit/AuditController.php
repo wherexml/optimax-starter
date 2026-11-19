@@ -13,7 +13,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * 操作日志只读接口（LC-01）：GET /console/audit。
- * 语义对齐 apps/server/src/modules/audit.ts：分页、筛选、时区口径与响应形状。
+ * 语义对齐 apps/ai-service/src/modules/audit.ts：分页、筛选、时区口径与响应形状。
  */
 final class AuditController
 {

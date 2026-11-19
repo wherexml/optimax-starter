@@ -16,7 +16,7 @@ services:
       interval: 3s
       timeout: 3s
       retries: 15
-  api:
+  ai:
     <<: *app
     depends_on:
       db: { condition: service_healthy }
@@ -49,7 +49,7 @@ services:
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
     # Bun only runs the short db:push step; the long-running API runs on Node 24 (see RUNTIME.md).
     # LD-04：db:push 已移除——schema 由 api-laravel 的 artisan migrate 建（D2 终态）。
-    command: ["sh", "-ec", "cd apps/server && exec node --import tsx src/node.ts"]
+    command: ["sh", "-ec", "cd apps/ai-service && exec node --import tsx src/node.ts"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||38141)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
