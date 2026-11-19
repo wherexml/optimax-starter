@@ -6,3 +6,7 @@
 !.env.example
 vendor
 storage
+# Boost/agent 开发工具态（本地再生，不进镜像；laravel/boost 本身是 --dev 依赖）
+.claude
+.mcp.json
+boost.json
