@@ -11,8 +11,10 @@ usage() {
 功能:
   在首次 docker compose up 之前一键完成新项目派生初始化：
   1. 修改 package.json 的 name 与 compose.yaml 的项目名/镜像名（确保 Docker 数据卷独立隔离）
-  2. 自动探测本机空闲的相邻五位端口（默认从 38150/38151 起扫描）
+  2. 自动探测本机空闲的相邻三位端口 web/ai/laravel（默认从 38150 起扫描，步进 10）
   3. 生成隔离的 .env（独立 SESSION_COOKIE_NAME、随机数据库密码、端口与品牌配置）
+     与 apps/api-laravel/.env（APP_KEY 随机生成；dev 形态经 override 挂载宿主目录，
+     需要宿主 vendor——本机有 composer 时自动安装）
   4. 自动更新 bun.lock（优先使用本机 bun，未安装时调用 oven/bun:1.3.14 容器）
 EOF
 }
@@ -80,7 +82,7 @@ if [[ -z "$WEB_PORT" ]]; then
 import socket
 for port in range(38150, 38990, 10):
     ok = True
-    for candidate in (port, port + 1):
+    for candidate in (port, port + 1, port + 2):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             if s.connect_ex(("127.0.0.1", candidate)) == 0:
                 ok = False
@@ -88,7 +90,7 @@ for port in range(38150, 38990, 10):
     if ok:
         print(port)
         raise SystemExit(0)
-raise SystemExit("未在 38150-38990 范围内找到空闲相邻端口对，请通过 --web-port 指定")
+raise SystemExit("未在 38150-38990 范围内找到空闲的相邻三端口（web/ai/laravel），请通过 --web-port 指定")
 PY
 )"
 fi
@@ -98,8 +100,9 @@ if [[ ! "$WEB_PORT" =~ ^[0-9]{4,5}$ ]] || (( WEB_PORT < 10000 || WEB_PORT > 6553
   exit 1
 fi
 API_PORT=$((WEB_PORT + 1))
+LARAVEL_PORT=$((WEB_PORT + 2))
 
-python3 - "$WEB_PORT" "$API_PORT" <<'PY'
+python3 - "$WEB_PORT" "$API_PORT" "$LARAVEL_PORT" <<'PY'
 import socket, sys
 for p in map(int, sys.argv[1:]):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -141,15 +144,33 @@ VITE_APP_TITLE=${TITLE}
 VITE_ENABLE_DEMOS=${ENABLE_DEMOS}
 WEB_PORT=${WEB_PORT}
 API_PORT=${API_PORT}
+API_LARAVEL_PORT=${LARAVEL_PORT}
 CORS_ORIGIN=http://127.0.0.1:${WEB_PORT}
 VITE_SERVER_URL=http://127.0.0.1:${API_PORT}
-API_PROXY_TARGET=http://api:${API_PORT}
 SESSION_COOKIE_NAME=${COOKIE_NAME}
 STARTER_SEED_DEMO=true
 STARTER_ADMIN_USERNAME=${ADMIN_USER}
 STARTER_ADMIN_PASSWORD=${ADMIN_PW}
 STARTER_DB_PASSWORD=${DB_PW}
 EOF
+
+# Laravel 侧本地 .env（dev override 挂载宿主目录时生效；compose 注入的环境变量优先）。
+# APP_KEY 用 openssl 生成 base64: 前缀（等价 php artisan key:generate --show）。
+umask 077
+if [[ ! -f apps/api-laravel/.env ]]; then
+  sed -e "s|^APP_KEY=$|APP_KEY=base64:$(openssl rand 32 | base64 | tr -d '\n')|" \
+      apps/api-laravel/.env.example > apps/api-laravel/.env
+fi
+# dev 形态经 compose.override 挂载宿主 apps/api-laravel（覆盖镜像内置 vendor），
+# 本机有 composer 时先装好；没有则提示：CI 形态（-f compose.yaml，无 override）
+# 使用镜像内置 vendor，不受影响。
+if [[ ! -d apps/api-laravel/vendor ]]; then
+  if command -v composer >/dev/null 2>&1; then
+    (cd apps/api-laravel && composer install --no-interaction --no-progress)
+  else
+    echo "警告: 未检测到 composer——dev 形态（含 override）需要宿主 vendor；请安装后运行: (cd apps/api-laravel && composer install)。CI 形态（docker compose -f compose.yaml up）使用镜像内置 vendor，不受影响。" >&2
+  fi
+fi
 
 if command -v bun >/dev/null 2>&1; then
   bun install --lockfile-only --ignore-scripts
@@ -167,7 +188,8 @@ cat <<EOF
   项目标识: ${SLUG} (${TITLE})
   Compose : ${SLUG}-preview / ${SLUG}-preview:local
   前端入口: http://127.0.0.1:${WEB_PORT}/login
-  API 入口: http://127.0.0.1:${API_PORT}/healthz
+  AI 服务 : http://127.0.0.1:${API_PORT}/healthz（内部，/console 流量走 Laravel）
+  Laravel : http://127.0.0.1:${LARAVEL_PORT}/console/health
   Cookie  : ${COOKIE_NAME}
 
 下一步:

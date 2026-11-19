@@ -333,7 +333,7 @@ use Symfony\\Component\\HttpKernel\\Exception\\HttpException;
 
 /**
  * ${label}（gen:module 生成，LD-01）：分页筛选 + 管理员 CRUD + 同事务审计。
- * 按 LARAVEL.md 模块标准开发流程实现；对照实现见 apps/server 退役栈模板（只读参考）。
+ * 按 LARAVEL.md 模块标准开发流程实现；对照实现见 apps/ai-service 退役栈模板（只读参考）。
  */
 final class ${pascal}Controller
 {
