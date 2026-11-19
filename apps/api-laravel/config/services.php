@@ -18,6 +18,12 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    // Boost 拉取第三方 skills 走 GitHub API；匿名限流 60 次/小时，配置后 5000/小时。
+    // 仅开发态消费（laravel/boost 为 --dev 依赖）；值放本地 .env，不入库。
+    'github' => [
+        'token' => env('BOOST_GITHUB_TOKEN'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

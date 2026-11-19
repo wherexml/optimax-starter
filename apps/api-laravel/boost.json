@@ -12,6 +12,7 @@
         "ai-sdk-development",
         "laravel-best-practices",
         "testing-best-practices",
-        "mcp-development"
+        "mcp-development",
+        "laravel-specialist"
     ]
 }

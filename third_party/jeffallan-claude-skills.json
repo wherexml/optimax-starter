@@ -1,0 +1,34 @@
+{
+  "component": "claude-skills / laravel-specialist（jeffallan）",
+  "upstreamRepository": "https://github.com/jeffallan/claude-skills",
+  "commit": "67c1961b180dc92cf08983344627109e983e8f51",
+  "license": "MIT",
+  "copyright": "Jeff Allan（上游 SKILL.md 自带 MIT 声明）",
+  "notes": "2026-11-19 经 Steve 授权经 boost:add-skill 引入（67 skills 仓库中仅取 laravel-specialist：Laravel 10+/Eloquent/Sanctum/Horizon/Livewire/Pest 专项指引，v1.1.0）。权威落位 .ai/skills/laravel-specialist（boost.json 登记，local 源）；.claude/skills/ 下为符号链接（Boost custom-skill 机制）。注意其中 Sanctum/Horizon/Livewire/Pest 部分与本项目栈不符，以项目规范为准。升级：php artisan boost:add-skill jeffallan/claude-skills --skill laravel-specialist --force 后刷新 sha256 清单与本 commit。",
+  "files": [
+    {
+      "path": ".ai/skills/laravel-specialist/SKILL.md",
+      "sha256": "8743cc41a2a1d130ad527aad7b22eb27492adc8cd5b522297c5ce6706bf22318"
+    },
+    {
+      "path": ".ai/skills/laravel-specialist/references/eloquent.md",
+      "sha256": "2b38872ceacd35e607d577dc26d58a7b8f5c740c4488c68c70b7e71e0be60b2b"
+    },
+    {
+      "path": ".ai/skills/laravel-specialist/references/livewire.md",
+      "sha256": "940d3fff5da545ed9f27027c80e1ec03109d6956dd85421d7d7b6ca50563b10c"
+    },
+    {
+      "path": ".ai/skills/laravel-specialist/references/queues.md",
+      "sha256": "2d949cc5d3a37a8ce8582186c7defc6afa1c9288ab96eb150dc77db720cfd134"
+    },
+    {
+      "path": ".ai/skills/laravel-specialist/references/routing.md",
+      "sha256": "108ebc7524de46262914bbfe3a754252858d5029dcc0b91be980fc15329986e1"
+    },
+    {
+      "path": ".ai/skills/laravel-specialist/references/testing.md",
+      "sha256": "ae6bb2b11e4a44146dbaaea437eeb91a3aa28e304139ad0308d5bfcc424d32da"
+    }
+  ]
+}
