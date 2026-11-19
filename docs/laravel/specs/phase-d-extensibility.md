@@ -119,9 +119,9 @@ LD-02。
 
 ### 动作
 
-- [ ] 评估记录（写入 LARAVEL.md 决策表 D2 终态）：方向已定为移交（D2/D8），评估聚焦成本与切换步骤（重放 6 张表 + 附件表基线、drizzle-kit 降级只读、EASM/资产模块 TS 类型链的替代供数方式）
-- [ ] 按结论执行：移交则 Laravel 建全量基线迁移（对现有库 `--pretend` 校验无漂移）+ `packages/db` 降级说明；不移交则在 BACKEND.md/PROJECT.md 固化「schema 权威在 Drizzle、Laravel 禁写迁移」并让 gen:module 生成的 Laravel 骨架不含迁移
-- [ ] 结论同步 SPEC_ADOPTION.md（若与团队 BACKEND 规范冲突）
+- [x] 评估记录（写入 LARAVEL.md 决策表 D2 终态）：方向已定为移交（D2/D8），评估聚焦成本与切换步骤（重放 6 张表 + 附件表基线、drizzle-kit 降级只读、EASM/资产模块 TS 类型链的替代供数方式）
+- [x] 按结论执行：移交则 Laravel 建全量基线迁移（对现有库 `--pretend` 校验无漂移）+ `packages/db` 降级说明；不移交则在 BACKEND.md/PROJECT.md 固化「schema 权威在 Drizzle、Laravel 禁写迁移」并让 gen:module 生成的 Laravel 骨架不含迁移
+- [x] 结论同步 SPEC_ADOPTION.md（若与团队 BACKEND 规范冲突）
 
 ### 验收
 
@@ -130,6 +130,17 @@ LD-02。
 ### 影响面 / 回滚
 
 按结论涉及 `packages/db`、`apps/api-laravel/database`、BACKEND.md。
+
+### 完成记录（2026-11-19，分支 `laravel/ld-04-db-ownership`）
+
+- **评估结论（比 spec 预估更干净）**：切流后 `@optimax-starter/db` 的运行时消费方**只剩待退役的 apps/server**（全仓 grep 实证，web/e2e 均不依赖）——「TS 类型链替代供数」不存在障碍；移交即 D2 终态。
+- **基线迁移**：`2026_11_19_000000_create_console_baseline`（7 表：account/session/asset/audit/role_permission/setting/attachment），逐列对齐 Drizzle 语义；时间戳显式 precision 6、jsonb/now() 默认值用 Expression 显式书写。`hasTable('console_account')` 守卫承接双轨过渡：存量 Drizzle 卷跳过重建仅登记，全新库（CI/派生/演练）经迁移建全量。
+- **指纹对拍零漂移**：一次性双库（artisan migrate vs drizzle push）对 information_schema 列（44）/pg_index 索引（9）/pg_constraint 外键（6）三组 diff **全部 IDENTICAL**（仅排除 `migrations` 簿记表）；证据 `fingerprint-diff.txt`。
+- **接线切换**：dev——api（node）命令去掉 `db:push` 且 depends_on api-laravel healthy（启动序 db→Laravel(migrate+serve)→node agent）；prod——migrate 服务复用 app 镜像跑 `php artisan migrate --force`，`Dockerfile.prod` 删除 workspace stage；`deploy-production.sh` D2 门禁翻转（基线必须存在）+ build 只 app。
+- **gen:module 随终态切换**：第一件产物从 Drizzle schema 换成 Laravel 建表迁移（artisan 按文件名自动发现，无需登记锚点），末尾提示同步；空跑闭环：生成 ld04check → CI 形态全新栈（artisan 真实建表）→ **verify-ld04check E2E PASS + console/governance PASS** → 干净删除 → 契约产物复原零漂移。
+- **执行中抓出并修复的既有断裂（如实）**：① gen:module 自 272c721 加守卫以来即被拦截——`refines.ts`/`ContractRefines.php` 两处登记锚点在 LC-08 checkout 事故中丢失且从未回补（守卫行为符合设计），本轮恢复锚点并经生成闭环验证；② CI 形态（`-f compose.yaml` 无 override）三处从未被跑过的断裂：api-laravel 镜像无 vendor（Dockerfile.dev 补 composer install，`--no-scripts`+源码后 dump-autoload 触发 package:discover）、无契约产物（base compose 只读挂载 json-schema）、DB_CONNECTION 落 sqlite（显式 pgsql）；③ api-laravel 子上下文无 `.dockerignore`——宿主 `.env`（含密钥）/vendor/storage 会被烤进镜像，新增上下文级规则。
+- **验收全绿**：静态门禁（phpstan 0、check-types 0、契约产物无漂移、compose config、脚本语法）；CI 形态全新栈三套 verify PASS；存量 dev 卷守卫登记 `[1] Ran` + verify-console PASS；prod 全新卷演练（预检翻转门禁→migrate 33ms 建表→冒烟→幂等复跑 Nothing to migrate→7 表）后拆栈。
+- 文档：LARAVEL.md D2 终态、AGENTS/PROJECT/BACKEND/DEPLOYMENT 同步、SPEC_ADOPTION 偏差登记（BACKEND §2 ORM/迁移方式）、`packages/db/README.md` 降级说明、DatabaseSeeder 注释。
 
 ## LD-05 旧栈退役与文档收口
 

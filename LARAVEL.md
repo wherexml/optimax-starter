@@ -13,7 +13,7 @@
 | ID | 决策 | 内容 | 状态 |
 | --- | --- | --- | --- |
 | D1 | 契约权威 | `packages/api` 的 Zod 保持单一源；CI 用 Zod 4 原生 `z.toJSONSchema()` 生成 JSON Schema 产物供 PHP 消费（路线 A）；refine 语义用清单登记、PHP 显式补规则 | 已定（Steve 授权） |
-| D2 | DB 归属 | 渐进期 Drizzle 保持 schema 与迁移权威，Laravel 零迁移、只建 Eloquent 模型；终局方向为移交 Laravel 迁移体系（migrations/Seeders/Factories，充分利用其数据管理），LD-04 验证无漂移后执行 | 已定方向，LD-04 落地 |
+| D2 | DB 归属 | **终态（LD-04 落地）**：迁移权威移交 Laravel 迁移体系（`apps/api-laravel/database/migrations` 基线 + 双轨过渡守卫，增量走 `php artisan make:migration`）；schema 同步统一 `artisan migrate`（dev 随 api-laravel 容器启动、prod 由 migrate 一次性服务前置），`db:push` 退出部署路径；`packages/db`（Drizzle）降级为观察期参考实现（见其 README），LD-05 随旧栈退役。评估与指纹对拍证据见 LD-04 完成记录 | 已定（2026-11-19） |
 | D3 | 会话 | 自定义 SessionHandler 复用 `console_session` 表（迁移期数据连续，不强制下线）；argon2id 参数对齐现有 PHC（m=65536,t=2,p=1）；cookie 名与生命周期沿用 `SESSION_COOKIE_NAME` 与 8h | 已定 |
 | D4 | CSRF | `/console` JSON API 组不引入 CSRF token（同源 BFF + cookie SameSite + JSON-only；沿用现状）；跨域消费方出现时复查 | 已定，LB-05 论证 |
 | D5 | AI 模块 | 现有 Node AI 客户端（`apps/server/src/core/ai`）保留为独立可选服务，不移植 Laravel；asset-agent 由 Laravel 代理或直连该服务（LC-07 定实现）；触发统一队列治理时复查 | 已定 |
@@ -51,7 +51,7 @@
 | D | [LD-01](./docs/laravel/specs/phase-d-extensibility.md) | `gen:module` 双轨化 | LC-08 | ✅（生成→全绿→CRUD/审计→干净删除 全闭环） |
 | D | [LD-02](./docs/laravel/specs/phase-d-extensibility.md) | 试点附件模块与 OSS 存储管理 | LD-01、LB-07 | ✅ 0b3c1d1（E2E 16/16 双盘字节级对拍；MinIO→Garage） |
 | D | [LD-03](./docs/laravel/specs/phase-d-extensibility.md) | 生产化与部署预检 | LC-08 | ✅ d9876f6 + 32ff2ee/fc8683f/2807cd2 三修复（FrankenPHP 单容器定稿；prod compose 演练四腿全绿：verify 六脚本 + Playwright 12/12 + 附件字节级 + agent 双态 + 回滚） |
-| D | [LD-04](./docs/laravel/specs/phase-d-extensibility.md) | DB 归属决策 | LD-02 | 未开始 |
+| D | [LD-04](./docs/laravel/specs/phase-d-extensibility.md) | DB 归属决策 | LD-02 | ✅ a75a5a8 + 86a687f 锚点修复（D2 终态落地：基线迁移指纹对拍零漂移、dev/prod 接线切换、gen:module 产迁移、CI 形态断裂修复） |
 | D | [LD-05](./docs/laravel/specs/phase-d-extensibility.md) | 旧栈退役与文档收口 | LD-03、LD-04 | 未开始 |
 
 ## spec 执行流程
