@@ -39,7 +39,7 @@
 | UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
 | 图表/地图库 | 无；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
 | 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
-| AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/server/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
+| AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/ai-service/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
 
 ### 移植来源：复制与适配
 

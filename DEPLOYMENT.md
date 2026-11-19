@@ -293,7 +293,7 @@ API 冒烟应覆盖：
 
 ## 可选服务端模型 API
 
-新客户端直连 OpenAI-compatible API，不需要 Magpie。默认不配置时不影响应用启动；环境变量与边界见 [core/ai](./apps/server/src/core/ai/README.md#配置)，根 `.env.example` 只保存非敏感模板。切流后模型客户端不在 `app` 进程内（D5）：asset-agent 由 Laravel 经 `STARTER_NODE_API_URL` 代理到独立 Node 服务；未配置上游时 agent 端点返回 `503 { error }`。
+新客户端直连 OpenAI-compatible API，不需要 Magpie。默认不配置时不影响应用启动；环境变量与边界见 [core/ai](./apps/ai-service/src/core/ai/README.md#配置)，根 `.env.example` 只保存非敏感模板。切流后模型客户端不在 `app` 进程内（D5）：asset-agent 由 Laravel 经 `STARTER_NODE_API_URL` 代理到独立 Node 服务；未配置上游时 agent 端点返回 `503 { error }`。
 
 将 `STARTER_AI_BASE_URL`、`STARTER_AI_MODEL` 配为明确的供应商 Base URL 和模型。密钥值来自已有私有文件，`STARTER_AI_SECRET_FILE` 仅填该文件的宿主机路径。不要把密钥值写入 `.env`、Docker environment、前端或仓库。可选开发挂载入口：
 

@@ -1,4 +1,4 @@
-# app/Core —— 横切基础设施（映射 apps/server/src/core/）
+# app/Core —— 横切基础设施（对拍基线 apps/ai-service/src/core/）
 
 | 现有 TS 侧 | 本目录对应物 | 落地 spec |
 | --- | --- | --- |

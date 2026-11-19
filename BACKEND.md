@@ -84,14 +84,14 @@ Web 框架不要只按流行度或性能跑分选择，应优先看项目形态�
 
 | 项 | 内容 |
 | --- | --- |
-| 后端语言/运行时 | TypeScript / Node 24（开发 `node --watch --import tsx src/node.ts`，生产编译为 `dist/node.mjs`；详见 [RUNTIME.md](./RUNTIME.md)） |
-| Web 框架 | Hono（分层见 [apps/server/README.md](./apps/server/README.md)：`core/` 底座 + `modules/` 业务子路由） |
+| 后端语言/运行时 | 主栈 PHP 8.4 / Laravel 13（`/console` 全部业务流量；dev php 内建服务器、生产 FrankenPHP 单容器）；AI 服务 Node 24 / Hono（仅内网，详见 [RUNTIME.md](./RUNTIME.md)） |
+| Web 框架 | Laravel 13 API-only（分层见 [apps/api-laravel/README.md](./apps/api-laravel/README.md)：`app/Core/` 横切 + `app/Modules/` 业务模块，模块标准开发流程见 [LARAVEL.md](./LARAVEL.md)）；AI 服务 Hono（[apps/ai-service](./apps/ai-service/README.md)） |
 | 数据库 | PostgreSQL 17（仅 Compose 内部网络可访问） |
-| ORM/查询方式 | 迁移权威：Laravel 迁移体系（`apps/api-laravel/database/migrations`，D2 终态 LD-04；Eloquent 查询 + 同事务审计）；`packages/db`（Drizzle）为观察期参考实现（见其 README），仅服务待退役的 Node 栈 |
+| ORM/查询方式 | 迁移权威：Laravel 迁移体系（`apps/api-laravel/database/migrations`，D2 终态 LD-04；Eloquent 查询 + 同事务审计）；`packages/db`（Drizzle）为观察期参考实现（见其 README），仅服务 AI 服务 apps/ai-service |
 | 缓存/队列 | 无独立 Redis/队列；资产自然语言计划短期状态保存在有界进程内存（5 分钟过期） |
-| 文件存储 | 无用户文件上传存储 |
-| 后台任务 | 启动时受 `STARTER_SEED_DEMO` 控制的幂等初始化（`core/seed.ts`），无常驻定时任务 |
-| 健康覆盖范围 | 存活 `GET /`（返回 `OK`）；就绪 `GET /healthz`（执行数据库 `SELECT 1`，返回 `{ status: "ok", db: "ok" }`，实现于 `apps/server/src/index.ts`） |
+| 文件存储 | Laravel Filesystem：`local` 盘（dev/默认，命名卷）与 S3 兼容 OSS（`attachments_s3`）双盘，签名 URL + TTL 进契约（LD-02 附件模块） |
+| 后台任务 | 无队列/定时任务（D5 触发条件未满足，LD-03 暂缓项）；种子：Laravel `console:seed`（dev，生产拒绝）与 `console:admin`（生产首个管理员引导） |
+| 健康覆盖范围 | Laravel：`GET /healthz`（DB 探测，`{status,db,dbLatencyMs}`，DB 不可达 503）与 `GET /console/health`；AI 服务：`GET /healthz`（`{status,db}`，实现于 `apps/ai-service/src/index.ts`） |
 
 ---
 
@@ -272,7 +272,7 @@ Procedure 至少分三级：
 
 ### 外部 API / AI
 
-Starter 的可选实现是 [资产自然语言筛选](./apps/web/src/features/assets/README.md)：`apps/server/src/asset-agent.ts` 沿用 console Session/Origin 校验，通过 [core/ai](./apps/server/src/core/ai/README.md) 直连配置的 OpenAI-compatible API，提供 token 字段兼容、安全错误分类和有界单进程 FIFO。前后端契约共享且不写业务数据，默认关闭，不依赖 Magpie；原本地 relay 仅作可选兼容。
+Starter 的可选实现是 [资产自然语言筛选](./apps/web/src/features/assets/README.md)：`apps/ai-service/src/asset-agent.ts` 沿用 console Session/Origin 校验，通过 [core/ai](./apps/ai-service/src/core/ai/README.md) 直连配置的 OpenAI-compatible API，提供 token 字段兼容、安全错误分类和有界单进程 FIFO。前后端契约共享且不写业务数据，默认关闭，不依赖 Magpie；原本地 relay 仅作可选兼容。
 
 - 所有外部调用必须有超时。
 - 关键外部调用必须有重试、熔断或明确失败展示。

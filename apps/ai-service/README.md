@@ -1,6 +1,8 @@
-# 管理后台服务端（`apps/server`）
+# AI 服务（`apps/ai-service`，LD-05 起）
 
-常驻进程基于 Node 24 + Hono 运行（原因见 [RUNTIME.md](../../RUNTIME.md)），对外统一挂载同源 `/console/*` JSON 接口与 `/healthz` 就绪探针；生产单容器模式下可通过 `SERVE_WEB_DIST` 同源托管前端构建产物。认证、三层 RBAC 与审计细则见 [AUTH.md](../../AUTH.md)。
+独立 Node 24 + Hono 服务（D5：Laravel 侧 `asset-agent` 桥的上游）。**不接收任何生产流量**：dev 栈仅 compose 内网可达，生产仅经 Laravel 的 `STARTER_NODE_API_URL` 代理 `/console/assets/agent/*` 三条路径；`/console` 主管流量与全部业务模块在 [apps/api-laravel](../api-laravel/README.md)，schema 与迁移权威在 Laravel 迁移体系（LARAVEL.md D2 终态）。
+
+为什么仍保留完整 console API（auth/accounts/assets/audit/system 模块与 seed）：`scripts/e2e/ai-client/`（CI 发布门禁，508 断言）的 fixture 依赖这些端点自举隔离测试栈；深裁为 agent-only 需重写该套件夹具机制，按风险权衡暂缓——触发条件与偏差记录见 SPEC_ADOPTION.md。
 
 ## 目录结构
 
@@ -21,8 +23,6 @@
   - `audit.ts`：`/audit` 服务端分页与按来源（`human` / `agent`）、动作、操作人及当前系统时区自然日区间筛选。
   - `assets.ts`：`/assets`、`/assets/page`、资产增删改及 `/assets/agent`（受 `assets:read` 权限与全局熔断双重约束，回执写入 `agent.asset_filter` 审计）。
 
-## 新增模块步骤
+## 新增业务模块
 
-1. 在 `packages/db/src/schema/` 定义表并在 `packages/api/src/` 定义共享 Zod 契约与权限项；
-2. 在 `src/modules/<module>.ts` 编写 Hono 路由，读接口使用 `requirePermission("<slug>:read")`，写操作放入 `db.transaction` 内调用 `lockPermission(tx, actor.id, "<slug>:manage")` 与 `auditResource`；
-3. 在 `src/console.ts` 挂载路由（或直接执行 `bun run gen:module <slug> --label <中文名>` 自动注册表、契约、权限矩阵与侧栏入口）。
+业务模块一律在 Laravel 侧开发（[LARAVEL.md 模块标准开发流程](../../LARAVEL.md#模块标准开发流程)，`bun run gen:module <slug> --label <中文名>` 双端生成）；本服务不新增业务模块。`packages/db` 是本服务的数据访问层（只读消费，不做 schema 变更——见其 README）。

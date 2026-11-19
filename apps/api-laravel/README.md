@@ -1,6 +1,6 @@
 # apps/api-laravel —— Laravel 13 后端（迁移期双栈新栈）
 
-OptiMax Starter 的 Laravel 13 / PHP ≥8.3 API-only 后端，按 [LARAVEL.md](../../LARAVEL.md) 渐进承接现有 `apps/server`（Hono）的全部功能；LC 阶段切流，LD-05 收口退役旧栈。**当前状态：骨架期，不接管任何流量**。
+OptiMax Starter 的 Laravel 13 / PHP ≥8.3 API-only 后端，按 [LARAVEL.md](../../LARAVEL.md) 承接全部 `/console` 功能（LC-08 切流、LD-05 收口）；`apps/ai-service` 仅剩 asset-agent 桥上游；LC 阶段切流，LD-05 收口退役旧栈。**当前状态：骨架期，不接管任何流量**。
 
 ## 定位与边界
 
@@ -23,8 +23,8 @@ schema 权威在 `packages/db`（Drizzle，D2 零迁移）；模型只对接现�
 
 ## 结构
 
-- `app/Core/`：横切基础设施（权限/审计/系统设置），映射 `apps/server/src/core/`，见 [README](./app/Core/README.md)。
-- `app/Modules/`：业务模块，映射 `apps/server/src/modules/`，见 [README](./app/Modules/README.md)。
+- `app/Core/`：横切基础设施（权限/审计/系统设置），历史映射 apps/ai-service/src/core/（对拍期基线），见 [README](./app/Core/README.md)。
+- `app/Modules/`：业务模块，历史映射 apps/ai-service/src/modules/（对拍期基线），见 [README](./app/Modules/README.md)。
 - 开发端点严格按 [LARAVEL.md 模块标准开发流程](../../LARAVEL.md)（契约 → 路由先行 → SchemaRequest → Controller 编排 → Repository/Resource → 同事务审计 → 对拍/E2E）。
 
 ## 命令

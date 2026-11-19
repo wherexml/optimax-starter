@@ -1,4 +1,4 @@
-# app/Modules —— 业务模块（映射 apps/server/src/modules/）
+# app/Modules —— 业务模块（对拍基线 apps/ai-service/src/modules/）
 
 每个模块一个子目录：Controller（编排）+ FormRequest（继承 SchemaRequest，LB-03）+ Repository（Eloquent）+ Resource（响应形状）。路由在模块内注册并统一挂 `/console` 前缀。
 

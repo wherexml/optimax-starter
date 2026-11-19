@@ -154,10 +154,10 @@ LD-03、LD-04。
 
 ### 动作
 
-- [ ] 删除 `apps/server`（观察期问题清单为空为前置）；`compose`/CI/verify 脚本移除旧栈引用；Node AI 服务若保留则独立为 `apps/ai-service`（或等价目录）并补 README
-- [ ] `scripts/bootstrap-project.sh`：派生新项目覆盖 composer（name、APP_KEY 生成、端口、cookie/env 隔离、`composer.lock` 刷新）；五端口分配逻辑纳入 PHP 栈
-- [ ] 文档收口（按 WORKFLOW 唯一正文表）：AGENTS.md（服务与数据行、按任务读取、技能路由现状）、PROJECT.md（模块表、端口、运行时）、RUNTIME.md（重写为 PHP/Node 双运行时事实）、BACKEND.md（分层、模块、横切）、API_CONVENTIONS.md（回填 Laravel 实现文件）、AUTH.md（会话实现替换）、TESTING.md（命令表）、DEPLOYMENT.md、EASM_REUSE/REUSE/FILTERS 中涉及旧栈路径的引用修正
-- [ ] `bun run verify` 与全量 E2E 在收口后的仓上绿；`git grep apps/server` 无残留引用
+- [x] 删除 `apps/server`（观察期问题清单为空为前置）；`compose`/CI/verify 脚本移除旧栈引用；Node AI 服务若保留则独立为 `apps/ai-service`（或等价目录）并补 README
+- [x] `scripts/bootstrap-project.sh`：派生新项目覆盖 composer（name、APP_KEY 生成、端口、cookie/env 隔离、`composer.lock` 刷新）；五端口分配逻辑纳入 PHP 栈
+- [x] 文档收口（按 WORKFLOW 唯一正文表）：AGENTS.md（服务与数据行、按任务读取、技能路由现状）、PROJECT.md（模块表、端口、运行时）、RUNTIME.md（重写为 PHP/Node 双运行时事实）、BACKEND.md（分层、模块、横切）、API_CONVENTIONS.md（回填 Laravel 实现文件）、AUTH.md（会话实现替换）、TESTING.md（命令表）、DEPLOYMENT.md、EASM_REUSE/REUSE/FILTERS 中涉及旧栈路径的引用修正
+- [x] `bun run verify` 与全量 E2E 在收口后的仓上绿；`git grep apps/server` 无残留引用
 
 ### 验收
 
@@ -166,3 +166,13 @@ LD-03、LD-04。
 ### 影响面 / 回滚
 
 全仓。回滚：本 spec 前的所有提交均可独立回退；删除动作本身保留在独立 commit 便于 revert。
+
+### 完成记录（2026-11-19，分支 `laravel/ld-05-retirement`，commits e882086/099ecc9/2c24e11 + 后续）
+
+- **退役形态（整体迁移 + 内部定位，如实）**：`git mv apps/server apps/ai-service`（代码 verbatim；`/console` 流量、迁移权威、生产链路早已全部在 Laravel）+ dev compose 服务 `api`→`ai`。**未做 agent-only 深裁**：ai-client 隔离 E2E（CI 发布门禁，508 断言）的 fixture 依赖 auth/accounts/system 全模块与 seed，深裁需重写该套件夹具机制——按风险权衡暂缓，ai-service README 与 SPEC_ADOPTION 记录触发条件。
+- **验收全绿**：dev 栈全链路（web→Laravel→ai 代理 200）；verify-console PASS；**ai-client E2E 508/508**；Playwright 12/12；prod 演练（drill-3：base 部署验收 → ai overlay 新路径镜像 → console:admin → 登录 → agent 200）后拆栈；`git grep apps/server` 活文件清零（仅 LARAVEL.md/SPEC_ADOPTION/docs/laravel 历史记录保留，符合验收标准）。
+- **bootstrap 派生演练一次成功**（证据 evidence/laravel-ld-05/bootstrap-drill.md）：三端口（web/ai/laravel）分配、`apps/api-laravel/.env` APP_KEY 生成、宿主 vendor 自动安装、demo 管理员种子、verify-console PASS。**演练抓出真缺陷**：Laravel 代理 fallback 硬编码 38141，非默认端口派生项目 agent 必 503——修为 dev compose 显式注入（2c24e11）；另修 bootstrap 首版 LARAVEL_PORT 赋值缺失（替换锚点失配静默 no-op，演练即抓即修）。
+- **文档收口**：RUNTIME.md 重写（当前运行时事实表 + 2026-11-05 Bun 事故归档）；ai-service README 重写（定位/边界/为何保留完整 API）；BACKEND 栈表、AGENTS/PROJECT/README/API_CONVENTIONS/FRONTEND/DEPLOYMENT/TESTING、api-laravel 与 web features README、packages/db README（定位改为 ai-service 数据层、随其存续）同步；REUSE 的 tRPC→Hono 行属历史复用记录保留。
+- **P2 落地（skill 审查遗留）**：agent 三路由从 `app()` 闭包改控制器方法注入（phpstan 0 + 链路 200 复测）；LARAVEL.md 模块标准流程第 4-5 步措辞与实现对齐（控制器编排 + Eloquent 组查询为当前形态，Repository 提取延后至出现第二消费方）。
+- **观察期结论**：切流（2026-11-18）至本日共两天，观察期发现的问题全部闭环（LC-08 补丁 2 处、LD-03 演练修复 4 处既有缺陷、LD-05 演练再修 1 处硬编码），无未决项——Steve 授权开工即采信。
+- **过程坑（如实）**：compose 服务改名后旧容器成孤儿占 38141（docker rm 处置）；prod overlay `up -d` 复用旧缓存镜像（LD-03 时代 apps/server 布局）需显式 `build ai`——已在 DEPLOYMENT 的 overlay 段落强调构建步骤。

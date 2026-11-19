@@ -5,7 +5,7 @@
 ## 组成与契约
 
 - 共享目录与映射：[packages/api/src/permissions.ts](../../../../../packages/api/src/permissions.ts) 定义 `PERMISSION_CATALOG`、`DEFAULT_ROLE_PERMISSION_CODES`、`SUPER_ADMIN_ONLY_PERMISSIONS` 与 `SYSTEM_PERMISSION_ROWS`；`bun run gen:module` 生成新业务模块时自动追加 `<slug>:read` 与 `<slug>:manage`。
-- 服务端持久化与兜底：[apps/server/src/core/permissions.ts](../../../../server/src/core/permissions.ts) 与 [apps/server/src/modules/system.ts](../../../../server/src/modules/system.ts) 将自定义角色配置存入 `console_role_permission`，短缓存加速请求鉴权，并在 `ADMIN_LOCK` 咨询锁事务内完成更新或恢复默认：
+- 服务端持久化与兜底：[apps/ai-service/src/core/permissions.ts](../../../../ai-service/src/core/permissions.ts) 与 [apps/ai-service/src/modules/system.ts](../../../../ai-service/src/modules/system.ts) 将自定义角色配置存入 `console_role_permission`，短缓存加速请求鉴权，并在 `ADMIN_LOCK` 咨询锁事务内完成更新或恢复默认：
   - `super_admin` 始终强制返回完整 `PERMISSION_CATALOG`（即使接口请求传入缩水数组也自动恢复，防止自锁）；
   - `system:permission:*`、`system:ai:manage`、`system:manage` 禁止分配给 `admin` 或 `member`（越界提交返回 `422`）；
   - 每次实际变更在同一事务内写入 `console_audit`（`permission.update` 记录 `targetRole / beforePermissions / afterPermissions`，`permission.reset` 记录恢复默认）。

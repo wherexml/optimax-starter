@@ -6,7 +6,7 @@
 
 - 目标：`apps/api-laravel`（Laravel 13，PHP ≥8.3）承接现有 `apps/server` 的全部功能（auth、accounts、assets、audit、system、asset-agent 桥），协议、安全不变量与 E2E 验收全部对等；`apps/server` 在观察期后退役。
 - 边界：前端 `apps/web` 与共享 UI 不做架构变更；`/console` 前缀、`{ error }` 错误形状、`PaginatedResult` 分页形状、401 跳转语义保持不变；数据库沿用现有 PostgreSQL 实例与数据。
-- 完成标准（整个工程）：LC 阶段全部 spec 完成 + 全量 E2E 绿 + 旧栈下线（LD-05）+ 文档收口。
+- 完成标准（整个工程）：LC 阶段全部 spec 完成 + 全量 E2E 绿 + 旧栈下线（LD-05）+ 文档收口。**达成（2026-11-19）**：LA/LB/LC/LD 全部 ✅，Laravel 迁移工程收口。
 
 ## 决策记录
 
@@ -18,7 +18,7 @@
 | D4 | CSRF | `/console` JSON API 组不引入 CSRF token（同源 BFF + cookie SameSite + JSON-only；沿用现状）；跨域消费方出现时复查 | 已定，LB-05 论证 |
 | D5 | AI 模块 | 现有 Node AI 客户端（`apps/server/src/core/ai`）保留为独立可选服务，不移植 Laravel；asset-agent 由 Laravel 代理或直连该服务（LC-07 定实现）；触发统一队列治理时复查 | 已定 |
 | D6 | 运行时形态 | **已定（LB-02 实测）：生产选 FrankenPHP 单容器**——同一 hello 接口 10s×20 并发实测 fpm+nginx 860 RPS（p50 20.7ms）vs FrankenPHP 767 RPS（p50 23.0ms），差距 <12% 且均远超管理后台负载；FrankenPHP 单进程同时托管 PHP 与静态资源，贴合「单 app 容器」边界。fpm+nginx 保留为备选。本地开发用 php 内建服务器（`PHP_CLI_SERVER_WORKERS=4`，443 RPS 基线）。LD-03 生产镜像按此执行 | 已定 |
-| D7 | 退役策略 | 双栈并行至 LC 全绿；切流后旧 `apps/server` 进入观察期，LD-05 才删除；观察期内 compose/CI 不拆 | 已定 |
+| D7 | 退役策略 | 双栈并行至 LC 全绿；切流后旧 `apps/server` 进入观察期，LD-05 才删除；观察期内 compose/CI 不拆 | **已执行（LD-05，2026-11-19）**：git mv 为 apps/ai-service（D5 AI 服务，内部定位），观察期问题清单为零（发现项全部闭环），深裁触发条件见 SPEC_ADOPTION |
 | D8 | 数据与存储形态 | 充分利用 Laravel 数据生态：Eloquent 关系预载/Cast/Scope/API Resource、Cache；存储用 Laravel Filesystem 抽象（本地 driver 开发与测试、S3 兼容 OSS driver 生产、签名 URL），附件能力作为扩展性试点模块落地（LD-02） | 已定（Steve 要求） |
 
 ## 阶段与 spec 索引
@@ -52,7 +52,7 @@
 | D | [LD-02](./docs/laravel/specs/phase-d-extensibility.md) | 试点附件模块与 OSS 存储管理 | LD-01、LB-07 | ✅ 0b3c1d1（E2E 16/16 双盘字节级对拍；MinIO→Garage） |
 | D | [LD-03](./docs/laravel/specs/phase-d-extensibility.md) | 生产化与部署预检 | LC-08 | ✅ d9876f6 + 32ff2ee/fc8683f/2807cd2 三修复（FrankenPHP 单容器定稿；prod compose 演练四腿全绿：verify 六脚本 + Playwright 12/12 + 附件字节级 + agent 双态 + 回滚） |
 | D | [LD-04](./docs/laravel/specs/phase-d-extensibility.md) | DB 归属决策 | LD-02 | ✅ a75a5a8 + 86a687f 锚点修复（D2 终态落地：基线迁移指纹对拍零漂移、dev/prod 接线切换、gen:module 产迁移、CI 形态断裂修复） |
-| D | [LD-05](./docs/laravel/specs/phase-d-extensibility.md) | 旧栈退役与文档收口 | LD-03、LD-04 | 未开始 |
+| D | [LD-05](./docs/laravel/specs/phase-d-extensibility.md) | 旧栈退役与文档收口 | LD-03、LD-04 | ✅ e882086 链（apps/server→apps/ai-service 退役 + bootstrap PHP 栈 + 文档收口；全量 E2E 绿、git grep 清零、派生演练成功） |
 
 ## spec 执行流程
 
@@ -73,8 +73,8 @@
 1. **契约先行**：确认 `packages/api` 已有（或先补）该端点的输入 schema 与响应类型；跑 `bun run contracts:generate` 更新产物，否则 LA-04 门禁拦截。
 2. **路由**：在模块路由文件声明 `METHOD /console/<path>`，挂会话认证与 `permission:<code>` 中间件；端点先于实现存在（先建路由返回 501/占位，再填实现）。
 3. **请求层**：FormRequest 继承 `SchemaRequest` 基类，绑定契约 schema 名——JSON Schema 消费层自动校验 + refine 补规则，业务代码不重复写校验。
-4. **控制器**：Controller 方法只做编排（入参 → Repository/Service → Resource），不写查询、不写业务规则。
-5. **数据层**：Repository 用 Eloquent 组查询（关系预载、Scope、Cast 见 LB-07）；写路径一律 `DB::transaction` 包裹。
+4. **控制器**：Controller 做编排与 Eloquent 查询组装（入参校验后 → 查询/写入 → Resource；当前规模不设 Repository 层——避免投机抽象，出现第二个消费方时再提取 Service）。
+5. **数据层**：Eloquent 组查询（关系预载、Scope、Cast 见 LB-07）；写路径一律 `DB::transaction` 包裹（咨询锁与行锁照既有模块惯例）。
 6. **响应层**：API Resource 保证实体形状与契约一致；分页统一走 `PaginatedResource`（`items/total/page/size` 唯一实现处）。
 7. **审计**：写路径经审计写入器同事务落 `console_audit`（action 枚举 + `actor_source` + 递归脱敏），只读路径不落。
 8. **验证**：双栈对拍（迁移期）→ E2E 场景 → `composer analyse` + `bun run check-types`；证据按 TESTING.md 保存。
