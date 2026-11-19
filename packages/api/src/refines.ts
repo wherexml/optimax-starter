@@ -76,4 +76,5 @@ export const CONTRACT_REFINES: readonly ContractRefine[] = [
     message: "匹配方式需要资产名称",
     phpRule: "q 在 qOp 存在时 required（required_with:qOp）",
   },
+  // ---- gen:module 追加 refine 登记（勿删锚点）----
 ];

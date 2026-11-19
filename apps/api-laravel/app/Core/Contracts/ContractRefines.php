@@ -57,6 +57,7 @@ final class ContractRefines
 
                 return $qOp === null || (isset($filters['q']) && is_string($filters['q']) && $filters['q'] !== '');
             },
+            // ---- gen:module 追加 refine 实现（勿删锚点）----
         ];
     }
 
