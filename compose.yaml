@@ -81,6 +81,9 @@ services:
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
       # 契约产物（packages/api/json-schema 经 compose.override 挂载；LB-03 消费）。
       CONTRACTS_DIR: /var/www/html/storage/contracts
+      # asset-agent 桥上游（D5）：显式注入而非依赖代码 fallback（其硬编码 38141，
+      # 非默认端口的派生项目会 503——LD-05 派生演练实测抓出）。
+      STARTER_NODE_API_URL: http://ai:${API_PORT:-38141}
       # 附件盘（LD-02）：local 开发态默认；S3 兼容 OSS 由 E2E 用一次性容器覆盖验证。
       ATTACHMENT_DISK: ${ATTACHMENT_DISK:-local}
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-optimax_console}
