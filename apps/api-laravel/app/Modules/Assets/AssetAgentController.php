@@ -20,6 +20,21 @@ final class AssetAgentController
 {
     private const BODY_LIMIT = 8192;
 
+    public function config(Request $request): Response
+    {
+        return $this->proxy($request, 'config');
+    }
+
+    public function plan(Request $request): Response
+    {
+        return $this->proxy($request, 'plan');
+    }
+
+    public function result(Request $request): Response
+    {
+        return $this->proxy($request, 'result');
+    }
+
     public function proxy(Request $request, string $path): Response
     {
         $body = $request->getContent();

@@ -89,11 +89,11 @@ Route::prefix('console')->group(function (): void {
             ->middleware('console.permission:assets:manage');
 
         // 资产自然语言筛选桥（LC-07，D5 直接代理；审计与模型在 Node 侧）。
-        Route::get('/assets/agent/config', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'config'))
+        Route::get('/assets/agent/config', [AssetAgentController::class, 'config'])
             ->middleware('console.permission:assets:read');
-        Route::post('/assets/agent/plan', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'plan'))
+        Route::post('/assets/agent/plan', [AssetAgentController::class, 'plan'])
             ->middleware('console.permission:assets:read');
-        Route::post('/assets/agent/result', fn (Request $r) => app(AssetAgentController::class)->proxy($r, 'result'))
+        Route::post('/assets/agent/result', [AssetAgentController::class, 'result'])
             ->middleware('console.permission:assets:read');
 
         // 账户管理（LC-05）。
