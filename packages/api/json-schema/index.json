@@ -1,0 +1,168 @@
+{
+  "zod": "4.6.7",
+  "count": 27,
+  "schemas": [
+    {
+      "name": "credentialsSchema",
+      "module": "contracts",
+      "file": "contracts.credentialsSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "accountCreateSchema",
+      "module": "contracts",
+      "file": "contracts.accountCreateSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "accountPatchSchema",
+      "module": "contracts",
+      "file": "contracts.accountPatchSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "passwordResetSchema",
+      "module": "contracts",
+      "file": "contracts.passwordResetSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "profileInputSchema",
+      "module": "contracts",
+      "file": "contracts.profileInputSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "passwordChangeSchema",
+      "module": "contracts",
+      "file": "contracts.passwordChangeSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "assetInputSchema",
+      "module": "contracts",
+      "file": "contracts.assetInputSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "assetPatchSchema",
+      "module": "contracts",
+      "file": "contracts.assetPatchSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "accountSchema",
+      "module": "contracts",
+      "file": "contracts.accountSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "assetSchema",
+      "module": "contracts",
+      "file": "contracts.assetSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "auditEntrySchema",
+      "module": "contracts",
+      "file": "contracts.auditEntrySchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "authProviderInfoSchema",
+      "module": "contracts",
+      "file": "contracts.authProviderInfoSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "assetPageSchema",
+      "module": "contracts",
+      "file": "contracts.assetPageSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "auditPageSchema",
+      "module": "contracts",
+      "file": "contracts.auditPageSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "assetSearchSchema",
+      "module": "contracts",
+      "file": "contracts.assetSearchSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "accountSearchSchema",
+      "module": "contracts",
+      "file": "contracts.accountSearchSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "auditSearchSchema",
+      "module": "contracts",
+      "file": "contracts.auditSearchSchema.json",
+      "source": "packages/api/src/contracts.ts"
+    },
+    {
+      "name": "systemPermissionsUpdateSchema",
+      "module": "permissions",
+      "file": "permissions.systemPermissionsUpdateSchema.json",
+      "source": "packages/api/src/permissions.ts"
+    },
+    {
+      "name": "systemPermissionMatrixPayloadSchema",
+      "module": "permissions",
+      "file": "permissions.systemPermissionMatrixPayloadSchema.json",
+      "source": "packages/api/src/permissions.ts"
+    },
+    {
+      "name": "systemSettingsUpdateSchema",
+      "module": "system",
+      "file": "system.systemSettingsUpdateSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "aiCircuitUpdateSchema",
+      "module": "system",
+      "file": "system.aiCircuitUpdateSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "systemStatusResponseSchema",
+      "module": "system",
+      "file": "system.systemStatusResponseSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "systemSettingsResponseSchema",
+      "module": "system",
+      "file": "system.systemSettingsResponseSchema.json",
+      "source": "packages/api/src/system.ts"
+    },
+    {
+      "name": "assetAgentFilters",
+      "module": "asset-agent",
+      "file": "asset-agent.assetAgentFilters.json",
+      "source": "packages/api/src/asset-agent.ts"
+    },
+    {
+      "name": "assetAgentRequest",
+      "module": "asset-agent",
+      "file": "asset-agent.assetAgentRequest.json",
+      "source": "packages/api/src/asset-agent.ts"
+    },
+    {
+      "name": "attachmentRecordSchema",
+      "module": "attachments",
+      "file": "attachments.attachmentRecordSchema.json",
+      "source": "packages/api/src/attachments.ts"
+    },
+    {
+      "name": "attachmentSignedUrlSchema",
+      "module": "attachments",
+      "file": "attachments.attachmentSignedUrlSchema.json",
+      "source": "packages/api/src/attachments.ts"
+    }
+  ]
+}

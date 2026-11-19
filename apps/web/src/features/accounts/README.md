@@ -4,7 +4,7 @@
 
 ## 权限与提权防线
 
-服务端实现位于 [apps/server/src/modules/accounts.ts](../../../../server/src/modules/accounts.ts)，共享契约见 [packages/api/src/contracts.ts](../../../../../packages/api/src/contracts.ts)：
+服务端实现位于 [apps/ai-service/src/modules/accounts.ts](../../../../ai-service/src/modules/accounts.ts)，共享契约见 [packages/api/src/contracts.ts](../../../../../packages/api/src/contracts.ts)：
 
 - **只读与操作分离**：具备 `user:read` 可查看账户列表；仅当具备 `user:manage` 时开放新建、编辑、重置密码、启停用与删除操作。
 - **日常业务管理员（`admin`）红线**：

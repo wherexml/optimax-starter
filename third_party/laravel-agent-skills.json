@@ -1,0 +1,60 @@
+{
+  "component": "Laravel Agent Skills",
+  "upstreamRepository": "https://github.com/laravel/agent-skills",
+  "commit": "aae1ccf9953e2629ea42fc6c96d12659abbe291a",
+  "license": "NOT_DECLARED",
+  "copyright": "Laravel / Taylor Otwell（上游文件本身不含版权声明头）",
+  "notes": "仅原样引入官方 laravel 插件（1 个 agent + 1 个 skill 及其脚本），未做任何修改。上游仓库在上述 commit 没有 LICENSE 或 NOTICE 文件；按原样复制用于本项目内部开发并保留本来源记录。laravel-cloud、laravel-nightwatch、laravel-lsp 未引入：cloud 与 nightwatch 面向 SaaS 服务，与模板自托管部署边界冲突；lsp 是开发者个人 composer 全局工具，不属于仓库内容。升级时从上游重新拉取对应文件并刷新下方 sha256 清单。",
+  "files": [
+    {
+      "upstreamPath": "laravel/agents/laravel-simplifier.md",
+      "targetPath": ".zcode/agents/laravel-simplifier.md",
+      "sha256": "50eb4fbec647ddb233873bb80c3fe61df29b43a636792a7cd33820f2bf0660ff"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/SKILL.md",
+      "targetPath": ".agents/skills/starter-kit-upgrade/SKILL.md",
+      "sha256": "c8a58f6e2cf1955e3cfae754066f0dd8e3ba7a6fd6bcec1b44d0530154020a87"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/apply_new_files.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/apply_new_files.sh",
+      "sha256": "188a10ab923248cfa339143944e264f99d896f941bb2ec8ec56f6b8af9842b18"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/classify_feature.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/classify_feature.sh",
+      "sha256": "34ccb169b7c350ad9a0b5c5e4237d6d3cd101fa121a9ccaf113c98427b62223c"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/fetch_kit.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/fetch_kit.sh",
+      "sha256": "1eef315721e77f4a3e2d05b5aee1a5d01dfc956b83221ce42fa76e1a76b2b5dc"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/later_edits.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/later_edits.sh",
+      "sha256": "b37208a70dabf27ac51ff15a968d70918a870b4e611b2e437f81f0eaf4623c7d"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/preflight.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/preflight.sh",
+      "sha256": "c348d4a9f3fb6e90624019ccb9eab131adb3cca556564f8fb4a00c25b4aea4c6"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/reconcile_manifests.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/reconcile_manifests.sh",
+      "sha256": "52f3b93a1f9577f12ad1fc06472fc46b64a24e1f7743d24110cea7f8094bc135"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/run_tests.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/run_tests.sh",
+      "sha256": "403fc173374989b99d0165fd79e933d1e8fd3c1dc33a5e297da246cb07fe115d"
+    },
+    {
+      "upstreamPath": "laravel/skills/starter-kit-upgrade/scripts/scan_transitive_imports.sh",
+      "targetPath": ".agents/skills/starter-kit-upgrade/scripts/scan_transitive_imports.sh",
+      "sha256": "67ac58f5c2f0033ed9d17cca4f3cd2c15c42dc16ea0d5ec6d4a4635b9a4595ee"
+    }
+  ]
+}

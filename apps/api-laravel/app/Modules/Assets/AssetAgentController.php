@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Modules\Assets;
+
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Http;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+/**
+ * 资产自然语言筛选桥（LC-07）：按 D5「直接代理」实现。
+ *
+ * 模型调用、运行态（runs）、agent 审计仍由保留的 Node AI 服务（apps/ai-service，
+ * LC-08 切流后经 STARTER_NODE_API_URL 指向）原样承担；本控制器把 /console/assets/agent
+ * 透传过去并转发会话 Cookie 与 Origin，语义与单栈部署完全等价。
+ * bodyLimit 8192 → 413「请求过大」对齐 asset-agent.ts。
+ */
+final class AssetAgentController
+{
+    private const BODY_LIMIT = 8192;
+
+    public function config(Request $request): Response
+    {
+        return $this->proxy($request, 'config');
+    }
+
+    public function plan(Request $request): Response
+    {
+        return $this->proxy($request, 'plan');
+    }
+
+    public function result(Request $request): Response
+    {
+        return $this->proxy($request, 'result');
+    }
+
+    public function proxy(Request $request, string $path): Response
+    {
+        $body = $request->getContent();
+        if (strlen($body) > self::BODY_LIMIT) {
+            throw new HttpException(413, '请求过大');
+        }
+
+        $target = rtrim((string) (getenv('STARTER_NODE_API_URL') ?: 'http://ai:38141'), '/')
+            .'/console/assets/agent/'.$path
+            .($request->getQueryString() !== null ? '?'.$request->getQueryString() : '');
+
+        try {
+            // 显式超时（Laravel best practices / http-client；LD-04 审查修复）：
+            // 上游截止时间 STARTER_AI_TIMEOUT_MS 默认 60s、上限 120s 且已覆盖排队与修正，
+            // 代理超时必须 ≥ 上游上限，否则合法长调用会在 30s 默认值处被截断成 503。
+            // connectTimeout 单独收紧，死上游 3 秒即拒（503）。
+            $response = Http::connectTimeout(3)
+                ->timeout(125)
+                ->withHeaders([
+                    'Origin' => (string) (getenv('CORS_ORIGIN') ?: 'http://127.0.0.1:38140'),
+                    'Content-Type' => 'application/json',
+                    'Cookie' => (string) $request->headers->get('Cookie', ''),
+                ])->{strtolower($request->method())}($target, $body === '' ? null : $body);
+        } catch (ConnectionException) {
+            // 上游 Node 服务未部署/不可达（LD-03：生产未挂 ai overlay 的常态），
+            // 明确 503 { error } 而非 500；错误形状经 LB-03 异常渲染器。
+            throw new HttpException(503, '筛选服务不可用');
+        }
+
+        return response($response->body(), $response->status(), [
+            'Content-Type' => $response->header('Content-Type', 'application/json'),
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+}

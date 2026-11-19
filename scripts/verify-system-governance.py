@@ -39,8 +39,9 @@ def client():
 
 
 def call(session, method, path, status=200, data=None):
+    # LC 双栈对拍：E2E_API_BASE 覆盖后直打任意栈（默认仍走 web 代理）。
     req = urllib.request.Request(
-        ORIGIN + "/console" + path,
+        (os.environ.get("E2E_API_BASE") or ORIGIN) + "/console" + path,
         method=method,
         data=json.dumps(data).encode() if data is not None else None,
         headers=(

@@ -1,0 +1,88 @@
+# LD-03 生产镜像（FrankenPHP 单容器，LARAVEL.md D6 决策）。
+# 单容器同时托管 Laravel API 与前端静态页（对齐原 node 单容器部署边界）；
+# 不启用 worker 模式：vanilla Laravel 未经 Octane 适配，保持每请求干净状态。
+# 构建链：bun 装依赖 → vite 构建静态页 → composer 装服务端 → 产物拷入 frankenphp。
+FROM oven/bun:1.3.14 AS bun
+
+FROM node:24.10.0-bookworm-slim AS web-deps
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /app
+COPY package.json bun.lock bunfig.toml tsconfig.json ./
+# apps/ai-service 清单必须存在：bun.lock 按全 workspace 解析，缺成员即 frozen 校验失败
+# （本镜像不运行 server，仅让 lockfile 对得上）。
+COPY apps/web/package.json apps/web/bunfig.toml apps/web/.env.schema apps/web/
+COPY apps/ai-service/package.json apps/ai-service/bunfig.toml apps/ai-service/.env.schema apps/ai-service/
+COPY packages/api/package.json packages/api/
+COPY packages/config/package.json packages/config/tsconfig.base.json packages/config/
+COPY packages/db/package.json packages/db/.env.schema packages/db/
+COPY packages/ui/package.json packages/ui/
+RUN bun install --frozen-lockfile
+
+FROM web-deps AS web-builder
+ARG VITE_APP_SLUG=optimax-starter
+ARG VITE_APP_TITLE=OptiMax
+ARG VITE_ENABLE_DEMOS=false
+ARG VITE_SERVER_URL=http://127.0.0.1:38140
+ENV NODE_ENV=production \
+    VITE_APP_SLUG=${VITE_APP_SLUG} \
+    VITE_APP_TITLE=${VITE_APP_TITLE} \
+    VITE_ENABLE_DEMOS=${VITE_ENABLE_DEMOS} \
+    VITE_SERVER_URL=${VITE_SERVER_URL}
+COPY . .
+RUN bun run --filter web env:generate && cd apps/web && bun run build
+
+# 服务端依赖：frankenphp 镜像自带 php-cli 与 docker-php-ext-install（LB-02 实测），
+# 与 runner 同基镜像保证扩展 ABI 一致。
+FROM dunglas/frankenphp:1.13.5-php8.4 AS server-deps
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev curl unzip \
+    && docker-php-ext-install pdo_pgsql \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv
+COPY apps/api-laravel/composer.json apps/api-laravel/composer.lock ./
+# --no-autoloader：autoload 在 app/ 源码就位后由 runner 阶段生成（composer.json files 项引用源文件）。
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --no-progress
+
+FROM dunglas/frankenphp:1.13.5-php8.4 AS runner
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev \
+    && docker-php-ext-install pdo_pgsql \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /srv
+
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    LOG_LEVEL=warning \
+    STARTER_SEED_DEMO=false \
+    CACHE_STORE=file
+
+COPY --from=server-deps /usr/local/bin/composer /usr/local/bin/composer
+COPY --from=server-deps /srv/vendor ./vendor
+# COPY 目录时拷贝的是「目录内容」——每个目录必须显式指定目标，否则被摊平进 /srv。
+COPY apps/api-laravel/artisan apps/api-laravel/composer.json ./
+COPY apps/api-laravel/bootstrap ./bootstrap
+COPY apps/api-laravel/config ./config
+COPY apps/api-laravel/database ./database
+COPY apps/api-laravel/public ./public
+COPY apps/api-laravel/resources ./resources
+COPY apps/api-laravel/routes ./routes
+COPY apps/api-laravel/app ./app
+# autoload 与包清单在源码就位后生成（post-autoload-dump 触发 package:discover）。
+# storage 不从源码 COPY（宿主 dev 运行态不进镜像），由 mkdir 重建；
+# /data /config 为 frankenphp 的 Caddy 存储目录，www-data 需可写。
+RUN composer dump-autoload --optimize --no-dev \
+    && mkdir -p storage/app/attachments storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache /data/caddy /config/caddy \
+    && chown -R www-data:www-data storage bootstrap/cache /data /config
+# 契约产物（packages/api/json-schema）随镜像分发：生产容器不挂载宿主目录。
+COPY packages/api/json-schema ./storage/contracts
+# 前端静态页：web dist 合并进 Laravel public（Caddy 同容器分流）。
+COPY --from=web-builder /app/apps/web/dist ./public
+# 第三方声明随镜像分发。
+COPY third_party ./third_party
+
+USER www-data
+EXPOSE 8080
+# Caddyfile：/console 与 /healthz 走 PHP；其余路径静态文件优先、缺失回退 SPA。
+COPY apps/api-laravel/Caddyfile.prod /etc/frankenphp/Caddyfile
+CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]

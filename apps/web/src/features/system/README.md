@@ -4,7 +4,7 @@
 
 ## 标签与接口契约
 
-共享类型与校验位于 [packages/api/src/system.ts](../../../../../packages/api/src/system.ts)，服务端实现位于 [apps/server/src/core/system-settings.ts](../../../../server/src/core/system-settings.ts) 与 [apps/server/src/modules/system.ts](../../../../server/src/modules/system.ts)：
+共享类型与校验位于 [packages/api/src/system.ts](../../../../../packages/api/src/system.ts)，服务端实现位于 [apps/ai-service/src/core/system-settings.ts](../../../../ai-service/src/core/system-settings.ts) 与 [apps/ai-service/src/modules/system.ts](../../../../ai-service/src/modules/system.ts)：
 
 | 标签参数 | 面板 | 查看权限 | 维护权限 | 对应接口 |
 | --- | --- | --- | --- | --- |

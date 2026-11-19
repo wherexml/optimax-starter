@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "启用",
+        "停用"
+      ]
+    }
+  },
+  "required": [
+    "name",
+    "category",
+    "owner",
+    "status"
+  ],
+  "additionalProperties": false
+}

@@ -9,7 +9,7 @@
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
 | 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，账户与防提权见 [accounts](./apps/web/src/features/accounts/README.md)，三层角色权限矩阵见 [permissions](./apps/web/src/features/permissions/README.md)，运行探针、AI 一键熔断与时区配置见 [system](./apps/web/src/features/system/README.md)，人机双源审计见 [audit](./apps/web/src/features/audit/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
 | 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量在 `apps/web/src/index.css` |
-| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module` |
+| 服务与数据 | Laravel 13 栈（[apps/api-laravel](./apps/api-laravel/README.md)）主管 `/console` 全部业务流量；独立 [apps/ai-service](./apps/ai-service/README.md)（Node）仅作 asset-agent 桥上游（内网，不接收生产流量）；[共享契约](./packages/api/README.md)（Zod 单源 + JSON Schema 产物）、迁移权威在 Laravel（`apps/api-laravel/database/migrations`，D2 终态 LD-04；[packages/db](./packages/db/README.md) 降级为观察期参考）；新增模块可用 `bun run gen:module` |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
 | 验证入口 | [TESTING.md](./TESTING.md) |
 | 生产边界 | 默认只读；部署细节见 [DEPLOYMENT.md](./DEPLOYMENT.md) |
@@ -62,6 +62,7 @@
 | 页内标签、页面间导航或多页标签条 | [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签) + [FRONTEND.md 页内导航与标签行为](./FRONTEND.md#页内导航与标签行为) | 选用方式、样式、URL、权限、草稿与验收用例 |
 | UI、PPT、报表或视觉输出 | [DESIGN.md](./DESIGN.md) | 文案、Radix 配色、字号、对齐、视觉验收；生成图片使用 imagegen skill |
 | 后端、数据库、队列、Worker | [BACKEND.md](./BACKEND.md) | 分层、数据、任务、日志、健康检查 |
+| Laravel 后端引入、契约桥与双栈迁移 | [LARAVEL.md](./LARAVEL.md) | 决策记录、阶段 spec 索引与完成状态、spec 执行流程 |
 | API、Webhook、跨端契约 | [API_CONVENTIONS.md](./API_CONVENTIONS.md) | 响应、错误、分页、幂等、契约变更 |
 | 登录、角色、租户、权限 | [AUTH.md](./AUTH.md) | 身份、Session、RBAC、租户与审计 |
 | 凭证、敏感数据、文件输入、安全边界或 AI/风险数据口径 | [SECURITY.md](./SECURITY.md) | 数据保护、输入风险与信息真实性 |
@@ -74,6 +75,8 @@
 ## 项目技能默认路由
 
 - 前端交互、键盘/焦点行为、UI SDK 和 Agent 操作默认先读取项目内 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)。在 Starter 目录工作时可原生发现，自动调用已开启，也可显式使用 `$starter-ui-sdk`；父目录会话按本文件链接读取。
+- PHP / Laravel 后端任务默认先读取项目内 Laravel 官方 skills：[starter-kit-upgrade](./.agents/skills/starter-kit-upgrade/SKILL.md)（从 Laravel starter kit 选择性同步上游特性）与 [laravel-simplifier](./.zcode/agents/laravel-simplifier.md)（Laravel 代码精简 agent）。来源、commit 与裁剪范围见 [third_party/laravel-agent-skills.json](./third_party/laravel-agent-skills.json)；laravel-cloud 与 laravel-nightwatch 未引入（SaaS 服务与自托管部署边界冲突）。
+- Laravel AI 工具链（2026-11-19 加载，来源与边界见 [third_party/laravel-ai-ecosystem.json](./third_party/laravel-ai-ecosystem.json)）：Laravel 侧开发会话可用 Boost 生成 skills（`apps/api-laravel/.claude/skills/`：laravel/ai-sdk/mcp/best-practices/testing/tailwindcss/infer-conventions，`boost:update --no-discover` 更新）与两个本地 MCP server——`laravel-boost`（`php artisan boost:mcp`，DB schema/查询、日志、Laravel 文档语义检索）与 `console-info`（`php artisan mcp:start console-info`，只读应用概览）。均仅本地 stdio，不对 web 暴露；`laravel/ai` SDK 已装载但未配置 provider（asset-agent 仍走 Node AI 服务，D5 不变）。第三方 skill `laravel-specialist`（jeffallan，MIT，[third_party/jeffallan-claude-skills.json](./third_party/jeffallan-claude-skills.json)，权威位 `apps/api-laravel/.ai/skills/`）经 `boost:add-skill` 引入；其中 Sanctum/Horizon/Livewire/Pest 内容与本栈不符，以项目规范为准。
 - 纯布局、颜色、文案按 FRONTEND / DESIGN 处理；纯后端任务按上表进入对应规范。读取技能不代表自动迁移全部控件或启用模型。
 - 全局 `ui-sdk` 与项目技能可能同时存在；本项目按上述明确路径读取适配版，不依赖个人主目录。技能负责开发流程，已安装 SDK 文档负责当前 API。
 
@@ -98,7 +101,7 @@
 
 ## 选择与筛选
 
-- 资产自然语言筛选是可选的服务端模型/UI SDK 能力，入口与契约见 [资产模块](./apps/web/src/features/assets/README.md)，模型接入、队列与开源来源见 [服务端 AI 模块](./apps/server/src/core/ai/README.md)。新客户端不依赖 Magpie 运行。UI SDK 选型与验收按项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) 路由。模型凭证值不得进入前端、源码、证据或 Docker 环境；移植代码保留来源与许可，并随交付物分发。
+- 资产自然语言筛选是可选的服务端模型/UI SDK 能力，入口与契约见 [资产模块](./apps/web/src/features/assets/README.md)，模型接入、队列与开源来源见 [服务端 AI 模块](./apps/ai-service/src/core/ai/README.md)。新客户端不依赖 Magpie 运行。UI SDK 选型与验收按项目 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md) 路由。模型凭证值不得进入前端、源码、证据或 Docker 环境；移植代码保留来源与许可，并随交付物分发。
 
 - 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)；三段式表单弹窗与标准化输入控件见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)。
 

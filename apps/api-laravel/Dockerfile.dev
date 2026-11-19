@@ -1,0 +1,23 @@
+# 本地开发镜像（LB-02）：php-cli + 内建服务器；生产形态（D6/LD-03）另立 Dockerfile.prod。
+# 镜像内置生产 vendor：dev 形态经 compose.override 挂载宿主目录覆盖（宿主 vendor 含
+# 开发依赖）；CI/无挂载形态（LD-04 起迁移职责随本镜像启动）依赖镜像自带 vendor。
+# LD-04：启动先 artisan migrate（迁移权威在 Laravel，D2 终态）。
+FROM php:8.4-cli
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq-dev curl unzip \
+    && docker-php-ext-install pdo_pgsql pgsql \
+    && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /var/www/html
+COPY composer.json composer.lock ./
+# --no-scripts：install 时 artisan 尚未 COPY（post-autoload-dump 需要）；源码就位后 dump 补跑。
+RUN composer install --no-dev --no-scripts --no-interaction --no-progress
+COPY . .
+RUN composer dump-autoload --optimize --no-dev \
+    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+EXPOSE 8080
+
+# 直接用 PHP 内建服务器 + 框架路由脚本：继承容器完整环境变量。
+# （artisan serve 会按静态白名单过滤传给 php -S worker 的 env，导致 compose 注入的
+#  DATABASE_URL 等共享键在 HTTP 上下文不可见——LB-02 实测发现。）
+CMD ["sh", "-ec", "php artisan migrate --force && cd public && exec php -S 0.0.0.0:8080 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"]

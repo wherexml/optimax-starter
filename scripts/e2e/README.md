@@ -1,5 +1,9 @@
 # 浏览器 E2E
 
+## Playwright 自动化套件
+
+可复跑的全功能全流程浏览器测试：`bun run test:e2e:pw`（12 用例）。覆盖登录与校验、未认证守卫、资产/账户/权限/系统配置/操作日志/个人设置全流程 CRUD 与确认弹窗、导航折叠/快速导航键盘/375px 移动端抽屉；每步整页截图与 `manifest.json` 落 `evidence/playwright/run-*`。不覆盖 AI 筛选（默认关闭）、演示页与修改密码。范围、命令与编写约定见 [playwright/README.md](./playwright/README.md)。
+
 ## 快速导航
 
 在已登录的本地 Starter Ego TaskSpace 中调用 `quick-nav.mjs` 的 `verifyQuickNav(task, { evidenceDir })`。覆盖展开/折叠侧栏、快捷键打开、方向键循环、中文和英文别名过滤、Enter/点击跳转、空结果、Esc 焦点恢复、375px 手机与低高度视口的滚动可见性。只读业务数据，输出 `results.json` 及带 URL 的三张产品截图。详见 [navigation](../../apps/web/src/features/navigation/README.md)。

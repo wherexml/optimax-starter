@@ -1,0 +1,20 @@
+# LD-03 生产 Caddyfile（FrankenPHP 单容器）。
+# /console 与 /healthz → Laravel（public/index.php）；其余路径静态文件优先、缺失回退 SPA。
+# 不启用 worker 模式（见 Dockerfile.prod 头注）。
+# 匹配器经验（演练实测）：try_files 不支持请求匹配器（@name 会被当文件名候选），
+# SPA 回退必须放进 handle 块；not 与 path 各一份（同类型多份被 OR）。
+:8080 {
+	root * /srv/public
+	encode zstd gzip
+
+	# Laravel API 与顶层健康探针（/healthz 为 compose 健康检查与部署冒烟入口）。
+	@php path /console/* /healthz
+	php_server @php
+
+	# SPA（vite dist 已合并进 Laravel public）：静态文件优先，未命中回退 index.html。
+	@spa not path /console/* /healthz
+	handle @spa {
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -26,9 +26,10 @@ function usage() {
   bun run gen:module vendors --label 供应商台账 --singular vendor
 
 生成内容:
-  1. packages/db/src/schema/<slug>.ts         Drizzle 数据表定义并注册到 schema/index.ts
+  1. apps/api-laravel/database/migrations/    Laravel 建表迁移（D2 终态：迁移权威，artisan 自动发现）
   2. packages/api/src/<slug>.ts               前后端共享 Zod 契约与 URL 筛选解析器
-  3. apps/server/src/modules/<slug>.ts        Hono 服务端分页筛选 + 管理员 CRUD + 同事务审计路由
+  3. apps/api-laravel/app/Modules/<Pascal>/   Laravel 控制器/请求/资源/路由（LC-08 起后端唯一栈）
+     apps/api-laravel/app/Core/Models/        Eloquent 模型（@property 显式列，表由迁移定义）
   4. apps/web/src/features/<slug>/*           ResourceTableSlot 列表页 + FormDialog 表单弹窗
   5. apps/web/src/routes/<slug>.tsx           TanStack Router 路由并注册侧栏 / Cmd+K 导航
   6. scripts/verify-<slug>.py                 接口级权限、分页与审计闭环 E2E 脚本`);
@@ -75,19 +76,44 @@ const singularPascal =
     .join("");
 const codePrefix = singularSlug.slice(0, 2).toUpperCase();
 
+const migrationStamp = new Date()
+  .toISOString()
+  .replace(/[-:T]/g, "")
+  .slice(0, 14)
+  .replace(/^(\d{8})(\d{6})$/, "$1_$2");
+
 const files = [
   {
-    rel: `packages/db/src/schema/${slug}.ts`,
-    content: `import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+    // D2 终态（LD-04）：表定义产物从 Drizzle schema 换成 Laravel 建表迁移，
+    // 迁移由 artisan 按文件名自动发现，无需登记锚点。
+    rel: `apps/api-laravel/database/migrations/${migrationStamp}_create_console_${tableIdent}_table.php`,
+    content: `<?php
 
-export const ${camel}Table = pgTable("console_${tableIdent}", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  category: text("category").notNull(),
-  owner: text("owner").notNull(),
-  status: text("status").notNull().default("启用"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Query\\Expression;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\Schema;
+
+// ${label}（console_${tableIdent}）：gen:module 生成（LD-04 起迁移权威在 Laravel）。
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('console_${tableIdent}', function (Blueprint \$table): void {
+            \$table->increments('id');
+            \$table->text('name')->unique();
+            \$table->text('category');
+            \$table->text('owner');
+            \$table->text('status')->default('启用');
+            \$table->timestampTz('created_at', 6)->default(new Expression('now()'));
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('console_${tableIdent}');
+    }
+};
 `,
   },
   {
@@ -146,150 +172,346 @@ export function parse${singularPascal}Search(v: Record<string, unknown>): ${sing
 `,
   },
   {
-    rel: `apps/server/src/modules/${slug}.ts`,
-    content: `import { and, count, desc, eq, ilike, ne } from "drizzle-orm";
-import { Hono } from "hono";
-import { z } from "zod";
-import {
-  ${singularPascal.toUpperCase()}_STATUSES,
-  ${camel}InputSchema,
-  ${camel}PatchSchema,
-} from "@optimax-starter/api/${slug}";
-import { ${camel}Table } from "@optimax-starter/db/schema/${slug}";
-import { db } from "../services";
-import { AUDIT_MAX_PAGE, auditResource, containsPattern } from "../core/audit";
-import {
-  Refusal,
-  guarded,
-  lockPermission,
-  parsePositiveId,
-  requirePermission,
-  type Env,
-} from "../core/guards";
+    rel: `apps/api-laravel/app/Core/Models/Console${pascal}.php`,
+    content: `<?php
 
-export const ${camel}Routes = new Hono<Env>();
+namespace App\\Core\\Models;
 
-const querySchema = z.object({
-  q: z.string().trim().min(1).max(200).optional(),
-  qOp: z.enum(["contains", "equals"]).optional(),
-  status: z.enum(${singularPascal.toUpperCase()}_STATUSES).optional(),
-  page: z.coerce.number().int().min(1).max(100000).default(1),
-  size: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .default(20)
-    .transform((n) => Math.min(n, AUDIT_MAX_PAGE)),
-});
+use Illuminate\\Database\\Eloquent\\Model;
 
-const toResource = (row: { id: number; name: string }) => ({
-  id: row.id,
-  code: \`${codePrefix}-\${String(row.id).padStart(3, "0")}\`,
-  name: row.name,
-});
+/**
+ * ${label}（console_${tableIdent}）。表由 Laravel 迁移定义（LARAVEL.md D2 终态）。
+ * gen:module 生成（LD-01）；\$fillable 对齐契约 ${slug}.${camel}InputSchema 字段集。
+ *
+ * @property int $id
+ * @property string $name
+ * @property string $category
+ * @property string $owner
+ * @property string $status
+ * @property \\Carbon\\CarbonInterface $created_at
+ */
+final class Console${pascal} extends Model
+{
+    const UPDATED_AT = null;
 
-${camel}Routes.get("/${slug}", requirePermission("${slug}:read"), async (c) => {
-  const raw = Object.fromEntries(
-    Object.entries(c.req.query()).filter(([, v]) => v.trim() !== ""),
-  );
-  const parsed = querySchema.safeParse(raw);
-  if (!parsed.success) return c.json({ error: "筛选条件无效" }, 400);
-  const { q, qOp, status, page, size } = parsed.data;
-  const where = and(
-    q
-      ? qOp === "equals"
-        ? eq(${camel}Table.name, q)
-        : ilike(${camel}Table.name, containsPattern(q))
-      : undefined,
-    status ? eq(${camel}Table.status, status) : undefined,
-  );
-  const [items, totals] = await Promise.all([
-    db
-      .select()
-      .from(${camel}Table)
-      .where(where)
-      .orderBy(desc(${camel}Table.id))
-      .limit(size)
-      .offset((page - 1) * size),
-    db.select({ n: count() }).from(${camel}Table).where(where),
-  ]);
-  return c.json({ items, total: Number(totals[0]?.n ?? 0), page, size });
-});
+    protected $table = 'console_${tableIdent}';
 
-${camel}Routes.post("/${slug}", requirePermission("${slug}:manage"), async (c) => {
-  const parsed = ${camel}InputSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "请完整填写${label}信息" }, 400);
-  return guarded(c, async () => {
-    const created = await db.transaction(async (tx) => {
-      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
-      const [row] = await tx
-        .insert(${camel}Table)
-        .values(parsed.data)
-        .onConflictDoNothing()
-        .returning();
-      if (!row) throw new Refusal(409, "名称已存在");
-      await auditResource(tx, "${singularSlug}.create", self, toResource(row), {
-        stage: row.status,
-        domain: row.category,
-      });
-      return row;
-    });
-    return c.json(created, 201);
-  });
-});
+    protected $fillable = ['name', 'category', 'owner', 'status'];
 
-${camel}Routes.patch("/${slug}/:id", requirePermission("${slug}:manage"), async (c) => {
-  const id = parsePositiveId(c.req.param("id"));
-  const parsed = ${camel}PatchSchema.safeParse(await c.req.json().catch(() => null));
-  if (!id || !parsed.success) return c.json({ error: "无效的变更参数" }, 400);
-  return guarded(c, async () => {
-    const updated = await db.transaction(async (tx) => {
-      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
-      const [before] = await tx
-        .select()
-        .from(${camel}Table)
-        .where(eq(${camel}Table.id, id))
-        .for("update");
-      if (!before) throw new Refusal(404, "记录不存在");
-      if (parsed.data.name && parsed.data.name !== before.name) {
-        const [dup] = await tx
-          .select({ id: ${camel}Table.id })
-          .from(${camel}Table)
-          .where(and(eq(${camel}Table.name, parsed.data.name), ne(${camel}Table.id, id)));
-        if (dup) throw new Refusal(409, "名称已存在");
-      }
-      const [after] = await tx
-        .update(${camel}Table)
-        .set(parsed.data)
-        .where(eq(${camel}Table.id, id))
-        .returning();
-      await auditResource(tx, "${singularSlug}.update", self, toResource(after!), {
-        fields: Object.keys(parsed.data),
-      });
-      return after!;
-    });
-    return c.json(updated);
-  });
-});
+    protected function casts(): array
+    {
+        return ['created_at' => 'datetime'];
+    }
+}
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/routes.php`,
+    content: `<?php
 
-${camel}Routes.delete("/${slug}/:id", requirePermission("${slug}:manage"), async (c) => {
-  const id = parsePositiveId(c.req.param("id"));
-  if (!id) return c.json({ error: "无效的编号" }, 400);
-  return guarded(c, async () => {
-    await db.transaction(async (tx) => {
-      const self = await lockPermission(tx, c.get("actor").id, "${slug}:manage");
-      const [removed] = await tx
-        .delete(${camel}Table)
-        .where(eq(${camel}Table.id, id))
-        .returning();
-      if (!removed) throw new Refusal(404, "记录不存在");
-      await auditResource(tx, "${singularSlug}.delete", self, toResource(removed), {
-        domain: removed.category,
-      });
-    });
-    return c.json({ ok: true });
-  });
-});
+use App\\Modules\\${pascal}\\${pascal}Controller as Controller;
+use Illuminate\\Support\\Facades\\Route;
+
+// gen:module 生成（LD-01）：routes/api.php 的 glob 自动装载本文件（/console 前缀与守卫已就位）。
+Route::get('/${slug}', [Controller::class, 'index'])->middleware('console.permission:${slug}:read');
+Route::post('/${slug}', [Controller::class, 'store'])->middleware('console.permission:${slug}:manage');
+Route::patch('/${slug}/{id}', [Controller::class, 'update'])->whereNumber('id')->middleware('console.permission:${slug}:manage');
+Route::delete('/${slug}/{id}', [Controller::class, 'destroy'])->whereNumber('id')->middleware('console.permission:${slug}:manage');
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/${pascal}InputRequest.php`,
+    content: `<?php
+
+namespace App\\Modules\\${pascal};
+
+use App\\Core\\Http\\SchemaRequest;
+
+/** ${label} 创建入参（契约 ${slug}.${camel}InputSchema，gen:module 生成）。 */
+final class ${pascal}InputRequest extends SchemaRequest
+{
+    protected function contract(): string
+    {
+        return '${slug}.${camel}InputSchema';
+    }
+
+    protected function contractError(): string
+    {
+        return '请完整填写${label}信息';
+    }
+}
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/${pascal}PatchRequest.php`,
+    content: `<?php
+
+namespace App\\Modules\\${pascal};
+
+use App\\Core\\Http\\SchemaRequest;
+
+/** ${label} 变更入参（契约 ${slug}.${camel}PatchSchema；非空 refine 由 ContractRefines 覆盖）。 */
+final class ${pascal}PatchRequest extends SchemaRequest
+{
+    protected function contract(): string
+    {
+        return '${slug}.${camel}PatchSchema';
+    }
+
+    protected function contractError(): string
+    {
+        return '无效的变更参数';
+    }
+}
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/${pascal}Resource.php`,
+    content: `<?php
+
+namespace App\\Modules\\${pascal};
+
+use App\\Core\\Http\\ConsoleResponse;
+use App\\Core\\Models\\Console${pascal};
+use Illuminate\\Http\\Request;
+use Illuminate\\Http\\Resources\\Json\\JsonResource;
+
+/**
+ * @property Console${pascal} $resource
+ */
+final class ${pascal}Resource extends JsonResource
+{
+    /** @return array<string, mixed> */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => (int) \$this->resource->id,
+            'name' => (string) \$this->resource->name,
+            'category' => (string) \$this->resource->category,
+            'owner' => (string) \$this->resource->owner,
+            'status' => (string) \$this->resource->status,
+            'createdAt' => ConsoleResponse::isoTime(\$this->resource->getAttributeValue('created_at')),
+        ];
+    }
+}
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/${pascal}PaginatedResource.php`,
+    content: `<?php
+
+namespace App\\Modules\\${pascal};
+
+use App\\Core\\Http\\Resources\\PaginatedResource;
+
+/** ${label} 分页响应（PaginatedResult 形状的唯一实现处消费方）。 */
+final class ${pascal}PaginatedResource extends PaginatedResource
+{
+    protected function itemResource(): string
+    {
+        return ${pascal}Resource::class;
+    }
+}
+`,
+  },
+  {
+    rel: `apps/api-laravel/app/Modules/${pascal}/${pascal}Controller.php`,
+    content: `<?php
+
+namespace App\\Modules\\${pascal};
+
+use App\\Core\\Audit\\AuditWriter;
+use App\\Core\\Auth\\Actor;
+use App\\Core\\Http\\Concerns\\LocksPermission;
+use App\\Core\\Http\\ConsoleResponse;
+use App\\Core\\Models\\Console${pascal};
+use App\\Core\\Support\\Like;
+use Illuminate\\Http\\JsonResponse;
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\DB;
+use Symfony\\Component\\HttpKernel\\Exception\\HttpException;
+
+/**
+ * ${label}（gen:module 生成，LD-01）：分页筛选 + 管理员 CRUD + 同事务审计。
+ * 按 LARAVEL.md 模块标准开发流程实现；对照实现见 apps/ai-service 退役栈模板（只读参考）。
+ */
+final class ${pascal}Controller
+{
+    use LocksPermission;
+
+    private const MAX_PAGE = 100;
+
+    public function index(Request $request): JsonResponse
+    {
+        $q = trim((string) $request->query('q', ''));
+        $qOp = (string) $request->query('qOp', '');
+        $status = trim((string) $request->query('status', ''));
+        $page = (int) $request->query('page', 1);
+        $size = (int) $request->query('size', 20);
+
+        if ($q !== '' && strlen($q) > 200) {
+            throw new HttpException(400, '筛选条件无效');
+        }
+        if ($qOp !== '' && ! in_array($qOp, ['contains', 'equals'], true)) {
+            throw new HttpException(400, '筛选条件无效');
+        }
+        if ($status !== '' && ! in_array($status, ['启用', '停用'], true)) {
+            throw new HttpException(400, '筛选条件无效');
+        }
+        if ($page < 1 || $page > 100000 || $size < 1) {
+            throw new HttpException(400, '筛选条件无效');
+        }
+        $size = min(self::MAX_PAGE, $size);
+
+        $query = Console${pascal}::query()
+            ->when($q !== '', function ($builder) use ($q, $qOp): void {
+                if ($qOp === 'equals') {
+                    $builder->where('name', $q);
+                } else {
+                    $builder->where('name', 'ilike', '%'.Like::escape($q).'%');
+                }
+            })
+            ->when($status !== '', fn ($builder) => $builder->where('status', $status));
+
+        $total = (clone $query)->count();
+        $items = (clone $query)->orderByDesc('id')->forPage($page, $size)->get();
+
+        return ConsoleResponse::json([
+            'items' => ${pascal}Resource::collection($items)->resolve(),
+            'total' => $total,
+            'page' => $page,
+            'size' => $size,
+        ]);
+    }
+
+    public function store(${pascal}InputRequest $request): JsonResponse
+    {
+        $data = $request->input();
+        $actor = $request->attributes->get('consoleActor');
+        assert($actor instanceof Actor);
+
+        $row = DB::transaction(function () use ($actor, $data): array {
+            $self = $this->lockPermission($actor, '${slug}:manage');
+
+            if (Console${pascal}::query()->where('name', (string) $data['name'])->exists()) {
+                throw new HttpException(409, '名称已存在');
+            }
+
+            $record = Console${pascal}::query()->create([
+                'name' => (string) $data['name'],
+                'category' => (string) $data['category'],
+                'owner' => (string) $data['owner'],
+                'status' => (string) $data['status'],
+            ]);
+
+            AuditWriter::auditResource('${singularSlug}.create', $this->partyOf($self), $this->toResource($record),
+                ['stage' => (string) $record->status, 'domain' => (string) $record->category]);
+
+            return [
+                'id' => (int) $record->id,
+                'name' => (string) $record->name,
+                'category' => (string) $record->category,
+                'owner' => (string) $record->owner,
+                'status' => (string) $record->status,
+                'createdAt' => ConsoleResponse::isoTime($record->getAttributeValue('created_at')),
+            ];
+        });
+
+        return ConsoleResponse::json($row, 201);
+    }
+
+    public function update(${pascal}PatchRequest $request, int $id): JsonResponse
+    {
+        if ($id <= 0) {
+            throw new HttpException(400, '无效的变更参数');
+        }
+        $change = $request->input();
+        $actor = $request->attributes->get('consoleActor');
+        assert($actor instanceof Actor);
+
+        $row = DB::transaction(function () use ($actor, $id, $change): array {
+            $self = $this->lockPermission($actor, '${slug}:manage');
+
+            $record = Console${pascal}::query()->where('id', $id)->lockForUpdate()->first();
+            if ($record === null) {
+                throw new HttpException(404, '记录不存在');
+            }
+
+            $set = [];
+            if (isset($change['name']) && $change['name'] !== $record->name) {
+                $set['name'] = (string) $change['name'];
+            }
+            if (isset($change['category']) && $change['category'] !== $record->category) {
+                $set['category'] = (string) $change['category'];
+            }
+            if (isset($change['owner']) && $change['owner'] !== $record->owner) {
+                $set['owner'] = (string) $change['owner'];
+            }
+            if (isset($change['status']) && $change['status'] !== $record->status) {
+                $set['status'] = (string) $change['status'];
+            }
+
+            if ($set !== []) {
+                if (isset($set['name'])) {
+                    $dup = Console${pascal}::query()->where('name', $set['name'])->where('id', '!=', $id)->exists();
+                    if ($dup) {
+                        throw new HttpException(409, '名称已存在');
+                    }
+                }
+                $record->fill($set)->save();
+
+                AuditWriter::auditResource('${singularSlug}.update', $this->partyOf($self), $this->toResource($record),
+                    ['fields' => array_keys($set)]);
+            }
+
+            return [
+                'id' => (int) $record->id,
+                'name' => (string) $record->name,
+                'category' => (string) $record->category,
+                'owner' => (string) $record->owner,
+                'status' => (string) $record->status,
+                'createdAt' => ConsoleResponse::isoTime($record->getAttributeValue('created_at')),
+            ];
+        });
+
+        return ConsoleResponse::json($row);
+    }
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        if ($id <= 0) {
+            throw new HttpException(400, '无效的编号');
+        }
+        $actor = $request->attributes->get('consoleActor');
+        assert($actor instanceof Actor);
+
+        DB::transaction(function () use ($actor, $id): void {
+            $self = $this->lockPermission($actor, '${slug}:manage');
+
+            $record = Console${pascal}::query()->where('id', $id)->first();
+            if ($record === null) {
+                throw new HttpException(404, '记录不存在');
+            }
+            $resource = $this->toResource($record);
+            $record->delete();
+
+            AuditWriter::auditResource('${singularSlug}.delete', $this->partyOf($self), $resource,
+                ['domain' => (string) $record->category]);
+        });
+
+        return ConsoleResponse::json(['ok' => true]);
+    }
+
+    /** @return array{id: int, code: string, name: string} 审计 resource 同口径（${codePrefix}-%03d）。 */
+    private function toResource(Console${pascal} $record): array
+    {
+        return [
+            'id' => (int) $record->id,
+            'code' => '${codePrefix}-'.str_pad((string) $record->id, 3, '0', STR_PAD_LEFT),
+            'name' => (string) $record->name,
+        ];
+    }
+}
 `,
   },
   {
@@ -815,14 +1037,7 @@ for (const file of files) {
   if (file.mode) chmodSync(full, file.mode);
 }
 
-// 1. Register DB schema
-const dbSchemaIndex = path.join(ROOT, "packages/db/src/schema/index.ts");
-writeFileSync(
-  dbSchemaIndex,
-  readFileSync(dbSchemaIndex, "utf-8").trimEnd() + `\nexport * from "./${slug}";\n`,
-);
-
-// 2. Register API contracts + audit actions
+// 1. Register API contracts + audit actions（D2 终态：数据表经 Laravel 迁移自动发现，无需注册）
 const apiIndex = path.join(ROOT, "packages/api/src/index.ts");
 writeFileSync(
   apiIndex,
@@ -841,16 +1056,72 @@ contracts = contracts.replace(
 );
 writeFileSync(contractsFile, contracts);
 
-// 3. Mount Hono module in apps/server/src/console.ts
-const consoleFile = path.join(ROOT, "apps/server/src/console.ts");
-let consoleSrc = readFileSync(consoleFile, "utf-8");
-consoleSrc = consoleSrc.replace(
-  'import { authRoutes } from "./modules/auth";',
-  `import { authRoutes } from "./modules/auth";\nimport { ${camel}Routes } from "./modules/${slug}";`,
+// 3. Register contract schemas in packages/api/src/generate.ts（json-schema 产物名单）
+const genFile = path.join(ROOT, "packages/api/src/generate.ts");
+let genSrc = readFileSync(genFile, "utf-8");
+if (!genSrc.includes(`import * as ${camel} from "./${slug}";`)) {
+  if (!genSrc.includes('  // ---- gen:module 追加业务模块契约（勿删锚点）----')) {
+    throw new Error("generate.ts 缺少 registry 锚点（// ---- gen:module 追加业务模块契约）——请核对 packages/api/src/generate.ts");
+  }
+  genSrc = genSrc.replace(
+    'import * as system from "./system";',
+    `import * as ${camel} from "./${slug}";\nimport * as system from "./system";`,
+  );
+  genSrc = genSrc.replace(
+    "  // ---- gen:module 追加业务模块契约（勿删锚点）----",
+    `  { module: "${slug}", name: "${camel}InputSchema", schema: ${camel}.${camel}InputSchema },\n  { module: "${slug}", name: "${camel}PatchSchema", schema: ${camel}.${camel}PatchSchema },\n  // ---- gen:module 追加业务模块契约（勿删锚点）----`,
+  );
+  writeFileSync(genFile, genSrc);
+}
+
+// 3b. 把新模块加入 generate.ts 的 refine 源扫描（漂移对拍覆盖新契约文件）
+genSrc = readFileSync(genFile, "utf-8");
+if (!genSrc.includes(`const sources = ["asset-agent", "contracts", "permissions", "system", "${slug}"]`)) {
+  const sourcesLine = 'const sources = ["asset-agent", "contracts", "permissions", "system"] as const;';
+  if (!genSrc.includes(sourcesLine)) {
+    throw new Error("generate.ts 源扫描名单行与预期不符——请核对 assertRefinesRegistered 的 sources 数组");
+  }
+  genSrc = genSrc.replace(
+    sourcesLine,
+    `const sources = ["asset-agent", "contracts", "permissions", "system", "${slug}"] as const;`,
+  );
+  writeFileSync(genFile, genSrc);
+}
+
+// 3c. 登记 PatchSchema 的非空 refine（refines.ts 锚点；漂移对拍要求逐条登记）
+const refinesFile = path.join(ROOT, "packages/api/src/refines.ts");
+let refinesSrc = readFileSync(refinesFile, "utf-8");
+if (!refinesSrc.includes("  // ---- gen:module 追加 refine 登记（勿删锚点）----")) {
+  throw new Error("refines.ts 缺少登记锚点——请核对 packages/api/src/refines.ts");
+}
+refinesSrc = refinesSrc.replace(
+  "  // ---- gen:module 追加 refine 登记（勿删锚点）----",
+  `  {
+    id: "${slug}-patch-nonempty",
+    schemas: ["${slug}.${camel}PatchSchema"],
+    path: "",
+    source: "packages/api/src/${slug}.ts",
+    semantic: "${label}变更至少提供 name / category / owner / status 之一",
+    message: "（未自定义文案，parse 失败时接口返回「无效的变更参数」）",
+    phpRule: "required_without_all:name,category,owner,status",
+  },
+  // ---- gen:module 追加 refine 登记（勿删锚点）----`,
 );
-consoleSrc =
-  consoleSrc.trimEnd() + `\nconsoleApi.route("/", ${camel}Routes);\n`;
-writeFileSync(consoleFile, consoleSrc);
+writeFileSync(refinesFile, refinesSrc);
+
+// 3d. ContractRefines.php 追加对应 PHP 规则实现（清单与实现双侧登记）
+const phpRefinesFile = path.join(ROOT, "apps/api-laravel/app/Core/Contracts/ContractRefines.php");
+let phpRefinesSrc = readFileSync(phpRefinesFile, "utf-8");
+if (!phpRefinesSrc.includes("            // ---- gen:module 追加 refine 实现（勿删锚点）----")) {
+  throw new Error("ContractRefines.php 缺少实现锚点——请核对 app/Core/Contracts/ContractRefines.php");
+}
+phpRefinesSrc = phpRefinesSrc.replace(
+  "            // ---- gen:module 追加 refine 实现（勿删锚点）----",
+  `            '${slug}-patch-nonempty' => fn (mixed \$data): bool => is_array(\$data)
+                && collect(['name', 'category', 'owner', 'status'])->contains(fn (string \$k): bool => array_key_exists(\$k, \$data)),
+            // ---- gen:module 追加 refine 实现（勿删锚点）----`,
+);
+writeFileSync(phpRefinesFile, phpRefinesSrc);
 
 // 4. Register module permissions in packages/api/src/permissions.ts
 const permFile = path.join(ROOT, "packages/api/src/permissions.ts");
@@ -888,4 +1159,4 @@ writeFileSync(navFile, navSrc);
 
 console.log(`已生成模块 ${slug}（${label}）：`);
 for (const file of files) console.log(`  + ${file.rel}`);
-console.log("下一步：运行 docker compose restart api（或 bun run db:push）同步新表后即可访问 /" + slug);
+console.log("下一步：docker compose up -d api-laravel 同步新表（artisan migrate 随容器启动执行）→ bun run contracts:generate 提交产物 → 后端即经 Laravel 生效（路由自动 glob 装载）。");

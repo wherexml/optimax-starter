@@ -1,6 +1,6 @@
 # OptiMax Starter
 
-OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的自然语言筛选](./apps/web/src/features/assets/README.md)，默认不启用；服务端可直连 OpenAI-compatible API，不依赖 Magpie 运行，移植代码的来源和许可见 [AI 模块](./apps/server/src/core/ai/README.md)。
+OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的自然语言筛选](./apps/web/src/features/assets/README.md)，默认不启用；服务端可直连 OpenAI-compatible API，不依赖 Magpie 运行，移植代码的来源和许可见 [AI 模块](./apps/ai-service/src/core/ai/README.md)。
 
 [使用此模板创建新项目](https://github.com/wherexml/optimax-starter/generate) · [新项目初始化流程](#从-github-template-初始化新项目)
 
@@ -121,7 +121,7 @@ compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段�
 - 页面代码写在 `apps/web/src/features/<模块>/`；`routes/` 只负责路由、鉴权和 `validateSearch`；新增菜单只需在 `apps/web/src/config/app-config.ts` 的 `NAV_REGISTRY` 注册一处，侧栏、抽屉和 `Cmd+K` 快速导航自动同步。
 - 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页），也可以直接运行 `bun run gen:module <slug> --label <中文名>` 生成全栈骨架。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
 - 资产台账默认展示客户端筛选与管理员新增/编辑/删除闭环，后端同时提供 `/console/assets/page` 服务端分页 + 动态筛选参考实现。
-- 新增后端接口按业务域放在 `apps/server/src/modules/<模块>.ts` 并挂载到 `console.ts`；前后端输入输出 Schema 统一放在 `packages/api/`。管理员写操作必须在同一事务中调用 `audit()` / `auditResource()` 写入 `console_audit`，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
+- 新增后端模块走 Laravel：`bun run gen:module <slug> --label <名称>` 双端生成骨架，按 [LARAVEL.md 模块标准开发流程](./LARAVEL.md#模块标准开发流程)（契约 → 路由 → SchemaRequest → Controller → Resource → 同事务审计 → 对拍/E2E）；`apps/ai-service` 不新增业务模块。管理员写操作必须在同一事务里写入 `console_audit`（`auditResource()` 写入 `console_audit`，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
 - 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航（最多二级）→ 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。
 
 ## 项目内技能

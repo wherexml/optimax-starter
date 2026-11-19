@@ -1,0 +1,34 @@
+[
+  {
+    "value": "Asia/Shanghai",
+    "label": "北京时间 UTC+08:00"
+  },
+  {
+    "value": "Asia/Hong_Kong",
+    "label": "香港时间 UTC+08:00"
+  },
+  {
+    "value": "Asia/Singapore",
+    "label": "新加坡时间 UTC+08:00"
+  },
+  {
+    "value": "Asia/Tokyo",
+    "label": "东京时间 UTC+09:00"
+  },
+  {
+    "value": "UTC",
+    "label": "协调世界时 UTC+00:00"
+  },
+  {
+    "value": "Europe/London",
+    "label": "伦敦时间"
+  },
+  {
+    "value": "America/New_York",
+    "label": "纽约时间"
+  },
+  {
+    "value": "America/Los_Angeles",
+    "label": "洛杉矶时间"
+  }
+]

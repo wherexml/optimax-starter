@@ -4,7 +4,7 @@
 
 ## 组成与契约
 
-服务端写入与查询位于 [apps/server/src/core/audit.ts](../../../../server/src/core/audit.ts) 与 [apps/server/src/modules/audit.ts](../../../../server/src/modules/audit.ts)，前端实现位于 [AuditPage.tsx](./AuditPage.tsx)：
+服务端写入与查询位于 [apps/ai-service/src/core/audit.ts](../../../../ai-service/src/core/audit.ts) 与 [apps/ai-service/src/modules/audit.ts](../../../../ai-service/src/modules/audit.ts)，前端实现位于 [AuditPage.tsx](./AuditPage.tsx)：
 
 - **同事务落库与敏感键递归脱敏**：所有管理写接口与 AI 代理操作统一调用 `recordAudit(tx, ...)`，在写入前对 `detail` 递归脱敏敏感键（`password`、`passwordHash`、`token`、`secret`、`apiKey`、`authorization`、`cookie`、`credential` 等统一替换为 `[REDACTED]`）。
 - **人机双源归因（`actor_source`）**：每条审计记录明确标记 `human`（人工操作）或 `agent`（如 `agent.asset_filter` 自然语言筛选），列表与顶部 `FilterBar` 支持按 `source=human|agent` 过滤并以专属徽章区分。

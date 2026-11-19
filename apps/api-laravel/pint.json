@@ -1,0 +1,3 @@
+{
+    "paths": ["app", "routes", "config", "bootstrap/app.php", "database", "tests"]
+}

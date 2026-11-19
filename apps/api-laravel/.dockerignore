@@ -1,0 +1,13 @@
+# 本镜像构建上下文（apps/api-laravel）专用规则（LD-04）：根 .dockerignore 不适用于子上下文。
+# 宿主私有配置与运行态不进镜像；vendor 由镜像内 composer install 权威生成
+# （dev 形态经 compose.override 挂载宿主目录覆盖，宿主 vendor 含开发依赖）。
+.env
+.env.*
+!.env.example
+vendor
+storage
+# Boost/agent 开发工具态（本地再生，不进镜像；laravel/boost 本身是 --dev 依赖）
+.claude
+.mcp.json
+boost.json
+.ai

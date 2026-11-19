@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "loginPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "loginPath"
+  ],
+  "additionalProperties": false
+}

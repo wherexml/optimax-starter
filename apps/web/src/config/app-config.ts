@@ -1,6 +1,7 @@
 import {
   Activity,
   Boxes,
+  Paperclip,
   FlaskConical,
   LayoutDashboard,
   ScrollText,
@@ -33,6 +34,7 @@ export function storageKey(suffix: string): string {
 export type NavTarget =
   | "/"
   | "/assets"
+  | "/attachments"
   | "/accounts"
   | "/permissions"
   | "/system"
@@ -87,6 +89,14 @@ export const NAV_REGISTRY: readonly NavNode[] = [
     icon: Boxes,
     aliases: ["assets", "ledger", "inventory", "资产"],
     permissionCode: "assets:read",
+  },
+  {
+    kind: "item",
+    to: "/attachments",
+    label: "附件管理",
+    icon: Paperclip,
+    aliases: ["attachments", "files", "附件"],
+    permissionCode: "attachments:read",
   },
   {
     kind: "group",

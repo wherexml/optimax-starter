@@ -16,6 +16,9 @@ local.db-*
 # Environment variables
 .env
 .env*.local
+# 私有生产配置与部署事务状态（LD-03：deploy-production.sh 的运行态输入，永不入库）
+.env.production
+.deploy-state/
 
 # IDEs and editors
 .vscode/*

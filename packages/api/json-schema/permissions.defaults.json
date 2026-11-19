@@ -1,0 +1,140 @@
+{
+  "defaults": {
+    "member": [
+      "workbench:read",
+      "assets:read",
+      "attachments:read"
+    ],
+    "admin": [
+      "workbench:read",
+      "assets:read",
+      "assets:manage",
+      "attachments:read",
+      "attachments:manage",
+      "accounts:read",
+      "accounts:manage",
+      "system:settings:read",
+      "system:ai:read",
+      "audit:read"
+    ],
+    "super_admin": [
+      "workbench:read",
+      "assets:read",
+      "assets:manage",
+      "attachments:read",
+      "attachments:manage",
+      "accounts:read",
+      "accounts:manage",
+      "system:settings:read",
+      "system:settings:manage",
+      "system:ai:read",
+      "system:ai:manage",
+      "audit:read",
+      "system:permission:read",
+      "system:permission:manage",
+      "system:manage"
+    ]
+  },
+  "catalog": [
+    {
+      "code": "workbench:read",
+      "label": "查看工作台",
+      "module": "工作台",
+      "kind": "view"
+    },
+    {
+      "code": "assets:read",
+      "label": "查看资产台账",
+      "module": "资产台账",
+      "kind": "view"
+    },
+    {
+      "code": "assets:manage",
+      "label": "维护资产台账",
+      "module": "资产台账",
+      "kind": "operate"
+    },
+    {
+      "code": "attachments:read",
+      "label": "查看附件管理",
+      "module": "附件管理",
+      "kind": "view"
+    },
+    {
+      "code": "attachments:manage",
+      "label": "维护附件",
+      "module": "附件管理",
+      "kind": "operate"
+    },
+    {
+      "code": "accounts:read",
+      "label": "查看账户管理",
+      "module": "账户管理",
+      "kind": "view"
+    },
+    {
+      "code": "accounts:manage",
+      "label": "维护成员账户",
+      "module": "账户管理",
+      "kind": "operate"
+    },
+    {
+      "code": "system:settings:read",
+      "label": "查看系统配置",
+      "module": "系统配置",
+      "kind": "view"
+    },
+    {
+      "code": "system:settings:manage",
+      "label": "维护系统配置",
+      "module": "系统配置",
+      "kind": "operate"
+    },
+    {
+      "code": "system:ai:read",
+      "label": "查看 AI 运行状态",
+      "module": "AI 运行控制",
+      "kind": "view"
+    },
+    {
+      "code": "system:ai:manage",
+      "label": "操作 AI 熔断开关",
+      "module": "AI 运行控制",
+      "kind": "operate",
+      "immutable": true
+    },
+    {
+      "code": "audit:read",
+      "label": "查看操作日志",
+      "module": "操作日志",
+      "kind": "view"
+    },
+    {
+      "code": "system:permission:read",
+      "label": "查看系统权限",
+      "module": "系统权限",
+      "kind": "view",
+      "immutable": true
+    },
+    {
+      "code": "system:permission:manage",
+      "label": "维护系统权限",
+      "module": "系统权限",
+      "kind": "operate",
+      "immutable": true
+    },
+    {
+      "code": "system:manage",
+      "label": "系统最高权限",
+      "module": "系统权限",
+      "kind": "system",
+      "immutable": true
+    }
+  ],
+  "superAdminOnly": [
+    "system:manage",
+    "system:permission:read",
+    "system:permission:manage",
+    "system:ai:manage"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "name": "server",
+  "name": "ai-service",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

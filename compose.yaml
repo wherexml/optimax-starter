@@ -16,10 +16,13 @@ services:
       interval: 3s
       timeout: 3s
       retries: 15
-  api:
+  ai:
     <<: *app
     depends_on:
       db: { condition: service_healthy }
+      # LD-04：schema 由 api-laravel 的 artisan migrate 建（迁移权威在 Laravel）；
+      # node 栈只剩 agent 桥与回滚对照，等 Laravel 健康再起。
+      api-laravel: { condition: service_healthy }
     ports: ["127.0.0.1:${API_PORT:-38141}:${API_PORT:-38141}"]
     environment:
       STARTER_ADMIN_USERNAME: ${STARTER_ADMIN_USERNAME:-demo@optimax.hk}
@@ -45,7 +48,8 @@ services:
       STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
     # Bun only runs the short db:push step; the long-running API runs on Node 24 (see RUNTIME.md).
-    command: ["sh", "-ec", "bun run db:push && cd apps/server && exec node --import tsx src/node.ts"]
+    # LD-04：db:push 已移除——schema 由 api-laravel 的 artisan migrate 建（D2 终态）。
+    command: ["sh", "-ec", "cd apps/ai-service && exec node --import tsx src/node.ts"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||38141)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -53,13 +57,74 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+  api-laravel:
+    # Laravel 13 栈（LC-08 起主管 /console 流量；LD-04 起迁移权威，镜像启动即 artisan migrate）。
+    # 契约产物只读挂载：dev 镜像构建上下文仅 apps/api-laravel，装不进 packages/api 产物
+    # （CI 无 override 挂载时仍可用；Dockerfile.prod 镜像内置，无需挂载）。
+    build:
+      context: apps/api-laravel
+      dockerfile: Dockerfile.dev
+    image: optimax-starter-laravel:local
+    volumes:
+      - ./packages/api/json-schema:/var/www/html/storage/contracts:ro
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["127.0.0.1:${API_LARAVEL_PORT:-38142}:8080"]
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      # 签名 URL 基址（LD-02）：代理转发会改写 Host，显式 APP_URL 保证公网可解析。
+      APP_URL: ${APP_URL:-http://127.0.0.1:38140}
+      LOG_LEVEL: debug
+      # 镜像不带 .env（运行态只走 compose 注入；LD-03/LD-04 实测：不显式给 pgsql 会落 sqlite）。
+      DB_CONNECTION: pgsql
+      DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+      # 契约产物（packages/api/json-schema 经 compose.override 挂载；LB-03 消费）。
+      CONTRACTS_DIR: /var/www/html/storage/contracts
+      # asset-agent 桥上游（D5）：显式注入而非依赖代码 fallback（其硬编码 38141，
+      # 非默认端口的派生项目会 503——LD-05 派生演练实测抓出）。
+      STARTER_NODE_API_URL: http://ai:${API_PORT:-38141}
+      # 附件盘（LD-02）：local 开发态默认；S3 兼容 OSS 由 E2E 用一次性容器覆盖验证。
+      ATTACHMENT_DISK: ${ATTACHMENT_DISK:-local}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-optimax_console}
+      STARTER_ADMIN_USERNAME: ${STARTER_ADMIN_USERNAME:-demo@optimax.hk}
+      STARTER_SEED_DEMO: ${STARTER_SEED_DEMO:-true}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://127.0.0.1:${WEB_PORT:-38140}}
+      PHP_CLI_SERVER_WORKERS: "4"
+      # D2 零迁移：无 Laravel cache 表，用文件 store（多 worker 共享，LB-07）。
+      CACHE_STORE: file
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/console/health"]
+      start_period: 15s
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  # Garage（LD-02 附件 S3 兼容/OSS 对拍；MinIO 公共镜像已下架，见 spec 记录）
+  # 启动：docker compose --profile attachments up -d garage
+  # 初始化：bash scripts/e2e/fixtures/garage/init.sh（布局/桶/密钥，密钥写回 fixtures/garage/keys.env）
+  garage:
+    image: dxflrs/garage:v2.1.0
+    profiles: ["attachments"]
+    command: "/garage -c /etc/garage/garage.toml server"
+    # 测试栈放宽到全接口（profile 隔离）：容器与宿主同用宿主 IP 访问，presigned 签名 host 两侧一致。
+    ports: ["${ATTACHMENT_S3_PORT:-38470}:3900"]
+    volumes:
+      - ./scripts/e2e/fixtures/garage:/etc/garage
+      - garage_data:/var/lib/garage
+    healthcheck:
+      test: ["CMD", "/garage", "-c", "/etc/garage/garage.toml", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
   web:
     <<: *app
     ports: ["127.0.0.1:${WEB_PORT:-38140}:${WEB_PORT:-38140}"]
     environment:
       WEB_PORT: ${WEB_PORT:-38140}
       API_PORT: ${API_PORT:-38141}
-      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api:${API_PORT:-38141}}
+      # LC-08 切流：/console 代理指向 Laravel 栈（回滚改回 http://api:${API_PORT}）。
+      API_PROXY_TARGET: ${API_PROXY_TARGET:-http://api-laravel:8080}
       VITE_SERVER_URL: ${VITE_SERVER_URL:-http://127.0.0.1:${API_PORT:-38141}}
       VITE_APP_SLUG: ${VITE_APP_SLUG:-optimax-starter}
       VITE_APP_TITLE: ${VITE_APP_TITLE:-OptiMax}
@@ -67,3 +132,4 @@ services:
     command: ["sh", "-ec", "cd apps/web && exec bun run dev"]
 volumes:
   data:
+  garage_data:

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "catalog": {
+      "readOnly": true,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "view",
+              "operate",
+              "system"
+            ]
+          },
+          "immutable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "module",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "roles": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "member",
+          "admin",
+          "super_admin"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "admin",
+        "super_admin"
+      ]
+    },
+    "defaults": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "member",
+          "admin",
+          "super_admin"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "member",
+        "admin",
+        "super_admin"
+      ]
+    },
+    "immutable": {
+      "type": "object",
+      "properties": {
+        "super_admin": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "super_admin"
+      ],
+      "additionalProperties": false
+    },
+    "updatedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "catalog",
+    "roles",
+    "defaults",
+    "immutable",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}

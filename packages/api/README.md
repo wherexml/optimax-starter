@@ -8,6 +8,14 @@
 - [permissions.ts](./src/permissions.ts)：三层系统角色（`member`、`admin`、`super_admin`）、权限目录 `PERMISSION_CATALOG`、超管独占权限集、`SYSTEM_PERMISSION_ROWS` 模块级「查看 / 操作」映射联动逻辑与权限矩阵更新 Schema。
 - [system.ts](./src/system.ts)：审计来源枚举 `ACTOR_SOURCES`（`human` | `agent`）、系统控制页标签 `SYSTEM_TABS`、系统状态探针响应 `SystemStatusResponse`、全局时区预设 `SYSTEM_TIMEZONE_OPTIONS` 与熔断/基础配置写入 Schema。
 - [asset-agent.ts](./src/asset-agent.ts)：资产自然语言筛选的参数白名单与请求校验，详见 [资产模块](../../apps/web/src/features/assets/README.md)。
+- [generate.ts](./src/generate.ts)：契约产物生成器。`bun run contracts:generate`（根脚本）把登记的全部公开 schema 经 Zod 4 原生 `z.toJSONSchema()` 输出到 [json-schema/](./json-schema/)，作为 PHP/Laravel 侧唯一消费物（LARAVEL.md 路线 A）。产物显式生成并提交，CI 门禁拦截过期产物（LA-04）；输出确定性（无时间戳），幂等可复跑。
+
+## JSON Schema 产物约定
+
+- 文件名 `<module>.<SchemaName>.json`（module = 源文件名：contracts / permissions / system / asset-agent），`index.json` 记录名单、来源与 Zod 版本。
+- `.strict()` 映射为 `additionalProperties: false`（防提权白名单跨语言保留）；`.trim()` 等不可表示检查按 `unrepresentable: "any"` 降级，`.refine()` 语义被丢弃——两者都必须在 refine 清单补登记（LA-03）。
+- **新增 `.refine()` 必须在 [refines.ts](./src/refines.ts) 登记**（schema、字段路径、语义、文案、Laravel 等价规则）；`contracts:generate` 对源码 refine 调用数与登记数做硬性对拍，缺失即生成失败，产物 `refines.json` 同步更新供 PHP 侧消费。
+- 新增公开 schema：在 `generate.ts` 的 registry 登记 → `bun run contracts:generate` → 产物随代码一起提交。
 
 ## 扩展约定
 

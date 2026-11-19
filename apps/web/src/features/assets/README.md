@@ -10,7 +10,7 @@
 - `filter-primitive.ts` / `AssetFilterScope.tsx`：为现有筛选提供 `asset-filters.setValue`，保留现有 Radix 控件；受控值来自路由，没有第二份业务状态。
 - `agent-bridge.ts`：单个 UI SDK bridge，只允许该 primitive 的 `setValue`；输入框不进入 snapshot。UI SDK React/Core 固定同一版本，当前为 `0.1.0-beta.3`。
 - `packages/api/src/asset-agent.ts`：前后端共用严格参数校验。只支持 `q/qOp/stage/domain`；不存在的状态、业务域或额外字段被拒绝。
-- `apps/server/src/asset-agent.ts`：经现有 Session/Origin 校验的模型计划与结果回传，调用 [服务端 AI 模块](../../../../server/src/core/ai/README.md)。模型只获得指令、当前筛选和可选值，不接收 Cookie、账号或整张资产表。
+- `apps/ai-service/src/asset-agent.ts`：经现有 Session/Origin 校验的模型计划与结果回传，调用 [服务端 AI 模块](../../../../ai-service/src/core/ai/README.md)。模型只获得指令、当前筛选和可选值，不接收 Cookie、账号或整张资产表。
 
 手动草稿有未应用值时不能开始自然语言筛选；模型等待期间手动改变条件也不能被覆盖。停止或离开页面会中止浏览器请求并禁止迟到动作；已经提交给上游的推理可能仍结束。页面会核对实际路由状态，再将筛选与匹配条数回传模型；`act.ok` 单独不视为成功。
 
@@ -50,7 +50,7 @@ docker compose up -d --build api web
 
 指令最多 500 字，JSON 请求体最多 8KB。计划与当前登录账户绑定，5 分钟过期、单次回传；结果只留在有界进程内存，不新增业务数据表。非法输入 400、未登录 401、来源不符 403、过期 404、过大 413、不支持的自然语言请求 422。
 
-模型错误保留 `error` 字符串，增加稳定 `code` 和可选 `upstreamStatus/errorShape/retryAfter`；具体错误码见 [AI 模块](../../../../server/src/core/ai/README.md#业务边界和错误)。上游认证失败返回 502，限流/队列满 429，超时 504，无效配置/队列等待超时 503；适用响应保留 Retry-After。回执失败时页面继续显示“筛选已应用，模型回执暂不可用”，不会误报筛选未执行。
+模型错误保留 `error` 字符串，增加稳定 `code` 和可选 `upstreamStatus/errorShape/retryAfter`；具体错误码见 [AI 模块](../../../../ai-service/src/core/ai/README.md#业务边界和错误)。上游认证失败返回 502，限流/队列满 429，超时 504，无效配置/队列等待超时 503；适用响应保留 Retry-After。回执失败时页面继续显示“筛选已应用，模型回执暂不可用”，不会误报筛选未执行。
 
 ## 台账管理与服务端分页参考接口
 

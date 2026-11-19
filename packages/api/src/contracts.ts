@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ROLE_LABELS, ROLE_VALUES, type AccountRole } from "./permissions";
-import type { ActorSource } from "./system";
+import { ACTOR_SOURCES } from "./system";
 
 export { ROLE_LABELS, ROLE_VALUES, type AccountRole };
 
@@ -24,6 +24,8 @@ export const AUDIT_ACTIONS = [
   "asset.create",
   "asset.update",
   "asset.delete",
+  "attachment.create",
+  "attachment.delete",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -44,27 +46,43 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "asset.create": "新增资产",
   "asset.update": "编辑资产",
   "asset.delete": "删除资产",
+  "attachment.create": "上传附件",
+  "attachment.delete": "删除附件",
 };
 
-export interface Account {
-  id: number;
-  username: string;
-  name: string;
-  role: string;
-  active: boolean;
-  sessions?: number;
-  email?: string | null;
-  company?: string | null;
-  permissions?: string[];
-}
+// Response entities are declared as Zod schemas so their shapes are generatable
+// (z.toJSONSchema, LA-02). Exported type names and members are unchanged.
 
-export interface Asset {
-  id: number;
-  name: string;
-  domain: string;
-  owner: string;
-  stage: string;
-}
+export const accountSchema = z.object({
+  id: z.number().int(),
+  username: z.string(),
+  name: z.string(),
+  role: z.string(),
+  active: z.boolean(),
+  sessions: z.number().int().optional(),
+  email: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  permissions: z.array(z.string()).optional(),
+});
+export type Account = z.infer<typeof accountSchema>;
+
+export const assetSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  domain: z.string(),
+  owner: z.string(),
+  stage: z.string(),
+});
+export type Asset = z.infer<typeof assetSchema>;
+
+// Generic factory producing the pagination envelope for any item schema.
+export const paginatedResultSchema = <T extends z.ZodType>(item: T) =>
+  z.object({
+    items: z.array(item),
+    total: z.number().int(),
+    page: z.number().int(),
+    size: z.number().int(),
+  });
 
 export interface PaginatedResult<T> {
   items: T[];
@@ -73,7 +91,15 @@ export interface PaginatedResult<T> {
   size: number;
 }
 
+export const assetPageSchema = paginatedResultSchema(assetSchema);
 export type AssetPage = PaginatedResult<Asset>;
+// Fails to compile if the factory output drifts from the hand-written generic type.
+type PaginatedShapeDrift = [z.infer<typeof assetPageSchema>] extends [AssetPage]
+  ? [AssetPage] extends [z.infer<typeof assetPageSchema>]
+    ? true
+    : never
+  : never;
+export const paginatedShapeLock: PaginatedShapeDrift = true;
 
 // Fields allowed in audit detail. Never store passwords, hashes, cookies, prompts or tokens here.
 export type AuditDetail = {
@@ -96,52 +122,60 @@ export type AuditDetail = {
   ok?: boolean;
 };
 
-export interface AuditEntry {
-  id: number;
-  at: string;
-  action: string;
-  actorSource: ActorSource;
-  actorId: number | null;
-  actorUsername: string;
-  actorName: string;
-  targetId: number | null;
-  targetUsername: string | null;
-  targetName: string | null;
-  detail: Record<string, unknown>;
-}
+export const auditEntrySchema = z.object({
+  id: z.number().int(),
+  at: z.string(),
+  action: z.string(),
+  actorSource: z.enum(ACTOR_SOURCES),
+  actorId: z.number().int().nullable(),
+  actorUsername: z.string(),
+  actorName: z.string(),
+  targetId: z.number().int().nullable(),
+  targetUsername: z.string().nullable(),
+  targetName: z.string().nullable(),
+  detail: z.record(z.string(), z.unknown()),
+});
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
 
+export const auditPageSchema = paginatedResultSchema(auditEntrySchema).extend({
+  timezone: z.string().optional(),
+});
 export type AuditPage = PaginatedResult<AuditEntry> & {
   timezone?: string;
 };
 
-export type AssetSearch = {
-  q?: string;
-  qOp?: "contains" | "equals";
-  stage?: AssetStage | AssetStage[];
-  domain?: string | string[];
-};
+export const assetSearchSchema = z.object({
+  q: z.string().optional(),
+  qOp: z.enum(["contains", "equals"]).optional(),
+  stage: z.union([z.enum(ASSET_STAGES), z.array(z.enum(ASSET_STAGES))]).optional(),
+  domain: z.union([z.string(), z.array(z.string())]).optional(),
+});
+export type AssetSearch = z.infer<typeof assetSearchSchema>;
 
-export type AccountSearch = {
-  q?: string;
-  status?: "active" | "disabled";
-  role?: AccountRole;
-};
+export const accountSearchSchema = z.object({
+  q: z.string().optional(),
+  status: z.enum(["active", "disabled"]).optional(),
+  role: z.enum(ROLE_VALUES).optional(),
+});
+export type AccountSearch = z.infer<typeof accountSearchSchema>;
 
-export type AuditSearch = {
-  action?: string;
-  actor?: string;
-  source?: ActorSource;
-  start?: string;
-  end?: string;
-  page?: number;
-  size?: number;
-};
+export const auditSearchSchema = z.object({
+  action: z.string().optional(),
+  actor: z.string().optional(),
+  source: z.enum(ACTOR_SOURCES).optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  page: z.number().optional(),
+  size: z.number().optional(),
+});
+export type AuditSearch = z.infer<typeof auditSearchSchema>;
 
-export interface AuthProviderInfo {
-  id: string;
-  label: string;
-  loginPath: string;
-}
+export const authProviderInfoSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  loginPath: z.string(),
+});
+export type AuthProviderInfo = z.infer<typeof authProviderInfoSchema>;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

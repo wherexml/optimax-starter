@@ -1,0 +1,35 @@
+{
+  "auditActions": [
+    "account.create",
+    "account.update",
+    "account.role",
+    "account.status",
+    "account.password_reset",
+    "account.revoke",
+    "profile.update",
+    "profile.password_change",
+    "permission.update",
+    "permission.reset",
+    "system.timezone_update",
+    "system.ai_circuit",
+    "agent.asset_filter",
+    "asset.create",
+    "asset.update",
+    "asset.delete",
+    "attachment.create",
+    "attachment.delete"
+  ],
+  "assetStages": [
+    "已登记",
+    "待复核"
+  ],
+  "actorSources": [
+    "human",
+    "agent"
+  ],
+  "roleValues": [
+    "member",
+    "admin",
+    "super_admin"
+  ]
+}

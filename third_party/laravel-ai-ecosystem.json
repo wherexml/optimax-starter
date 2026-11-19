@@ -1,0 +1,12 @@
+{
+  "component": "Laravel AI 工具链（AI SDK / MCP / Boost）",
+  "upstreamRepository": "https://github.com/laravel/ai",
+  "license": "MIT",
+  "copyright": "Laravel / Taylor Otwell",
+  "notes": "2026-11-19 经 Steve 授权自 laravel.com/ai 生态加载（LD-05 前置）。laravel/ai v1.4.1：运行时依赖，未配置 provider 前无任何运行时行为（无密钥、无外呼）；asset-agent 桥仍走 Node AI 服务（D5/选项 A 不变），SDK 仅为后续模块的可选能力。laravel/mcp v1.2.1：运行时依赖，routes/ai.php 仅注册本地（stdio）server console-info（app/Mcp/Servers，只读 app-overview 工具）；禁止 Mcp::web 直到 OAuth/会话边界设计完成。laravel/boost v2.10.4：--dev 依赖，本地 MCP server（php artisan boost:mcp）+ guidelines/skills 分发；boost.json 显式 cloud:false、nightwatch:false、sail:false（Laravel Cloud/Nightwatch SaaS 与自托管边界冲突，维持 third_party/laravel-agent-skills.json 同一结论）；其 Search Docs 工具调用 Laravel 托管文档 API（只读外部服务，开发态可接受，SPEC_ADOPTION 已登记）。skills 落位 apps/api-laravel/.claude/skills（ai-sdk-development、infer-conventions、laravel-best-practices、testing-best-practices、mcp-development、tailwindcss-development——后者经 vendor MIT 目录手动安装，因本仓 Tailwind 在 apps/web JS 侧、Boost 按 composer.json 探测不到）。升级：composer update 后重跑 boost:update --no-discover 与本清单核对。",
+  "packages": [
+    { "name": "laravel/ai", "version": "v1.4.1", "role": "runtime" },
+    { "name": "laravel/mcp", "version": "v1.2.1", "role": "runtime; local-only server" },
+    { "name": "laravel/boost", "version": "v2.10.4", "role": "dev-only" }
+  ]
+}

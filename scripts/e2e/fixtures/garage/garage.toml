@@ -1,0 +1,20 @@
+# Garage（LD-02 附件 S3 兼容验证）本地最小配置；仅测试栈，密钥均为开发值。
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "garage:3901"
+rpc_secret = "13c2f69abeca1d4f8f2a4bd7d7c4a6e5b3d2c1a0f9e8d7c6b5a4938271605f4e"
+
+[s3_api]
+s3_region = "us-east-1"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr = "[::]:3902"
+root_domain = ".web.garage.localhost"
+index = "index.html"

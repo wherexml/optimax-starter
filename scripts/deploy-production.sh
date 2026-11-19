@@ -4,6 +4,9 @@ set -euo pipefail
 # OptiMax Starter 生产部署与事务回滚入口（遵循 cicd-spec.md、DEPLOYMENT.md 与 duanju 事务状态原则）
 # 准备阶段（precheck / backup / build）失败绝不触碰健康线上实例；
 # 仅在本次事务已激活但健康/冒烟验收未通过，或显式执行 --rollback 时才执行镜像回切。
+# 跨栈回滚（LD-03 栈切换边界）：--rollback 仅适用于同栈（Laravel 镜像）内的版本回退；
+# 回到切换前的 node 单容器形态需先 checkout LD-03 之前的 compose.prod.yaml 与根
+# Dockerfile.prod（git revert 本 spec 提交），再执行 --deploy <旧 SHA>；步骤见 DEPLOYMENT.md。
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -32,18 +35,42 @@ precheck() {
   done
   [[ -f "$ENV_FILE" ]] || { echo "缺少私有生产配置: $ENV_FILE" >&2; exit 1; }
 
-  local db_pw cors cookie seed admin_pw
+  local db_pw cors cookie seed admin_pw app_key app_url node_api_url disk
   db_pw="$(read_env_key STARTER_DB_PASSWORD)"
   cors="$(read_env_key CORS_ORIGIN)"
   cookie="$(read_env_key SESSION_COOKIE_NAME)"
   seed="$(read_env_key STARTER_SEED_DEMO)"
   admin_pw="$(read_env_key STARTER_ADMIN_PASSWORD)"
+  app_key="$(read_env_key APP_KEY)"
+  app_url="$(read_env_key APP_URL)"
+  node_api_url="$(read_env_key STARTER_NODE_API_URL)"
+  disk="$(read_env_key ATTACHMENT_DISK)"
 
   [[ -n "$db_pw" && "${#db_pw}" -ge 16 ]] || { echo "预检拒绝: STARTER_DB_PASSWORD 未设置或长度不足 16 位" >&2; exit 1; }
   [[ "$cors" =~ ^https?:// ]] || { echo "预检拒绝: CORS_ORIGIN 格式无效" >&2; exit 1; }
   [[ -n "$cookie" && "$cookie" != "optimax_console" ]] || { echo "预检拒绝: 生产环境必须设置项目专属 SESSION_COOKIE_NAME" >&2; exit 1; }
   [[ "$seed" != "true" ]] || { echo "预检拒绝: 生产环境禁止启用 STARTER_SEED_DEMO=true" >&2; exit 1; }
   [[ "$admin_pw" != "demo@2026!" ]] || { echo "预检拒绝: 生产环境禁止使用本地演示密码" >&2; exit 1; }
+
+  # PHP 栈（LD-03）：env 完整性。
+  [[ -n "$app_key" && "$app_key" == base64:* ]] || { echo "预检拒绝: 生产环境必须设置 APP_KEY（base64: 前缀；php artisan key:generate --show 生成）" >&2; exit 1; }
+  [[ "$app_url" =~ ^https?:// ]] || { echo "预检拒绝: APP_URL 格式无效（附件签名 URL 基址）" >&2; exit 1; }
+  if [[ -n "$node_api_url" ]]; then
+    [[ "$node_api_url" =~ ^https?:// ]] || { echo "预检拒绝: STARTER_NODE_API_URL 格式无效" >&2; exit 1; }
+  fi
+  case "$disk" in ""|local|s3) ;; *) echo "预检拒绝: ATTACHMENT_DISK 仅支持 local/s3" >&2; exit 1 ;; esac
+  if [[ "$disk" == "s3" ]]; then
+    for key in ATTACHMENT_S3_KEY ATTACHMENT_S3_SECRET ATTACHMENT_S3_BUCKET ATTACHMENT_S3_ENDPOINT; do
+      [[ -n "$(read_env_key "$key")" ]] || { echo "预检拒绝: ATTACHMENT_DISK=s3 需要设置 $key" >&2; exit 1; }
+    done
+  fi
+
+  # 产物门禁（LD-03）：契约 JSON Schema 产物已生成并提交（镜像内置分发，不挂载宿主目录）。
+  [[ -n "$(find packages/api/json-schema -name '*.json' -print -quit 2>/dev/null)" ]] || { echo "预检拒绝: 契约产物缺失（先 bun run contracts:generate 并提交）" >&2; exit 1; }
+  [[ -z "$(git status --porcelain -- packages/api/json-schema)" ]] || { echo "预检拒绝: 契约产物存在未提交漂移（先重新生成并提交）" >&2; exit 1; }
+  # D2 终态门禁（LD-04）：迁移权威在 Laravel——基线迁移必须存在；
+  # schema 同步统一走 migrate 服务的 artisan migrate，Drizzle 不再出现于部署路径。
+  [[ -n "$(find apps/api-laravel/database/migrations -name '*.php' -print -quit 2>/dev/null)" ]] || { echo "预检拒绝: Laravel 基线迁移缺失（D2 终态：迁移权威在 Laravel）" >&2; exit 1; }
 
   "${COMPOSE_CMD[@]}" config --quiet
   echo "PASS precheck (env redacted, compose.prod.yaml valid)"
