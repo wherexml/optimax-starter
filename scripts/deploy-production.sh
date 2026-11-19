@@ -68,8 +68,9 @@ precheck() {
   # 产物门禁（LD-03）：契约 JSON Schema 产物已生成并提交（镜像内置分发，不挂载宿主目录）。
   [[ -n "$(find packages/api/json-schema -name '*.json' -print -quit 2>/dev/null)" ]] || { echo "预检拒绝: 契约产物缺失（先 bun run contracts:generate 并提交）" >&2; exit 1; }
   [[ -z "$(git status --porcelain -- packages/api/json-schema)" ]] || { echo "预检拒绝: 契约产物存在未提交漂移（先重新生成并提交）" >&2; exit 1; }
-  # D2 零迁移门禁（LD-03）：Laravel 侧不得出现迁移文件（schema 权威在 Drizzle；移交决策在 LD-04）。
-  [[ -z "$(find apps/api-laravel/database/migrations -name '*.php' -print -quit 2>/dev/null)" ]] || { echo "预检拒绝: apps/api-laravel/database/migrations 出现迁移文件（违背 D2 零迁移）" >&2; exit 1; }
+  # D2 终态门禁（LD-04）：迁移权威在 Laravel——基线迁移必须存在；
+  # schema 同步统一走 migrate 服务的 artisan migrate，Drizzle 不再出现于部署路径。
+  [[ -n "$(find apps/api-laravel/database/migrations -name '*.php' -print -quit 2>/dev/null)" ]] || { echo "预检拒绝: Laravel 基线迁移缺失（D2 终态：迁移权威在 Laravel）" >&2; exit 1; }
 
   "${COMPOSE_CMD[@]}" config --quiet
   echo "PASS precheck (env redacted, compose.prod.yaml valid)"
@@ -134,8 +135,8 @@ deploy_sha() {
   backup_db
 
   local candidate_img="${proj}:${target_sha}"
-  echo "Building candidate image ${candidate_img} (app + migrate)..."
-  STARTER_PROD_IMAGE="$candidate_img" "${COMPOSE_CMD[@]}" build app migrate
+  echo "Building candidate image ${candidate_img}..."
+  STARTER_PROD_IMAGE="$candidate_img" "${COMPOSE_CMD[@]}" build app
 
   # 激活前记录事务状态；只有越过此点发生失败才允许自动回滚。
   printf '%s\n' "$deploy_id" > "$STATE_DIR/active-deploy-id"

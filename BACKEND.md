@@ -87,7 +87,7 @@ Web 框架不要只按流行度或性能跑分选择，应优先看项目形态�
 | 后端语言/运行时 | TypeScript / Node 24（开发 `node --watch --import tsx src/node.ts`，生产编译为 `dist/node.mjs`；详见 [RUNTIME.md](./RUNTIME.md)） |
 | Web 框架 | Hono（分层见 [apps/server/README.md](./apps/server/README.md)：`core/` 底座 + `modules/` 业务子路由） |
 | 数据库 | PostgreSQL 17（仅 Compose 内部网络可访问） |
-| ORM/查询方式 | Drizzle ORM（查询构造器 + 参数化 `sql` 咨询锁；开发 `db:push`，生产优先 `db:migrate:deploy`） |
+| ORM/查询方式 | 迁移权威：Laravel 迁移体系（`apps/api-laravel/database/migrations`，D2 终态 LD-04；Eloquent 查询 + 同事务审计）；`packages/db`（Drizzle）为观察期参考实现（见其 README），仅服务待退役的 Node 栈 |
 | 缓存/队列 | 无独立 Redis/队列；资产自然语言计划短期状态保存在有界进程内存（5 分钟过期） |
 | 文件存储 | 无用户文件上传存储 |
 | 后台任务 | 启动时受 `STARTER_SEED_DEMO` 控制的幂等初始化（`core/seed.ts`），无常驻定时任务 |

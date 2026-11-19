@@ -18,11 +18,6 @@ COPY packages/db/package.json packages/db/.env.schema packages/db/
 COPY packages/ui/package.json packages/ui/
 RUN bun install --frozen-lockfile
 
-# migrate 目标（compose.prod 的 schema 同步服务）：完整源码 + 依赖，不做 web 构建；
-# drizzle.config 直接读 process.env.DATABASE_URL，无需 varlock 生成物。
-FROM web-deps AS workspace
-COPY . .
-
 FROM web-deps AS web-builder
 ARG VITE_APP_SLUG=optimax-starter
 ARG VITE_APP_TITLE=OptiMax

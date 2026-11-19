@@ -11,7 +11,6 @@ services:
       - -ec
       - |
         ([ -f apps/server/src/env.ts ] && [ -f packages/db/src/env.ts ]) || bun run env:generate
-        bun run db:push
         cd apps/server
         exec node --watch --import tsx src/node.ts
   web:

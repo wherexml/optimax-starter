@@ -46,7 +46,7 @@
 | `APP_URL` | `app` / 附件签名 URL 基址（LD-02） | 公网可解析的应用基址 | 生产预检必填 | 运行 | 内部 |
 | `LOG_LEVEL` | `app` / `config/logging.php` | 生产日志级别 | 默认 `warning` | 运行 | 内部 |
 | `CACHE_STORE` | `app` / `config/cache.php` | 缓存后端；D2 零迁移期固定文件 store | 固定 `file` | 运行 | 内部 |
-| `DATABASE_URL` | `app`、`migrate`（Drizzle 权威）、`ai` overlay | PostgreSQL 连接串（TS/PHP 双栈同名共享键） | compose 注入 `postgres://starter:<pw>@db:5432/starter` | 运行 | 密钥 |
+| `DATABASE_URL` | `app`、`migrate`（artisan migrate）、`ai` overlay | PostgreSQL 连接串（TS/PHP 双栈同名共享键） | compose 注入 `postgres://starter:<pw>@db:5432/starter` | 运行 | 密钥 |
 | `STARTER_DB_PASSWORD` | `db`、`app`、`migrate` | PostgreSQL `starter` 库连接密码（不少于 16 位） | 必填，随机生成 | 运行 | 密钥 |
 | `STARTER_SEED_DEMO` | `app` / `console:seed`（生产拒绝执行） | 是否幂等写入演示管理员与 12 条示例资产 | 本地默认 `true`；生产强制 `false` | 运行 | 内部 |
 | `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `app` / `console:seed`（本地演示）与 `console:admin`（首个管理员引导，LD-03） | 引导管理员账户名与密码（预检拒绝 `demo@2026!`） | `console:seed` 仅 `STARTER_SEED_DEMO=true` 时读取；`console:admin` 优先取 env/隐式输入 | 运行（本地）/部署 | 密钥 |
@@ -95,7 +95,7 @@
 | 备份与校验 | `deploy-production.sh` 自动执行 `pg_dump` 至 `.deploy-state/backups/` | `db` 容器在线且磁盘空间充足 | 非空 `.sql.gz` 归档及 `PASS backup_db` | 备份为空或失败立即终止构建与激活 |
 | 首次部署 / 增量发布 | `./scripts/deploy-production.sh --deploy <commit-sha>`（或 GitHub Actions `Deploy Production`） | CI `Application release gate` 通过，目标机器具备 Docker Compose v2 | `/healthz` 返回 `200`、匿名 `/console/me` 返回 `401`、`/login` 返回 SPA HTML，写入 `.deploy-state/accepted-sha` | 激活前失败不回滚健康生产；激活后冒烟失败自动回切上一 `accepted-sha` |
 | 首个管理员引导（首次部署后必做） | `STARTER_ADMIN_PASSWORD=<私有密码> docker compose -f compose.prod.yaml exec -T app php artisan console:admin --username=<账户名>` | 部署已验收（`/healthz` 绿）；密码 ≥10 位且非演示密码 | 输出 `已创建超级管理员 <账户名>`，可用该账号登录 | 检查 `app` 容器日志与数据库连接；账号已存在时命令改为轮转语义（更新密码并修正为启用超管） |
-| 数据迁移 | `compose.prod.yaml` 的 `migrate` 一次性服务在 app 启动前自动执行（D2 权威 Drizzle）：存在 `packages/db/src/migrations/*.sql` 时按 `db:migrate:deploy` 回放，否则 `db:push` 安全同步 | 已通过 `bun run db:generate` 提交迁移 SQL（如走版本化迁移）并完成备份 | `migrate` 容器退出码 `0` 且 `/healthz` 正常 | `app` 不会启动（`service_completed_successfully` 未满足）；修复后重跑 `--deploy`，必要时按备份恢复 |
+| 数据迁移 | `compose.prod.yaml` 的 `migrate` 一次性服务在 app 启动前执行 `php artisan migrate --force`（D2 终态 LD-04：迁移权威在 Laravel；基线迁移含双轨过渡守卫，存量 Drizzle 卷自动登记不重建） | 迁移 SQL 经 `--pretend`/演练库核对后提交（`php artisan make:migration`）并完成备份 | `migrate` 容器退出码 `0` 且 `/healthz` 正常 | `app` 不会启动（`service_completed_successfully` 未满足）；修复后重跑 `--deploy`，必要时按备份恢复 |
 | 代码回滚（同栈） | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收 Laravel 镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
 | 跨栈回滚（回到 LD-03 前的 node 形态） | `git revert` 本 spec 提交取回旧 `compose.prod.yaml` 与根 `Dockerfile.prod`，再 `--deploy <旧 SHA>` | 明确授权；数据库无仅新栈使用的表变更（D2 零迁移下通常满足） | 旧形态冒烟通过 | 按备份恢复说明人工核查 |
 | 数据恢复 | 停止 `app` 写入后用 `gunzip -c <backup.sql.gz> \| docker compose -f compose.prod.yaml exec -T db psql -U starter -d starter` | 明确授权、已确认恢复点 | 核心表行数与业务抽样核验通过 | 停止继续写入，保留原库卷快照 |
@@ -289,7 +289,7 @@ API 冒烟应覆盖：
 ## API 运行时
 
 - 本地/预览环境事实见 [RUNTIME.md](./RUNTIME.md)（LC-08 切流后 `/console` 由 Laravel 栈主管）。
-- 生产（LD-03）：单 `app` 容器为 FrankenPHP（PHP 8.4，非 root `www-data`），同时托管 `/console` API、`/healthz` 探针与前端静态页；schema 同步由 `migrate` 一次性服务（Drizzle 权威）在启动前完成。
+- 生产（LD-03）：单 `app` 容器为 FrankenPHP（PHP 8.4，非 root `www-data`），同时托管 `/console` API、`/healthz` 探针与前端静态页；schema 同步由 `migrate` 一次性服务（`php artisan migrate --force`，D2 终态 LD-04）在启动前完成。
 
 ## 可选服务端模型 API
 

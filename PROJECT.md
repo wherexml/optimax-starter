@@ -12,8 +12,8 @@
 | 运行 | 本地 Docker Compose：`web`、`api`、`api-laravel`（**LC-08 起 `/console` 主管流量**）、`db`（Node `api` 保留为 AI 服务与回滚备份，切回只需改 `API_PROXY_TARGET`）；生产 Compose：`app`（同源托管静态页 + API）、`db` |
 | Compose 项目 / 镜像 | 本地默认 `optimax-starter-preview` / `optimax-starter-preview:local`（为延续已有数据卷沿用此名）；新项目通过 `./scripts/bootstrap-project.sh <slug>` 自动改名隔离 |
 | 端口 | 本地默认 web `127.0.0.1:38140`，api `127.0.0.1:38141`，Laravel 栈 `127.0.0.1:38142`（`WEB_PORT` / `API_PORT` / `API_LARAVEL_PORT`），db 仅在 Compose 内部可访问 |
-| API 运行时 | Node 24（本地开发 `node --watch --import tsx src/node.ts`，生产 `node apps/server/dist/node.mjs`）；Bun 执行包管理、前端开发与数据库迁移/同步 |
-| 数据库 | PostgreSQL 17，Drizzle ORM（开发 `db:push`，生产优先版本化 `db:migrate:deploy`） |
+| API 运行时 | `/console` 由 Laravel 13（PHP 8.4）主管（LC-08 切流；生产为 FrankenPHP 单容器，LD-03）；Node 24 仅保留给 asset-agent 桥上游与回滚对照（观察期）；Bun 执行包管理、前端开发 |
+| 数据库 | PostgreSQL 17；schema 与迁移权威在 Laravel（`apps/api-laravel/database/migrations`，D2 终态 LD-04；容器启动/部署前置 `artisan migrate`）。`packages/db`（Drizzle）降级为观察期参考实现，见其 README |
 | 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；共享弹窗、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与品牌统一在 `apps/web/src/config/app-config.ts`，列表页使用 `ResourceTableSlot`；支持 `bun run gen:module` 生成新业务模块 |
 | 角色 | `super_admin`、`admin`、`member`（搭配 `console_role_permission` 模块级「查看 / 操作」权限矩阵） |
 | 项目技能 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，前端交互与 Agent 操作由 AGENTS 默认路由；随模板复制 |

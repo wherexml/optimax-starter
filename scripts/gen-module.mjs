@@ -26,10 +26,10 @@ function usage() {
   bun run gen:module vendors --label 供应商台账 --singular vendor
 
 生成内容:
-  1. packages/db/src/schema/<slug>.ts         Drizzle 数据表定义并注册到 schema/index.ts
+  1. apps/api-laravel/database/migrations/    Laravel 建表迁移（D2 终态：迁移权威，artisan 自动发现）
   2. packages/api/src/<slug>.ts               前后端共享 Zod 契约与 URL 筛选解析器
   3. apps/api-laravel/app/Modules/<Pascal>/   Laravel 控制器/请求/资源/路由（LC-08 起后端唯一栈）
-     apps/api-laravel/app/Core/Models/        Eloquent 模型（零迁移，@property 显式列）
+     apps/api-laravel/app/Core/Models/        Eloquent 模型（@property 显式列，表由迁移定义）
   4. apps/web/src/features/<slug>/*           ResourceTableSlot 列表页 + FormDialog 表单弹窗
   5. apps/web/src/routes/<slug>.tsx           TanStack Router 路由并注册侧栏 / Cmd+K 导航
   6. scripts/verify-<slug>.py                 接口级权限、分页与审计闭环 E2E 脚本`);
@@ -76,19 +76,44 @@ const singularPascal =
     .join("");
 const codePrefix = singularSlug.slice(0, 2).toUpperCase();
 
+const migrationStamp = new Date()
+  .toISOString()
+  .replace(/[-:T]/g, "")
+  .slice(0, 14)
+  .replace(/^(\d{8})(\d{6})$/, "$1_$2");
+
 const files = [
   {
-    rel: `packages/db/src/schema/${slug}.ts`,
-    content: `import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+    // D2 终态（LD-04）：表定义产物从 Drizzle schema 换成 Laravel 建表迁移，
+    // 迁移由 artisan 按文件名自动发现，无需登记锚点。
+    rel: `apps/api-laravel/database/migrations/${migrationStamp}_create_console_${tableIdent}_table.php`,
+    content: `<?php
 
-export const ${camel}Table = pgTable("console_${tableIdent}", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  category: text("category").notNull(),
-  owner: text("owner").notNull(),
-  status: text("status").notNull().default("启用"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Query\\Expression;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\Schema;
+
+// ${label}（console_${tableIdent}）：gen:module 生成（LD-04 起迁移权威在 Laravel）。
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('console_${tableIdent}', function (Blueprint \$table): void {
+            \$table->increments('id');
+            \$table->text('name')->unique();
+            \$table->text('category');
+            \$table->text('owner');
+            \$table->text('status')->default('启用');
+            \$table->timestampTz('created_at', 6)->default(new Expression('now()'));
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('console_${tableIdent}');
+    }
+};
 `,
   },
   {
@@ -155,7 +180,7 @@ namespace App\\Core\\Models;
 use Illuminate\\Database\\Eloquent\\Model;
 
 /**
- * ${label}（console_${tableIdent}）。schema 权威在 Drizzle（LARAVEL.md D2，零迁移）。
+ * ${label}（console_${tableIdent}）。表由 Laravel 迁移定义（LARAVEL.md D2 终态）。
  * gen:module 生成（LD-01）；\$fillable 对齐契约 ${slug}.${camel}InputSchema 字段集。
  *
  * @property int $id
@@ -1012,14 +1037,7 @@ for (const file of files) {
   if (file.mode) chmodSync(full, file.mode);
 }
 
-// 1. Register DB schema
-const dbSchemaIndex = path.join(ROOT, "packages/db/src/schema/index.ts");
-writeFileSync(
-  dbSchemaIndex,
-  readFileSync(dbSchemaIndex, "utf-8").trimEnd() + `\nexport * from "./${slug}";\n`,
-);
-
-// 2. Register API contracts + audit actions
+// 1. Register API contracts + audit actions（D2 终态：数据表经 Laravel 迁移自动发现，无需注册）
 const apiIndex = path.join(ROOT, "packages/api/src/index.ts");
 writeFileSync(
   apiIndex,
@@ -1141,4 +1159,4 @@ writeFileSync(navFile, navSrc);
 
 console.log(`已生成模块 ${slug}（${label}）：`);
 for (const file of files) console.log(`  + ${file.rel}`);
-console.log("下一步：docker compose restart api 同步新表（Drizzle db:push）→ bun run contracts:generate 提交产物 → 后端即经 Laravel 生效（路由自动 glob 装载）。");
+console.log("下一步：docker compose up -d api-laravel 同步新表（artisan migrate 随容器启动执行）→ bun run contracts:generate 提交产物 → 后端即经 Laravel 生效（路由自动 glob 装载）。");

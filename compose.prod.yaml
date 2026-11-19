@@ -14,29 +14,18 @@ services:
       interval: 5s
       timeout: 3s
       retries: 15
-  # D2 权威 Drizzle（LD-03）：schema 同步一次性前置服务。存在版本化迁移 SQL 时
-  # 按 db:migrate:deploy 回放，否则 db:push 安全同步；app 等它成功完成才启动。
-  # workspace 目标含完整源码与 bun（无 web 构建，与 app 镜像共享依赖层缓存）。
+  # D2 终态（LD-04）：迁移权威在 Laravel。一次性前置服务复用 app 镜像，
+  # 启动前执行 artisan migrate（基线迁移含双轨过渡守卫，存量 Drizzle 卷自动登记）。
   migrate:
-    build:
-      context: .
-      dockerfile: apps/api-laravel/Dockerfile.prod
-      target: workspace
-    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}-migrate
+    image: ${STARTER_PROD_IMAGE:-optimax-starter-prod:release}
     depends_on:
       db: { condition: service_healthy }
     restart: "no"
     environment:
+      APP_ENV: production
+      DB_CONNECTION: pgsql
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
-    command:
-      - sh
-      - -ec
-      - |
-        if ls packages/db/src/migrations/*.sql >/dev/null 2>&1; then
-          bun run --filter @optimax-starter/db db:migrate:deploy
-        else
-          bun run --filter @optimax-starter/db db:push
-        fi
+    command: ["php", "artisan", "migrate", "--force"]
   # 单 app 容器（D6）：Laravel API 与前端静态页同容器（FrankenPHP）。
   app:
     build:
