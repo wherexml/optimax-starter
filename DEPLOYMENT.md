@@ -42,7 +42,7 @@
 | `SESSION_COOKIE_NAME` | `api` / `apps/server/src/core/config.ts` | HttpOnly Session Cookie 名称 | 本地默认 `optimax_console`；生产预检强制要求改为项目专属名 | 运行 | 内部 |
 | `STARTER_DB_PASSWORD` | `db`、`api` | PostgreSQL `starter` 库连接密码（不少于 16 位） | 必填，随机生成 | 运行 | 密钥 |
 | `STARTER_SEED_DEMO` | `api` / `apps/server/src/core/seed.ts` | 是否幂等写入演示管理员与 12 条示例资产 | 本地默认 `true`；生产强制 `false` | 运行 | 内部 |
-| `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `api` / `apps/server/src/core/seed.ts` | 本地演示管理员账号与初始密码 | 仅 `STARTER_SEED_DEMO=true` 时读取；生产拒绝 `demo@2026!` | 运行（本地） | 密钥 |
+| `STARTER_ADMIN_USERNAME` / `STARTER_ADMIN_PASSWORD` | `api` / `apps/server/src/core/seed.ts` | 本地演示管理员账号；生产首个 `super_admin` | 本地随演示种子读取；生产仅在 `console_account` 为空时一次性创建 `super_admin`，已有账户不改动；密码拒绝 `demo@2026!` 且至少 10 位，首次登录后立即改密并从 `.env.production` 删除 `STARTER_ADMIN_PASSWORD` | 运行（本地） | 密钥 |
 | `SERVE_WEB_DIST` | `api` / `apps/server/src/index.ts` | 生产单容器模式下托管的前端静态产物目录 | 生产镜像默认 `/app/apps/web/dist` | 运行 | 内部 |
 
 | 同名变量 | 本地来源 | 测试来源 | 生产来源 | 修改生效方式 | 缺失/非法时行为 |

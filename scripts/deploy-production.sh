@@ -32,18 +32,24 @@ precheck() {
   done
   [[ -f "$ENV_FILE" ]] || { echo "缺少私有生产配置: $ENV_FILE" >&2; exit 1; }
 
-  local db_pw cors cookie seed admin_pw
+  local db_pw cors cookie admin_user admin_pw
   db_pw="$(read_env_key STARTER_DB_PASSWORD)"
   cors="$(read_env_key CORS_ORIGIN)"
   cookie="$(read_env_key SESSION_COOKIE_NAME)"
-  seed="$(read_env_key STARTER_SEED_DEMO)"
+  admin_user="$(read_env_key STARTER_ADMIN_USERNAME)"
   admin_pw="$(read_env_key STARTER_ADMIN_PASSWORD)"
 
   [[ -n "$db_pw" && "${#db_pw}" -ge 16 ]] || { echo "预检拒绝: STARTER_DB_PASSWORD 未设置或长度不足 16 位" >&2; exit 1; }
   [[ "$cors" =~ ^https?:// ]] || { echo "预检拒绝: CORS_ORIGIN 格式无效" >&2; exit 1; }
   [[ -n "$cookie" && "$cookie" != "optimax_console" ]] || { echo "预检拒绝: 生产环境必须设置项目专属 SESSION_COOKIE_NAME" >&2; exit 1; }
-  [[ "$seed" != "true" ]] || { echo "预检拒绝: 生产环境禁止启用 STARTER_SEED_DEMO=true" >&2; exit 1; }
   [[ "$admin_pw" != "demo@2026!" ]] || { echo "预检拒绝: 生产环境禁止使用本地演示密码" >&2; exit 1; }
+  if [[ ! -f "$STATE_DIR/accepted-sha" ]]; then
+    [[ -n "$admin_user" ]] || { echo "预检拒绝: 首次部署必须设置 STARTER_ADMIN_USERNAME" >&2; exit 1; }
+    [[ "${#admin_pw}" -ge 10 ]] || { echo "预检拒绝: 首次部署 STARTER_ADMIN_PASSWORD 未设置或长度不足 10 位" >&2; exit 1; }
+  fi
+  if [[ "$cors" == http://* && ! "$cors" =~ ^http://(127\.0\.0\.1|localhost)(:|/|$) ]]; then
+    echo "警告: CORS_ORIGIN 使用 http://，Session Cookie 不会带 Secure；生产建议改为 https://" >&2
+  fi
 
   "${COMPOSE_CMD[@]}" config --quiet
   echo "PASS precheck (env redacted, compose.prod.yaml valid)"
@@ -81,6 +87,7 @@ backup_db() {
     local dump="$STATE_DIR/backups/db-${stamp}.sql.gz"
     "${COMPOSE_CMD[@]}" exec -T db pg_dump -U starter -d starter | gzip -c > "$dump"
     [[ -s "$dump" ]] || { echo "数据库备份为空: $dump" >&2; exit 1; }
+    gzip -t "$dump" || { echo "数据库备份损坏: $dump" >&2; exit 1; }
     echo "PASS backup_db: $dump"
   else
     echo "INFO backup_db: 首次部署，db 尚未运行，跳过在线备份"

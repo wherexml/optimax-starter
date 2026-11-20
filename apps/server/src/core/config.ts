@@ -10,6 +10,9 @@ export function getCorsOrigin(): string {
 }
 
 export function getBootstrapAdminUsername(): string {
+  if (process.env.NODE_ENV === "production") {
+    return process.env.STARTER_ADMIN_USERNAME?.trim() || "";
+  }
   return process.env.STARTER_ADMIN_USERNAME?.trim() || "demo@optimax.hk";
 }
 
@@ -18,8 +21,14 @@ export function assertProductionSafety(): void {
   if (process.env.STARTER_SEED_DEMO === "true") {
     throw new Error("生产环境禁止开启 STARTER_SEED_DEMO");
   }
-  if (process.env.STARTER_ADMIN_PASSWORD === DEMO_DEFAULT_PASSWORD) {
-    throw new Error("生产环境禁止使用本地演示默认密码");
+  const adminPassword = process.env.STARTER_ADMIN_PASSWORD;
+  if (adminPassword) {
+    if (adminPassword === DEMO_DEFAULT_PASSWORD) {
+      throw new Error("生产环境禁止使用本地演示默认密码");
+    }
+    if (adminPassword.length < 10) {
+      throw new Error("生产环境 STARTER_ADMIN_PASSWORD 长度不得少于 10 位");
+    }
   }
 }
 
