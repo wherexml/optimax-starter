@@ -48,17 +48,13 @@ services:
       STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
       STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
-    # Uses versioned migrations when packages/db/src/migrations contains SQL, otherwise syncs schema safely.
+    # Always applies committed versioned migrations (packages/db/src/migrations) before starting; never db:push in production.
     command:
       - sh
       - -ec
       - |
-        if ls packages/db/src/migrations/*.sql >/dev/null 2>&1; then
-          bun run --filter @optimax-starter/db db:migrate:deploy
-        else
-          bun run --filter @optimax-starter/db db:push
-        fi
-        exec node apps/server/dist/node.mjs
+        bun run --filter @optimax-starter/db db:migrate:deploy
+        cd apps/server && exec node dist/node.mjs
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:38140/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       start_period: 20s

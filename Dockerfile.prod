@@ -42,16 +42,17 @@ ENV NODE_ENV=production \
     STARTER_SEED_DEMO=false \
     SERVE_WEB_DIST=/app/apps/web/dist
 
-COPY --from=builder --chown=node:node /app/package.json /app/bun.lock /app/bunfig.toml ./
+COPY --from=builder --chown=node:node /app/package.json /app/bun.lock /app/bunfig.toml /app/tsconfig.json ./
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/apps/web/dist ./apps/web/dist
 COPY --from=builder --chown=node:node /app/apps/server/package.json /app/apps/server/.env.schema ./apps/server/
 COPY --from=builder --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=builder --chown=node:node /app/apps/server/dist ./apps/server/dist
+COPY --from=builder --chown=node:node /app/packages/config ./packages/config
 COPY --from=builder --chown=node:node /app/packages/db ./packages/db
 # Third-party notices for ported code (Magpie MIT) ship inside the image.
 COPY --from=builder --chown=node:node /app/third_party ./third_party
 
 USER node
 EXPOSE 38140
-CMD ["node", "apps/server/dist/node.mjs"]
+CMD ["sh", "-ec", "cd apps/server && exec node dist/node.mjs"]

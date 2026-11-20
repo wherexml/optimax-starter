@@ -84,7 +84,7 @@
 | 配置预检 | `./scripts/deploy-production.sh --check` | 存在私有 `.env.production`，已关闭演示种子与默认密码 | 输出 `PASS precheck` | 停止发布，不触碰线上容器 |
 | 备份与校验 | `deploy-production.sh` 自动执行 `pg_dump` 至 `.deploy-state/backups/` | `db` 容器在线且磁盘空间充足 | 非空 `.sql.gz` 归档及 `PASS backup_db` | 备份为空或失败立即终止构建与激活 |
 | 首次部署 / 增量发布 | `./scripts/deploy-production.sh --deploy <commit-sha>`（或 GitHub Actions `Deploy Production`） | CI `Application release gate` 通过，目标机器具备 Docker Compose v2 | `/healthz` 返回 `200`、匿名 `/console/me` 返回 `401`、`/login` 返回 SPA HTML，写入 `.deploy-state/accepted-sha` | 激活前失败不回滚健康生产；激活后冒烟失败自动回切上一 `accepted-sha` |
-| 数据迁移 | `compose.prod.yaml` 启动时自动检测 `packages/db/src/migrations/*.sql` 执行 `db:migrate:deploy` | 已通过 `bun run db:generate` 提交迁移 SQL 并完成备份 | 迁移退出码 `0` 且 `/healthz` 正常 | 回切旧镜像并按备份恢复说明人工核查 |
+| 数据迁移 | `compose.prod.yaml` 启动时无条件执行 `db:migrate:deploy`（不再回退 `db:push`） | 已通过 `bun run db:generate` 提交迁移 SQL 并完成备份 | 迁移退出码 `0` 且 `/healthz` 正常 | 回切旧镜像并按备份恢复说明人工核查 |
 | 代码回滚 | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
 | 数据恢复 | 停止 `app` 写入后用 `gunzip -c <backup.sql.gz> \| docker compose -f compose.prod.yaml exec -T db psql -U starter -d starter` | 明确授权、已确认恢复点 | 核心表行数与业务抽样核验通过 | 停止继续写入，保留原库卷快照 |
 

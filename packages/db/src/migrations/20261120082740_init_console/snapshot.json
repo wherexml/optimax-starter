@@ -1,0 +1,902 @@
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "9750b76c-1a87-4f33-84b0-36622687ad19",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_account"
+      ],
+      "writes": [
+        "s|tbl|public.console_account",
+        "n|tbl|public.console_account",
+        "e|tbl|public.console_account",
+        "n|rel|public.console_account",
+        "n|type|public.console_account",
+        "n|rel|public.console_account_pkey",
+        "n|rel|public.console_account_username_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_asset"
+      ],
+      "writes": [
+        "s|tbl|public.console_asset",
+        "n|tbl|public.console_asset",
+        "e|tbl|public.console_asset",
+        "n|rel|public.console_asset",
+        "n|type|public.console_asset",
+        "n|rel|public.console_asset_pkey",
+        "n|rel|public.console_asset_name_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_audit"
+      ],
+      "writes": [
+        "s|tbl|public.console_audit",
+        "n|tbl|public.console_audit",
+        "e|tbl|public.console_audit",
+        "n|rel|public.console_audit",
+        "n|type|public.console_audit",
+        "n|rel|public.console_audit_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_role_permission"
+      ],
+      "writes": [
+        "s|tbl|public.console_role_permission",
+        "n|tbl|public.console_role_permission",
+        "e|tbl|public.console_role_permission",
+        "n|rel|public.console_role_permission",
+        "n|type|public.console_role_permission",
+        "n|rel|public.console_role_permission_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_session"
+      ],
+      "writes": [
+        "s|tbl|public.console_session",
+        "n|tbl|public.console_session",
+        "e|tbl|public.console_session",
+        "n|rel|public.console_session",
+        "n|type|public.console_session",
+        "n|rel|public.console_session_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_setting"
+      ],
+      "writes": [
+        "s|tbl|public.console_setting",
+        "n|tbl|public.console_setting",
+        "e|tbl|public.console_setting",
+        "n|rel|public.console_setting",
+        "n|type|public.console_setting",
+        "n|rel|public.console_setting_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_audit"
+      ],
+      "writes": [
+        "s|fk|public.console_audit.console_audit_actor_id_console_account_id_fkey",
+        "n|fk|public.console_audit.console_audit_actor_id_console_account_id_fkey",
+        "e|fk|public.console_audit.console_audit_actor_id_console_account_id_fkey",
+        "n|con|public.console_audit.console_audit_actor_id_console_account_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.console_audit",
+        "n|sch|public",
+        "n|tbl|public.console_account",
+        "n|sch|public",
+        "n|col|public.console_audit.actor_id",
+        "n|col|public.console_account.id",
+        "e|uniqueness|public.console_account.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_audit"
+      ],
+      "writes": [
+        "s|fk|public.console_audit.console_audit_target_id_console_account_id_fkey",
+        "n|fk|public.console_audit.console_audit_target_id_console_account_id_fkey",
+        "e|fk|public.console_audit.console_audit_target_id_console_account_id_fkey",
+        "n|con|public.console_audit.console_audit_target_id_console_account_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.console_audit",
+        "n|sch|public",
+        "n|tbl|public.console_account",
+        "n|sch|public",
+        "n|col|public.console_audit.target_id",
+        "n|col|public.console_account.id",
+        "e|uniqueness|public.console_account.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_role_permission"
+      ],
+      "writes": [
+        "s|fk|public.console_role_permission.console_role_permission_updated_by_console_account_id_fkey",
+        "n|fk|public.console_role_permission.console_role_permission_updated_by_console_account_id_fkey",
+        "e|fk|public.console_role_permission.console_role_permission_updated_by_console_account_id_fkey",
+        "n|con|public.console_role_permission.console_role_permission_updated_by_console_account_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.console_role_permission",
+        "n|sch|public",
+        "n|tbl|public.console_account",
+        "n|sch|public",
+        "n|col|public.console_role_permission.updated_by",
+        "n|col|public.console_account.id",
+        "e|uniqueness|public.console_account.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_session"
+      ],
+      "writes": [
+        "s|fk|public.console_session.console_session_account_console_account_id_fkey",
+        "n|fk|public.console_session.console_session_account_console_account_id_fkey",
+        "e|fk|public.console_session.console_session_account_console_account_id_fkey",
+        "n|con|public.console_session.console_session_account_console_account_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.console_session",
+        "n|sch|public",
+        "n|tbl|public.console_account",
+        "n|sch|public",
+        "n|col|public.console_session.account",
+        "n|col|public.console_account.id",
+        "e|uniqueness|public.console_account.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "console_setting"
+      ],
+      "writes": [
+        "s|fk|public.console_setting.console_setting_updated_by_console_account_id_fkey",
+        "n|fk|public.console_setting.console_setting_updated_by_console_account_id_fkey",
+        "e|fk|public.console_setting.console_setting_updated_by_console_account_id_fkey",
+        "n|con|public.console_setting.console_setting_updated_by_console_account_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.console_setting",
+        "n|sch|public",
+        "n|tbl|public.console_account",
+        "n|sch|public",
+        "n|col|public.console_setting.updated_by",
+        "n|col|public.console_account.id",
+        "e|uniqueness|public.console_account.id"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "schema": "public",
+      "name": "console_account",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "console_asset",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "console_audit",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "console_role_permission",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "console_session",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "console_setting",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "id",
+      "type": "serial",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "username",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "role",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "active",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "hash",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "email",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "company",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "id",
+      "type": "serial",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "domain",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "owner",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "stage",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "id",
+      "type": "serial",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "action",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "actor_source",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'human'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "actor_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "actor_username",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "actor_name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "target_id",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "target_username",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "target_name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "detail",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "role",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "permissions",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "updated_by",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_session",
+      "name": "key",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_session",
+      "name": "account",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_session",
+      "name": "expires",
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "key",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "value",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "updated_by",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "console_audit_actor_id_console_account_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "actor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "console_account",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "console_audit_target_id_console_account_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "target_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "console_account",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "console_role_permission_updated_by_console_account_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "updated_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "console_account",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "console_session",
+      "name": "console_session_account_console_account_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "account"
+      ],
+      "schemaTo": "public",
+      "tableTo": "console_account",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "console_setting_updated_by_console_account_id_fkey",
+      "nameExplicit": false,
+      "columns": [
+        "updated_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "console_account",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "entityType": "fks"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "console_account_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "console_asset_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_audit",
+      "name": "console_audit_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_role_permission",
+      "name": "console_role_permission_pkey",
+      "columns": [
+        "role"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_session",
+      "name": "console_session_pkey",
+      "columns": [
+        "key"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_setting",
+      "name": "console_setting_pkey",
+      "columns": [
+        "key"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "console_account",
+      "name": "console_account_username_key",
+      "nameExplicit": false,
+      "columns": [
+        "username"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "console_asset",
+      "name": "console_asset_name_key",
+      "nameExplicit": false,
+      "columns": [
+        "name"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    }
+  ]
+}
