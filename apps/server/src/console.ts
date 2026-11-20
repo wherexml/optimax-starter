@@ -1,5 +1,6 @@
 import { and, eq, gt } from "drizzle-orm";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { getCookie } from "hono/cookie";
 import { accounts, sessions } from "@optimax-starter/db/schema/console";
 import { db } from "./services";
@@ -16,6 +17,14 @@ export { initializeConsole } from "./core/seed";
 
 export const consoleApi = new Hono<Env>();
 
+consoleApi.use(
+  "*",
+  bodyLimit({
+    maxSize: 64 * 1024,
+    onError: (c) => c.json({ error: "请求过大" }, 413),
+  }),
+);
+
 consoleApi.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   if (
@@ -26,8 +35,8 @@ consoleApi.use("*", async (c, next) => {
     return c.json({ error: "请求来源无效" }, 403);
   }
   if (
-    c.req.path.endsWith("/login") ||
-    c.req.path.endsWith("/auth/providers")
+    (c.req.method === "POST" && c.req.path === "/console/login") ||
+    (c.req.method === "GET" && c.req.path === "/console/auth/providers")
   ) {
     return next();
   }

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -13,7 +13,11 @@ import { accounts, sessions } from "@optimax-starter/db/schema/console";
 import { verifyPassword, hashPassword } from "../password";
 import { db } from "../services";
 import { audit } from "../core/audit";
-import { getCookieName, SESSION_LIFETIME_SECONDS } from "../core/config";
+import {
+  getCookieName,
+  getCorsOrigin,
+  SESSION_LIFETIME_SECONDS,
+} from "../core/config";
 import {
   ADMIN_LOCK,
   Refusal,
@@ -56,6 +60,7 @@ authRoutes.post("/login", async (c) => {
   ) {
     return c.json({ error: "账户或密码错误" }, 401);
   }
+  await db.delete(sessions).where(lt(sessions.expires, new Date()));
   const token = randomBytes(32).toString("hex");
   const cookie = getCookieName();
   await db.insert(sessions).values({
@@ -66,6 +71,7 @@ authRoutes.post("/login", async (c) => {
   setCookie(c, cookie, token, {
     httpOnly: true,
     sameSite: "Strict",
+    secure: getCorsOrigin().startsWith("https://"),
     path: "/",
     maxAge: SESSION_LIFETIME_SECONDS,
   });

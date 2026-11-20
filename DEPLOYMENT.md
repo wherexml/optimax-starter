@@ -88,6 +88,16 @@
 | 代码回滚 | `./scripts/deploy-production.sh --rollback [<previous-sha>]`（或 `Deploy Production` 填入 `rollback_commit`） | 本地存在上一已验收镜像 `<project>:<previous-sha>` 且数据库向后兼容 | `PASS rolled back to accepted SHA` 且冒烟通过 | 保留日志与 `.deploy-state/`，升级人工处理 |
 | 数据恢复 | 停止 `app` 写入后用 `gunzip -c <backup.sql.gz> \| docker compose -f compose.prod.yaml exec -T db psql -U starter -d starter` | 明确授权、已确认恢复点 | 核心表行数与业务抽样核验通过 | 停止继续写入，保留原库卷快照 |
 
+登录限流：宿主机 Nginx 对 `/console/login` 加 `limit_req`（示例）：
+
+```nginx
+limit_req_zone $binary_remote_addr zone=console_login:10m rate=5r/m;  # http 块
+location = /console/login {
+  limit_req zone=console_login burst=5 nodelay;
+  proxy_pass http://127.0.0.1:38140;
+}
+```
+
 ## 4. 部署步骤与脚本契约
 
 生产部署脚本必须有稳定入口，并包含以下阶段。
