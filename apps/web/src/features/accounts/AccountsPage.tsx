@@ -1,24 +1,31 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
-import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { Download, Plus } from "lucide-react";
+import { useCallback, useMemo, useRef, useState, type MouseEvent } from "react";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import { type FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DetailDrawer,
+  DetailField,
+  DetailSection,
+} from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
-import { request, type Account } from "@/console-client";
+import { request, type Account, type AccountInviteLink } from "@/console-client";
 import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { parseAccountSearch } from "@/features/filters/search";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
+import { downloadCsv } from "@/lib/csv";
 import { CreateAccountDialog } from "./CreateAccountDialog";
 import { EditAccountDialog } from "./EditAccountDialog";
+import { InviteLinkDialog, type InviteLinkResult } from "./InviteLinkDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 
 const route = getRouteApi("/accounts");
-type Kind = "edit" | "password" | "revoke" | "disable";
+type Kind = "detail" | "edit" | "password" | "invite" | "revoke" | "disable";
 type Pending = { kind: Kind; row: Account } | null;
 const PERSIST = ["status", "role"] as const;
 const FIELDS: FilterField[] = [
@@ -64,6 +71,9 @@ export function AccountsPage() {
     isSuperAdmin = me.data?.role === "super_admin";
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
+  const [recentIds, setRecentIds] = useState<number[]>([]);
+  // One-time activation link shown right after generation (never re-fetchable).
+  const [inviteLink, setInviteLink] = useState<InviteLinkResult | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const params = route.useSearch(),
@@ -98,11 +108,22 @@ export function AccountsPage() {
       toast.error("启用账户失败", { description: err.message });
     },
   });
-  function open(kind: Kind, row: Account, e: MouseEvent<HTMLElement>) {
-    returnFocus.current = e.currentTarget;
-    enable.reset();
-    setPending({ kind, row });
-  }
+  const resetEnable = enable.reset;
+  const open = useCallback(
+    (kind: Kind, row: Account, e?: MouseEvent<HTMLElement>) => {
+      returnFocus.current = e?.currentTarget ?? null;
+      resetEnable();
+      setPending({ kind, row });
+    },
+    [resetEnable],
+  );
+  const matchesFilters = useCallback(
+    (r: Account) =>
+      [r.name, r.username].some((v) => v.includes(search.trim())) &&
+      (!status || r.active === (status === "active")) &&
+      (!role || r.role === role),
+    [search, status, role],
+  );
   async function finish(message?: string, description?: string) {
     setPending(null);
     if (!message) return;
@@ -167,25 +188,43 @@ export function AccountsPage() {
         ),
       },
     ];
-    if (!canManage) return base;
+    const detailButton = (row: Account) => (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-label={`查看账户 ${row.name} 详情`}
+        onClick={(e) => open("detail", row, e)}
+      >
+        详情
+      </Button>
+    );
     return [
       ...base,
       {
         id: "action",
         header: "操作",
+        enableSorting: false,
         cell: (c) => {
           const row = c.row.original;
+          if (!canManage) {
+            return <div className="row-actions">{detailButton(row)}</div>;
+          }
           const self = row.id === me.data?.id;
           const protectedPeer = !self && !isSuperAdmin && row.role !== "member";
           if (protectedPeer) {
             return (
-              <span className="text-xs text-muted-foreground">仅超管可维护</span>
+              <div className="row-actions">
+                {detailButton(row)}
+                <span className="text-xs text-muted-foreground">仅超管可维护</span>
+              </div>
             );
           }
           const isLastSuperAdmin =
             row.role === "super_admin" && row.active && activeSuperAdminCount <= 1;
           return (
             <div className="row-actions">
+              {detailButton(row)}
               <Button
                 variant="ghost"
                 size="sm"
@@ -203,6 +242,14 @@ export function AccountsPage() {
                     onClick={(e) => open("password", row, e)}
                   >
                     重置密码
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`为 ${row.name} 生成激活链接`}
+                    onClick={(e) => open("invite", row, e)}
+                  >
+                    生成激活链接
                   </Button>
                   <Button
                     variant="ghost"
@@ -245,18 +292,22 @@ export function AccountsPage() {
         },
       },
     ];
-  }, [activeSuperAdminCount, canManage, enable, isSuperAdmin, me.data?.id]);
+  }, [activeSuperAdminCount, canManage, enable, isSuperAdmin, me.data?.id, open]);
 
-  const rows = useMemo(
-    () =>
-      query.data?.filter(
-        (r) =>
-          [r.name, r.username].some((v) => v.includes(search.trim())) &&
-          (!status || r.active === (status === "active")) &&
-          (!role || r.role === role),
-      ) ?? [],
-    [query.data, search, status, role],
-  );
+  const rows = useMemo(() => {
+    const filtered = query.data?.filter(matchesFilters) ?? [];
+    if (!recentIds.length) return filtered;
+    // Newly created accounts stay pinned at the top (most recent first) for this page visit.
+    const rank = new Map(recentIds.map((id, index) => [id, index]));
+    return [...filtered].sort((a, b) => {
+      const ra = rank.get(a.id);
+      const rb = rank.get(b.id);
+      if (ra !== undefined && rb !== undefined) return ra - rb;
+      if (ra !== undefined) return -1;
+      if (rb !== undefined) return 1;
+      return 0;
+    });
+  }, [query.data, matchesFilters, recentIds]);
   const target = pending?.row;
   return (
     <ResourceTableSlot
@@ -279,15 +330,116 @@ export function AccountsPage() {
       error={query.error?.message}
       onRefresh={() => query.refetch()}
       refreshLabel="刷新账户"
+      onRowClick={(row) => open("detail", row)}
+      toolbarEnd={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={!rows.length}
+          onClick={() => {
+            // Non-secret fields only: no passwords, session tokens or permission lists.
+            const count = downloadCsv("账户列表.csv", rows, [
+              { header: "姓名", value: (r) => r.name },
+              { header: "账户名", value: (r) => r.username },
+              { header: "角色", value: (r) => getRoleLabel(r.role) },
+              { header: "状态", value: (r) => (r.active ? "已启用" : "已停用") },
+              { header: "邮箱", value: (r) => r.email ?? "" },
+              { header: "公司或团队", value: (r) => r.company ?? "" },
+              { header: "在线会话", value: (r) => r.sessions ?? 0 },
+            ]);
+            toast.success(`已导出 ${count} 条账户记录`);
+          }}
+        >
+          <Download size={14} aria-hidden="true" />
+          <span>导出 CSV</span>
+        </Button>
+      }
     >
       {adding && (
         <CreateAccountDialog
           trigger={trigger.current}
-          close={(createdName) => {
+          close={(created) => {
             setAdding(false);
-            if (createdName) toast.success(`已创建账户 ${createdName}`);
+            if (!created) return;
+            if (created.invitePath && created.expiresAt) {
+              setInviteLink({
+                name: created.name,
+                username: created.username,
+                invitePath: created.invitePath,
+                expiresAt: created.expiresAt,
+              });
+            }
+            setRecentIds((prev) => [
+              created.id,
+              ...prev.filter((id) => id !== created.id),
+            ]);
+            toast.success(
+              `已创建账户 ${created.name}`,
+              matchesFilters(created)
+                ? undefined
+                : { description: "当前筛选条件已隐藏该记录，可清空筛选查看" },
+            );
           }}
         />
+      )}
+      {pending?.kind === "detail" && target && (
+        <DetailDrawer
+          open
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setPending(null);
+          }}
+          title={target.name}
+          description={`账户名 ${target.username}`}
+          badge={
+            <Badge variant={roleBadgeVariant(target.role)}>
+              {getRoleLabel(target.role)}
+            </Badge>
+          }
+          onCloseAutoFocus={(e) => {
+            if (returnFocus.current?.isConnected) {
+              e.preventDefault();
+              returnFocus.current.focus();
+            }
+          }}
+          footer={
+            canManage &&
+            (target.id === me.data?.id || isSuperAdmin || target.role === "member") ? (
+              <Button
+                type="button"
+                onClick={() => setPending({ kind: "edit", row: target })}
+              >
+                编辑账户
+              </Button>
+            ) : undefined
+          }
+        >
+          <DetailSection title="身份与组织">
+            <DetailField label="姓名">{target.name}</DetailField>
+            <DetailField label="账户名">
+              <span className="font-mono text-xs text-muted-foreground">
+                {target.username}
+              </span>
+            </DetailField>
+            <DetailField label="邮箱">{target.email || "未填写"}</DetailField>
+            <DetailField label="公司或团队">{target.company || "未填写"}</DetailField>
+          </DetailSection>
+          <DetailSection title="角色与状态">
+            <DetailField label="角色">{getRoleLabel(target.role)}</DetailField>
+            <DetailField label="状态">
+              <span className={target.active ? "status-dot on" : "status-dot"}>
+                {target.active ? "已启用" : "已停用"}
+              </span>
+            </DetailField>
+            <DetailField label="在线会话">
+              <span className="tabular-nums">{target.sessions ?? 0}</span>
+            </DetailField>
+            {target.id === me.data?.id && (
+              <DetailField label="备注">当前登录账户</DetailField>
+            )}
+          </DetailSection>
+        </DetailDrawer>
       )}
       {pending?.kind === "edit" && target && (
         <EditAccountDialog
@@ -308,6 +460,27 @@ export function AccountsPage() {
             )
           }
         />
+      )}
+      {pending?.kind === "invite" && target && (
+        <ConfirmDialog
+          title="生成激活链接"
+          description={`将为 ${target.name} 生成新的一次性激活链接（72 小时有效），此前未使用的链接立即失效。对方设置密码后账户被启用，现有会话全部失效。`}
+          submitText="生成链接"
+          submitVariant="default"
+          trigger={returnFocus.current}
+          action={async () => {
+            const link = await request<AccountInviteLink>(
+              `/accounts/${target.id}/invite`,
+              "POST",
+              {},
+            );
+            setInviteLink({ name: target.name, username: target.username, ...link });
+          }}
+          close={() => setPending(null)}
+        />
+      )}
+      {inviteLink && (
+        <InviteLinkDialog invite={inviteLink} close={() => setInviteLink(null)} />
       )}
       {pending?.kind === "revoke" && target && (
         <ConfirmDialog

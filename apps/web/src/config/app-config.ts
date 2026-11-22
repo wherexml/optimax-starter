@@ -15,12 +15,15 @@ import { defaultPermissionCodes, type Account } from "@optimax-starter/api";
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
 
 const slug = metaEnv.VITE_APP_SLUG?.trim() || "optimax-starter";
-const title = metaEnv.VITE_APP_TITLE?.trim() || "OptiMax";
+const rawTitle = metaEnv.VITE_APP_TITLE?.trim() || "";
+const title = rawTitle || "OptiMax";
+const loginTitle = rawTitle && rawTitle !== "OptiMax" ? rawTitle : "Optimax Starter";
 const enableDemos = metaEnv.VITE_ENABLE_DEMOS !== "false";
 
 export const APP_CONFIG = {
   slug,
   title,
+  loginTitle,
   logoSrc: "/brand/optimax-starter.svg",
   storagePrefix: slug,
   enableDemos,
@@ -32,13 +35,16 @@ export function storageKey(suffix: string): string {
 
 export type NavTarget =
   | "/"
+  // @starter:example-assets-start
   | "/assets"
+  // @starter:example-assets-end
   | "/accounts"
   | "/permissions"
   | "/system"
   | "/audit"
   | "/settings"
   | "/demo/navigation"
+  // @starter:nav-targets
   | "/demo/forms";
 
 export interface NavLeafItem {
@@ -80,6 +86,7 @@ export const NAV_REGISTRY: readonly NavNode[] = [
     permissionCode: "workbench:read",
     exact: true,
   },
+  // @starter:example-assets-start
   {
     kind: "item",
     to: "/assets",
@@ -88,6 +95,8 @@ export const NAV_REGISTRY: readonly NavNode[] = [
     aliases: ["assets", "ledger", "inventory", "资产"],
     permissionCode: "assets:read",
   },
+  // @starter:example-assets-end
+  // @starter:nav-items
   {
     kind: "group",
     label: "系统管理",
@@ -130,8 +139,11 @@ export const NAV_REGISTRY: readonly NavNode[] = [
           "熔断",
           "时区",
           "开关",
+          "jobs",
+          "后台任务",
+          "导出",
         ],
-        permissionCodes: ["system:settings:read", "system:ai:read"],
+        permissionCodes: ["system:settings:read", "system:ai:read", "jobs:read"],
         adminOnly: true,
         defaultSearch: { tab: "status" },
       },
@@ -175,7 +187,7 @@ export const NAV_REGISTRY: readonly NavNode[] = [
         label: "资产视图",
         icon: Boxes,
         collapsedIcon: FlaskConical,
-        collapsedLabel: "Demo · 资产视图",
+        collapsedLabel: "Demo 资产视图",
         aliases: ["demo", "navigation", "tabs", "导航", "演示", "资产视图 Demo"],
         demoOnly: true,
         defaultSearch: { tab: "all" },

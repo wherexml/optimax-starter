@@ -17,6 +17,7 @@ import {
 } from "@/config/app-config";
 import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { QuickNav } from "@/features/navigation/QuickNav";
+import { NotFoundFallback, RouteErrorFallback } from "@/components/RouteFallbacks";
 import {
   Popover,
   PopoverContent,
@@ -102,12 +103,18 @@ function moveFocus(e: ReactKeyboardEvent<HTMLDivElement>) {
   items[next]?.focus();
 }
 
-export const Route = createRootRoute({ component: Root });
+export const Route = createRootRoute({
+  component: Root,
+  notFoundComponent: NotFoundFallback,
+  errorComponent: RouteErrorFallback,
+});
 function Root() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  // Public pages (login, one-time activation links) render without the authenticated shell.
+  const bare = path === "/login" || path.startsWith("/invite/");
   return (
     <>
-      {path === "/login" ? <Outlet /> : <Shell />}
+      {bare ? <Outlet /> : <Shell />}
       <Toaster />
     </>
   );
@@ -283,6 +290,7 @@ function Shell() {
           <img className="mark" src={APP_CONFIG.logoSrc} alt={`${APP_CONFIG.title} Logo`} width={32} height={32} />
           <strong>{APP_CONFIG.title}</strong>
           <button
+            type="button"
             className="rail-toggle"
             aria-label={toggleLabel}
             title={toggleLabel}
@@ -340,6 +348,7 @@ function Shell() {
         </nav>
         <div className="nav-tools">
           <button
+            type="button"
             className="nav-search"
             aria-label="搜索页面"
             title="搜索页面"
@@ -356,6 +365,7 @@ function Shell() {
           <Popover open={menu} onOpenChange={setMenu}>
             <PopoverTrigger asChild>
               <button
+                type="button"
                 ref={userTrigger}
                 className="who"
                 title={me.data.name}
@@ -438,6 +448,7 @@ function Shell() {
         <section className="content" ref={content}>
           {mobile && !drawer && (
             <button
+              type="button"
               ref={opener}
               className="menu-opener"
               aria-label="打开菜单"

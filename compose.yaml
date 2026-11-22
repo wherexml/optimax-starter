@@ -43,7 +43,34 @@ services:
       STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
       STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
       STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      AUTH_SSO_ENABLED: ${AUTH_SSO_ENABLED:-false}
+      AUTH_SSO_LABEL: ${AUTH_SSO_LABEL:-}
+      AUTH_SSO_LOGIN_PATH: ${AUTH_SSO_LOGIN_PATH:-}
+      AUTH_OIDC_ENABLED: ${AUTH_OIDC_ENABLED:-false}
+      AUTH_OIDC_PROVIDER_ID: ${AUTH_OIDC_PROVIDER_ID:-oidc}
+      AUTH_OIDC_LABEL: ${AUTH_OIDC_LABEL:-}
+      AUTH_OIDC_ISSUER: ${AUTH_OIDC_ISSUER:-}
+      AUTH_OIDC_CLIENT_ID: ${AUTH_OIDC_CLIENT_ID:-}
+      # OIDC client secret: mount a private file and set only its path.
+      AUTH_OIDC_CLIENT_SECRET_FILE: ${AUTH_OIDC_CLIENT_SECRET_FILE:-}
+      AUTH_OIDC_SCOPES: ${AUTH_OIDC_SCOPES:-openid profile email}
+      AUTH_OIDC_REDIRECT_URI: ${AUTH_OIDC_REDIRECT_URI:-}
+      AUTH_OIDC_ALLOW_EMAIL_LINK: ${AUTH_OIDC_ALLOW_EMAIL_LINK:-true}
+      # Attachments + async export artifacts. Absolute path inside the persistent `uploads` volume.
+      STARTER_UPLOAD_DIR: ${STARTER_UPLOAD_DIR:-/app/data/uploads}
+      STARTER_UPLOAD_MAX_BYTES: ${STARTER_UPLOAD_MAX_BYTES:-10485760}
+      STARTER_STORAGE_DRIVER: ${STARTER_STORAGE_DRIVER:-local}
+      STARTER_S3_ENDPOINT: ${STARTER_S3_ENDPOINT:-}
+      STARTER_S3_BUCKET: ${STARTER_S3_BUCKET:-}
+      STARTER_S3_REGION: ${STARTER_S3_REGION:-}
+      STARTER_S3_ACCESS_KEY_ID: ${STARTER_S3_ACCESS_KEY_ID:-}
+      # S3 secret: mount a private file and set only its path.
+      STARTER_S3_SECRET_ACCESS_KEY_FILE: ${STARTER_S3_SECRET_ACCESS_KEY_FILE:-}
+      STARTER_JOBS_ENABLED: ${STARTER_JOBS_ENABLED:-true}
       DATABASE_URL: postgres://starter:${STARTER_DB_PASSWORD}@db:5432/starter
+    volumes:
+      - uploads:/app/data/uploads
     # Bun only runs the short db:push step; the long-running API runs on Node 24 (see RUNTIME.md).
     command: ["sh", "-ec", "bun run db:push && cd apps/server && exec node --import tsx src/node.ts"]
     restart: unless-stopped
@@ -67,3 +94,4 @@ services:
     command: ["sh", "-ec", "cd apps/web && exec bun run dev"]
 volumes:
   data:
+  uploads:

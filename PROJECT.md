@@ -24,18 +24,27 @@
 | 路由 | 模块 | 默认可见角色 |
 | --- | --- | --- |
 | `/` | 工作台 | 全部（受 `workbench:read` 控制） |
-| `/assets` | 资产台账（客户端动态筛选 + 增删改与审计；另提供 `/console/assets/page` 服务端分页筛选接口） | 成员只读、管理员与超管可写（受 `assets:read` / `assets:manage` 控制） |
+| `/assets` | 资产台账（`/console/assets/page` 服务端分页、排序与多选筛选，`/console/assets/facets` 提供业务域/责任团队选项；增删改与审计；CSV 批量导入预览/提交；详情抽屉内「相关附件」；当前页 CSV 与「异步导出全部」后台任务） | 成员只读、管理员与超管可写（受 `assets:read` / `assets:manage` 控制） |
 | `/accounts` | 账户管理（含三层角色提权防线与最后一名超管保护） | 管理员、超级管理员（受 `accounts:read` / `accounts:manage` 控制） |
 | `/permissions` | 系统权限（模块 × 角色「查看 / 操作」矩阵与恢复默认） | 仅超级管理员（`system:permission:*` 锁定） |
-| `/system` | 系统配置（顶部 Tab：`运行控制` 含数据库探针与 AI 队列水位/全局一键熔断；`基础配置` 含全局系统时区） | 管理员只读、超级管理员可维护 |
-| `/audit` | 操作日志（服务端分页，区分 `human` / `agent` 来源，覆盖账户、权限、系统开关与资产操作，跟随系统时区） | 管理员、超级管理员（受 `audit:read` 控制） |
-| `/settings` | 个人设置 | 全部已登录账户 |
+| `/system` | 系统配置（顶部 Tab：`运行控制` 含数据库探针与 AI 队列水位/全局一键熔断；`基础配置` 含全局系统时区；`后台任务` 含任务列表、重试/取消与「清理过期数据」） | 管理员只读、超级管理员可维护；`后台任务` Tab 受 `jobs:read` / `jobs:manage` 控制 |
+| `/audit` | 操作日志（服务端分页，区分 `human` / `agent` / `system` 来源，覆盖账户、权限、系统开关、资产、批量导入、附件、后台任务与 API 密钥操作，跟随系统时区） | 管理员、超级管理员（受 `audit:read` 控制） |
+| `/settings` | 个人设置（含「API 密钥」卡片：创建/撤销个人 Bearer 密钥，仅网页会话可管理） | 全部已登录账户 |
 | `/demo/navigation` | [二级导航与顶部 Tab Demo](./apps/web/src/features/navigation-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
 | `/demo/forms` | [三段式表单弹窗、输入控件与全局通知 Demo](./apps/web/src/features/forms-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
 
 ## 数据表
 
-`console_account`（含可为空的 `email`、`company`）、`console_session`、`console_asset`、`console_role_permission`（角色有效权限矩阵）、`console_setting`（全局时区与 AI 熔断开关）、`console_audit`（只追加，含 `actor_source` 与敏感键递归脱敏）。
+`console_account`（含可为空的 `email`、`company`）、`console_session`、`console_asset`、`console_role_permission`（角色有效权限矩阵）、`console_setting`（全局时区与 AI 熔断开关）、`console_audit`（只追加，含 `actor_source` 与敏感键递归脱敏）、`console_login_guard`、`console_account_invite`、`console_oidc_state`、`console_attachment`（附件元数据，字节在存储驱动中）、`console_job`（PostgreSQL 后台任务队列）、`console_api_token`（个人 Bearer 密钥，仅存 SHA-256 摘要）。
+
+## 后端能力（Package 2）
+
+分层与实现细节见 [apps/server/README.md](./apps/server/README.md)，规范见 [BACKEND.md](./BACKEND.md) §11–§12。
+
+- **Bearer API 密钥**：`/console/me/tokens` 仅网页会话可管理；Bearer 有效权限 = 账户实时角色权限 ∩ 密钥 scopes；无效 Bearer 直接 `401`，绝不回退 Cookie。
+- **附件存储**：本地目录（默认 `STARTER_UPLOAD_DIR`）或 S3 兼容存储（零依赖 SigV4）；扩展名白名单 + 魔数校验 + 文本主动内容拦截，下载一律 `application/octet-stream` + `attachment`。
+- **后台任务**：`console_job` + 进程内 Worker，`FOR UPDATE SKIP LOCKED` 领取，指数退避重试；`STARTER_JOBS_ENABLED=false` 可关闭 Worker。
+- **导航**：不新增侧栏入口——后台任务为 `/system` 顶部 Tab，API 密钥为 `/settings` 卡片，附件在资产详情抽屉内。
 
 ## 约束
 

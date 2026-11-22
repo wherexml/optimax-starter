@@ -4,12 +4,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Shield, User } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Laptop, Loader2, LogOut, Monitor, Shield, User } from "lucide-react";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { Badge } from "@/components/ui/badge";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyableInput } from "@/components/ui/input-group";
 import { PasswordInput } from "@/components/ui/password-input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { FormDialog } from "@/components/ui/FormDialog";
 import {
   FieldLayout,
@@ -23,8 +26,17 @@ import {
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "@/components/ui/toast";
-import { request, type Account } from "@/console-client";
-import { useAccount } from "@/features/auth/session";
+import {
+  api,
+  unwrapRpc,
+  type Account,
+  type AccountSession,
+} from "@/console-client";
+import { getRoleLabel, useAccount } from "@/features/auth/session";
+import { formatUserAgent } from "@/features/auth/session-utils";
+import { useTheme } from "@/features/theme/ThemeProvider";
+import type { ThemePreference } from "@/features/theme/theme-utils";
+import { ApiTokensCard } from "./ApiTokensCard";
 import { useUnsavedGuard } from "./useUnsavedGuard";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -86,6 +98,9 @@ export function SettingsPage() {
             leaving.current = true;
           }}
         />
+        <AppearanceCard />
+        <SessionsCard accountId={me.data.id} />
+        <ApiTokensCard account={me.data} />
       </div>
       {guard.blocked && (
         <FormDialog
@@ -152,11 +167,15 @@ function ProfileCard({
   }, [sig]);
   const save = useMutation({
     mutationFn: (v: ProfileValues) =>
-      request<Account>("/me", "PATCH", {
-        name: v.name.trim(),
-        email: v.email.trim(),
-        company: v.company.trim(),
-      }),
+      unwrapRpc(
+        api.me.$patch({
+          json: {
+            name: v.name.trim(),
+            email: v.email.trim(),
+            company: v.company.trim(),
+          },
+        }),
+      ),
     onSuccess: (row) => {
       cache.setQueryData(["session"], row);
       form.reset(toValues(row));
@@ -209,7 +228,7 @@ function ProfileCard({
                 )}
               />
             ))}
-            <ReadOnly label="角色" value={account.role === "admin" ? "管理员" : "成员"} />
+            <ReadOnly label="角色" value={getRoleLabel(account.role)} />
             {form.formState.errors.root && (
               <p role="alert" className="m-0 text-xs font-medium leading-[18px] text-destructive">
                 {form.formState.errors.root.message}
@@ -258,10 +277,14 @@ function SecurityCard({
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
   const change = useMutation({
     mutationFn: (v: PasswordValues) =>
-      request<{ ok: true }>("/me/password", "POST", {
-        current: v.current,
-        password: v.password,
-      }),
+      unwrapRpc(
+        api.me.password.$post({
+          json: {
+            current: v.current,
+            password: v.password,
+          },
+        }),
+      ),
     onSuccess: () => {
       onChanged();
       form.reset();
@@ -347,6 +370,201 @@ function SecurityCard({
           </fieldset>
         </form>
       </Form>
+    </section>
+  );
+}
+
+const THEME_OPTIONS: readonly { value: ThemePreference; label: string }[] = [
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" },
+];
+
+function AppearanceCard() {
+  const id = useId();
+  const { preference, resolved, setPreference } = useTheme();
+  return (
+    <section className="settings-card" aria-labelledby={id}>
+      <h2 id={id}>
+        <Monitor size={18} aria-hidden="true" />
+        界面外观
+      </h2>
+      <div className="flex flex-col gap-4">
+        <FieldLayout>
+          <Label>主题模式</Label>
+          <SegmentedControl
+            label="主题模式"
+            value={preference}
+            onValueChange={setPreference}
+            options={THEME_OPTIONS}
+          />
+        </FieldLayout>
+        <p className="m-0 text-xs leading-[18px] text-muted-foreground">
+          默认使用浅色模式；当前生效外观：{resolved === "dark" ? "深色" : "浅色"}。
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function formatSessionTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function SessionsCard({ accountId }: { accountId: number }) {
+  const id = useId();
+  const cache = useQueryClient();
+  const revokeAllTrigger = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<
+    | { kind: "one"; session: AccountSession }
+    | { kind: "others"; count: number }
+    | null
+  >(null);
+
+  const query = useQuery({
+    queryKey: ["my-sessions", accountId],
+    queryFn: () => unwrapRpc(api.me.sessions.$get()),
+    enabled: Boolean(accountId),
+  });
+
+  const sessions = query.data ?? [];
+  const otherCount = sessions.filter((s) => !s.current).length;
+
+  return (
+    <section className="settings-card" aria-labelledby={id}>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <h2 id={id} className="m-0 flex items-center gap-2 text-base font-semibold leading-6">
+          <Laptop size={18} aria-hidden="true" className="text-primary" />
+          在线会话
+        </h2>
+        {otherCount > 0 && (
+          <Button
+            ref={revokeAllTrigger}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              returnFocus.current = revokeAllTrigger.current;
+              setConfirmTarget({ kind: "others", count: otherCount });
+            }}
+          >
+            <LogOut size={14} aria-hidden="true" />
+            下线其他设备
+          </Button>
+        )}
+      </div>
+
+      {query.isPending ? (
+        <p role="status" className="m-0 text-sm text-muted-foreground">
+          正在加载在线会话…
+        </p>
+      ) : query.isError ? (
+        <div role="alert" className="flex items-center justify-between gap-3">
+          <p className="m-0 text-sm text-destructive">{query.error.message}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
+            重试
+          </Button>
+        </div>
+      ) : !sessions.length ? (
+        <p className="m-0 text-sm text-muted-foreground">暂无活跃会话</p>
+      ) : (
+        <ul className="m-0 flex list-none flex-col divide-y-[0.5px] divide-border p-0">
+          {sessions.map((s) => (
+            <li
+              key={s.id}
+              className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {formatUserAgent(s.userAgent)}
+                  </span>
+                  {s.current && <Badge variant="brand">当前设备</Badge>}
+                </div>
+                <p className="m-0 mt-1 text-xs leading-[18px] text-muted-foreground tabular-nums">
+                  登录于 {formatSessionTime(s.createdAt)}，到期于{" "}
+                  {formatSessionTime(s.expiresAt)}
+                </p>
+                <p className="m-0 mt-0.5 text-xs leading-[18px] text-muted-foreground tabular-nums">
+                  IP {s.ipAddress || "未知"} · 最近活动{" "}
+                  {s.lastSeenAt ? formatSessionTime(s.lastSeenAt) : "—"}
+                </p>
+              </div>
+              {!s.current && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    returnFocus.current = e.currentTarget;
+                    setConfirmTarget({ kind: "one", session: s });
+                  }}
+                >
+                  下线
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {confirmTarget?.kind === "one" && (
+        <ConfirmDialog
+          title="下线该设备会话"
+          description={`将使「${formatUserAgent(confirmTarget.session.userAgent)}」上的登录会话立即失效，对方需要重新登录。`}
+          submitText="确认下线"
+          trigger={returnFocus.current}
+          action={() =>
+            unwrapRpc(
+              api.me.sessions[":id"].$delete({
+                param: { id: String(confirmTarget.session.id) },
+              }),
+            )
+          }
+          close={async (done) => {
+            setConfirmTarget(null);
+            if (done) {
+              await Promise.all([
+                cache.invalidateQueries({ queryKey: ["my-sessions"] }),
+                cache.invalidateQueries({ queryKey: ["audit"] }),
+              ]);
+              toast.success("已下线该会话");
+            }
+          }}
+        />
+      )}
+
+      {confirmTarget?.kind === "others" && (
+        <ConfirmDialog
+          title="下线其他设备"
+          description={`将撤销当前账户其余 ${confirmTarget.count} 个活跃会话，当前设备保持登录状态。`}
+          submitText="全部下线"
+          trigger={returnFocus.current}
+          action={() => unwrapRpc(api.me.sessions["revoke-others"].$post())}
+          close={async (done) => {
+            setConfirmTarget(null);
+            if (done) {
+              await Promise.all([
+                cache.invalidateQueries({ queryKey: ["my-sessions"] }),
+                cache.invalidateQueries({ queryKey: ["audit"] }),
+              ]);
+              toast.success("已下线其他设备会话");
+            }
+          }}
+        />
+      )}
     </section>
   );
 }

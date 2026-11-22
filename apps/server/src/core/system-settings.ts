@@ -3,6 +3,7 @@ import { systemSettings } from "@optimax-starter/db/schema/console";
 import {
   DEFAULT_SYSTEM_TIMEZONE,
   SYSTEM_TIMEZONE_OPTIONS,
+  type ActorSource,
   type SystemSettingsResponse,
 } from "@optimax-starter/api";
 import { db } from "../services";
@@ -128,6 +129,7 @@ export async function updateSystemTimezoneTx(
   tx: Tx,
   actor: Party,
   rawTimezone: string,
+  actorSource: ActorSource = "human",
 ): Promise<SystemSettingsResponse> {
   const normalized = normalizeTimezone(rawTimezone);
   if (!normalized) {
@@ -159,7 +161,7 @@ export async function updateSystemTimezoneTx(
       "system.timezone_update",
       actor,
       { code: SETTING_TIMEZONE, name: "系统时区" },
-      { from: before.timezone, to: normalized },
+      { from: before.timezone, to: normalized }, actorSource,
     );
   }
 
@@ -170,6 +172,7 @@ export async function updateAiCircuitTx(
   tx: Tx,
   actor: Party,
   enabled: boolean,
+  actorSource: ActorSource = "human",
 ): Promise<{ circuitOpen: boolean; updatedAt: string }> {
   const before = await loadSettings(tx);
   const beforeEnabled = !before.circuitOpen;
@@ -198,7 +201,7 @@ export async function updateAiCircuitTx(
       "system.ai_circuit",
       actor,
       { code: SETTING_AI_ENABLED, name: "AI 全局熔断开关" },
-      { from: beforeEnabled, to: enabled },
+      { from: beforeEnabled, to: enabled }, actorSource,
     );
   }
 

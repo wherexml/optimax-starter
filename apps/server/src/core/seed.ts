@@ -1,5 +1,5 @@
 import { count, eq } from "drizzle-orm";
-import { accounts, assets } from "@optimax-starter/db/schema/console";
+import { accounts } from "@optimax-starter/db/schema/console";
 import { hashPassword } from "../password";
 import { db } from "../services";
 import { ADMIN_LOCK } from "./guards";
@@ -9,20 +9,14 @@ import {
   shouldSeedDemo,
 } from "./config";
 
-const DEMO_SYSTEMS = [
-  "采购门户",
-  "库存服务",
-  "订单中心",
-  "供应商门户",
-  "合同服务",
-  "仓储平台",
-  "运输管理",
-  "结算中心",
-  "质量平台",
-  "报表服务",
-  "数据目录",
-  "客户门户",
-] as const;
+type DemoSeeder = () => Promise<void>;
+
+const DEMO_SEEDERS: DemoSeeder[] = [];
+
+/** Business modules register idempotent demo seeders; they run only when demo seeding is on. */
+export function registerDemoSeeder(fn: DemoSeeder): void {
+  DEMO_SEEDERS.push(fn);
+}
 
 // 生产首个 super_admin：仅在 console_account 为空时创建一次，绝不修改已有账户。
 async function bootstrapProductionAdmin() {
@@ -80,15 +74,7 @@ export async function initializeConsole() {
       .where(eq(accounts.id, existing.id));
   }
 
-  await db
-    .insert(assets)
-    .values(
-      DEMO_SYSTEMS.map((name, i) => ({
-        name,
-        domain: ["采购", "履约", "运营"][i % 3]!,
-        owner: ["业务运营组", "交付组", "平台组"][i % 3]!,
-        stage: i % 4 === 1 ? "待复核" : "已登记",
-      })),
-    )
-    .onConflictDoNothing();
+  for (const seeder of DEMO_SEEDERS) {
+    await seeder();
+  }
 }

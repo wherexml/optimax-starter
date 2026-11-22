@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { defaultPermissionCodes, ROLE_LABELS, type AccountRole } from "@optimax-starter/api";
+import { defaultPermissionCodes } from "@optimax-starter/api";
 import { request, type Account } from "@/console-client";
+import { getRoleLabel } from "./session-utils";
+
+export { getRoleLabel };
 
 export function useAccount() {
   return useQuery({
@@ -8,13 +11,6 @@ export function useAccount() {
     queryFn: () => request<Account>("/me"),
     retry: false,
   });
-}
-
-export function getRoleLabel(role: string | null | undefined): string {
-  if (role && role in ROLE_LABELS) {
-    return ROLE_LABELS[role as AccountRole];
-  }
-  return role || "成员";
 }
 
 export function hasPermission(

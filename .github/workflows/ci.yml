@@ -100,6 +100,11 @@ jobs:
           bash -n scripts/deploy-production.sh
           node --check scripts/ci-scope.mjs
           node --check scripts/gen-module.mjs
+          node --check scripts/lib/gen-module-fields.mjs
+          node --check scripts/check-migrations.mjs
+          node --check scripts/doctor.mjs
+          node --check scripts/setup-server.mjs
+          node --check scripts/lib/strip-example.mjs
           python3 -m py_compile scripts/verify-*.py
       - name: CI scope regression E2E
         env:
@@ -107,6 +112,14 @@ jobs:
         run: node scripts/e2e/ci-scope-e2e.mjs
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
+      - name: Migration drift gate (schema vs committed SQL)
+        env:
+          DATABASE_URL: postgres://starter:ci@127.0.0.1:5432/starter
+        run: bun run db:check
+      - name: Lint and unit tests
+        run: |
+          bun run lint
+          bun run test
       - name: Typecheck and production build
         env:
           CORS_ORIGIN: http://127.0.0.1:38140
@@ -115,7 +128,9 @@ jobs:
           bun run check-types
           bun run build
       - name: Dry-run module generator
-        run: node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run
+        run: |
+          node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run
+          node scripts/gen-module.mjs agreements --label 合同台账 --singular agreement --fields "code:string:合同编号,amount:number:金额,qty:int:数量,kind:enum:采购|销售:类型,signedAt:date:签约日期,active:boolean:有效,remark:text:备注?" --dry-run
       - uses: actions/upload-artifact@v4
         if: always()
         with:

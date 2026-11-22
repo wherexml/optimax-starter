@@ -88,9 +88,9 @@ Web 框架不要只按流行度或性能跑分选择，应优先看项目形态�
 | Web 框架 | Hono（分层见 [apps/server/README.md](./apps/server/README.md)：`core/` 底座 + `modules/` 业务子路由） |
 | 数据库 | PostgreSQL 17（仅 Compose 内部网络可访问） |
 | ORM/查询方式 | Drizzle ORM（查询构造器 + 参数化 `sql` 咨询锁；开发 `db:push`，生产优先 `db:migrate:deploy`） |
-| 缓存/队列 | 无独立 Redis/队列；资产自然语言计划短期状态保存在有界进程内存（5 分钟过期） |
-| 文件存储 | 无用户文件上传存储 |
-| 后台任务 | 启动时受 `STARTER_SEED_DEMO` 控制的幂等初始化（`core/seed.ts`），无常驻定时任务 |
+| 缓存/队列 | 无独立 Redis；后台任务使用 PostgreSQL `console_job` 表 + 进程内 Worker（`FOR UPDATE SKIP LOCKED`），资产自然语言计划短期状态保存在有界进程内存（5 分钟过期） |
+| 文件存储 | `console_attachment` 元数据 + `StorageDriver`：本地目录 `STARTER_UPLOAD_DIR`（默认）或 S3 兼容存储（`STARTER_STORAGE_DRIVER=s3` 且 `STARTER_S3_*` 齐全，零依赖 SigV4）；单文件上限 `STARTER_UPLOAD_MAX_BYTES`（默认 10 MiB） |
+| 后台任务 | `assets.export_csv`、`assets.bulk_import`、`system.cleanup_expired`（`core/jobs.ts`，`STARTER_JOBS_ENABLED=false` 关闭 Worker）；启动时另有受 `STARTER_SEED_DEMO` 控制的幂等初始化（`core/seed.ts`） |
 | 健康覆盖范围 | 存活 `GET /`（返回 `OK`）；就绪 `GET /healthz`（执行数据库 `SELECT 1`，返回 `{ status: "ok", db: "ok" }`，实现于 `apps/server/src/index.ts`） |
 
 ---
@@ -251,6 +251,19 @@ Procedure 至少分三级：
 - 必须提供人工补跑入口，补跑要写审计日志。
 - 前端需要实时进度时，使用 SSE、WebSocket、subscription 或轮询，并说明断线恢复策略。
 
+Starter 实现（`apps/server/src/core/jobs.ts` + `core/job-policy.ts`）：
+
+| 项 | 实现 |
+| --- | --- |
+| 状态 | `pending` → `running` → `succeeded` / `failed` / `cancelled`（`pending` 对应上文 `queued`） |
+| 领取 | 单条 `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)`：`pending` 且 `run_after <= now()`，或锁超过 `JOB_LOCK_STALE_MS`（5 分钟）的 `running`（Worker 崩溃回收）；多 API 进程并行安全 |
+| 重试 | `attempts < max_attempts` 时按 `calculateBackoffMs`（30s、60s、120s…，上限 30 分钟）写回 `run_after`；耗尽后 `failed` 并保留安全错误文本 |
+| 取消 | 成功落库在事务内复核行仍为 `running`，取消后执行结果被丢弃 |
+| 补跑 | `POST /console/jobs/:id/retry`（`jobs:manage`，仅 `failed` / `cancelled`），同事务写 `job.retry` 审计 |
+| 权限 | 创建按类型（导出 `assets:read`、导入 `assets:manage`、清理 `jobs:manage` 或 `system:settings:manage`），并在共享权限锁内复核实时角色；Bearer 调用同样受 scopes 交集约束 |
+| 敏感数据 | 导入任务完成后压缩 payload（只留文件名、重名策略、字节数），`publicJob` 永不返回原始 CSV |
+| 前端 | `/system?tab=jobs` 列表在存在排队/执行中任务时每 2 秒刷新；资产页「异步导出全部」轮询 `GET /console/jobs/:id` 直到 `succeeded` 后下载产物附件 |
+
 ---
 
 ## 12. 文件、Webhook 与外部系统
@@ -262,6 +275,8 @@ Procedure 至少分三级：
 - 存储文件名使用随机 ID，不使用用户上传原名作为真实路径。
 - HTML、SVG、Office、PDF 预览要按安全等级处理；HTML 预览必须 sandbox。
 - 下载和预览都要重新鉴权，不能只靠隐藏 URL。
+
+Starter 实现（`apps/server/src/core/storage.ts` + `modules/attachments.ts`）：扩展名白名单与显式黑名单（含内层扩展名）、声明 MIME 拒绝 HTML/SVG/JS/XML、二进制魔数比对、文本文件拒绝 NUL 与 `<script` / `<svg` / `<!doctype html` / `<html`；存储键由服务端随机生成，`LocalStorageDriver` 对每次读写删再次做路径包含校验；下载重新鉴权，固定返回 `application/octet-stream`、`Content-Disposition: attachment`、`X-Content-Type-Options: nosniff` 与 `Content-Security-Policy: default-src 'none'; sandbox`，不提供内联预览。
 
 ### Webhook
 

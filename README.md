@@ -12,12 +12,12 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | --- | --- | --- | --- |
 | `/login` | 登录 | 匿名 | 用户名 + 密码，服务端数据库 Session（HttpOnly、SameSite=Strict Cookie） |
 | `/` | 工作台 | 全部（`workbench:read`） | 资产统计卡片、业务域分布与下钻；具备审计权限看最近操作，其余看待复核队列；快捷入口按有效权限展示 |
-| `/assets` | 资产台账 | 成员只读，管理员与超管可写 | 表格排序、列设置、分页；动态筛选（多选、包含/等于）与可选自然语言筛选 |
+| `/assets` | 资产台账 | 成员只读，管理员与超管可写 | 服务端分页与排序；动态筛选（状态/业务域/责任团队多选、包含/等于）、多行批量操作、行详情抽屉（含相关附件上传/下载/删除）、CSV 批量导入（模板、预览校验、重名策略）、当前页 CSV 导出与「异步导出全部」，以及可选自然语言筛选 |
 | `/accounts` | 账户管理 | 管理员、超级管理员 | 新增、编辑资料、重置密码、强制下线、启停；管理员提权与高权限账户维护仅限超级管理员 |
 | `/permissions` | 系统权限 | 超级管理员 | 「模块 × 角色（查看 / 操作）」双按钮权限矩阵、自动联动与二次点击恢复默认 |
-| `/system` | 系统配置 | 管理员只读，超级管理员可维护 | 顶部 Tab：`运行控制`（数据库探针、AI 队列水位与一键熔断开关）与 `基础配置`（全局系统时区） |
-| `/audit` | 操作日志 | 管理员、超级管理员 | 按操作来源（`人工 / Agent`）、操作类型、操作人、日期筛选，服务端分页并跟随系统时区；只追加且自动脱敏 |
-| `/settings` | 个人设置 | 全部已登录账户 | 修改显示名称、邮箱、公司；修改密码后撤销本人全部会话 |
+| `/system` | 系统配置 | 管理员只读，超级管理员可维护 | 顶部 Tab：`运行控制`（数据库探针、AI 队列水位与一键熔断开关）、`基础配置`（全局系统时区）与 `后台任务`（状态/类型筛选、进度、结果下载、重试/取消、清理过期数据，`jobs:read` 可见） |
+| `/audit` | 操作日志 | 管理员、超级管理员 | 按操作来源（`人工 / Agent / 系统`）、操作类型、操作人、日期筛选，服务端分页并跟随系统时区；行详情抽屉与当前页 CSV 导出 |
+| `/settings` | 个人设置 | 全部已登录账户 | 修改显示名称、邮箱、公司；切换外观主题（浅色/深色/跟随系统，防闪烁持久化）；查看与下线本人在线会话；创建/撤销个人 API 密钥（Bearer，权限为角色 ∩ 所选范围，明文仅显示一次）；修改密码撤销全部会话 |
 
 Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)（二级侧栏与顶部 Tab，详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)）、[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），登录账户均可访问。
 
@@ -29,11 +29,11 @@ Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigat
 
 | 层 | 选型 |
 | --- | --- |
-| 前端 | React、Vite、TanStack Router / Query / Table、Tailwind CSS v4、Radix（shadcn 风格组件） |
-| 后端 | Hono，常驻进程用 Node 24 运行（`@hono/node-server` + `tsx`） |
+| 前端 | React、Vite、TanStack Router / Query / Table、Tailwind CSS v4、Radix（shadcn 风格组件）、Hono `hc` 类型安全 RPC |
+| 后端 | Hono，常驻进程用 Node 24 运行（`@hono/node-server` + `tsx`），`src/rpc.ts` 导出纯类型契约 |
 | 数据 | PostgreSQL 17、Drizzle ORM（schema push） |
 | 校验与安全 | Zod、Argon2id（`@node-rs/argon2`，与原 Bun 哈希格式兼容） |
-| 工具链 | Bun 1.3.14（包管理、`db:push`、Vite 开发服务器），全部在容器内运行 |
+| 工具链 | Bun 1.3.14（包管理、`db:push`、Vite 构建）、Biome v2（lint/format）与 Vitest v3（纯逻辑单测） |
 
 ## 快速开始
 
@@ -45,6 +45,14 @@ cd optimax-starter
 ./scripts/init-local.sh
 docker compose up -d --build
 ```
+
+如果主机已安装 Node 20+ 或 Bun，也可以用本地图形向导完成同样的步骤（推荐）：
+
+```sh
+bun run setup        # 或 node scripts/setup-server.mjs；只监听 127.0.0.1，并打印带一次性令牌的链接
+```
+
+向导在浏览器中打开 `docs/onboarding.html` 的直连模式，可一键补齐 `.env`、预演和执行初始化、生成业务模块、校验迁移、启动 Docker 栈与运行接口验收；只执行白名单命令，不做生产部署、git commit 或 push。直接双击打开 `docs/onboarding.html` 则是离线预览模式，只生成命令与给 Agent 的提示词。
 
 打开 <http://127.0.0.1:38140/login>，使用本地演示账户：
 
@@ -85,12 +93,19 @@ docker compose up -d --build
 ## 日常命令
 
 ```sh
+bun run setup                             # 本地图形向导（初始化、新增模块、迁移校验、自查）
+bun run doctor                            # 只读自检：Docker、端口、.env、迁移漂移、上游差距
+bun run db:check                          # 迁移漂移门禁：schema 有变更但未生成迁移时失败
 docker compose ps                         # 查看服务和健康状态
 docker compose logs -f api                # 跟踪 API 日志
 docker compose down                       # 停止服务，保留数据卷
 docker compose up -d                      # 日常启动（自动合并 compose.override.yaml 热更新）
 docker compose up -d --build              # 修改 package.json / bun.lock 后重建镜像
-bun run gen:module vendors --label 供应商  # 一键生成新业务模块（表、Zod 契约、API、页面、验收脚本）
+bun run lint                              # Biome 静态检查（容器内运行）
+bun run format:check                      # Biome 格式检查（容器内运行）
+bun run test                              # Vitest 纯逻辑单元测试（容器内运行）
+bun run gen:module vendors --label 供应商  # 一键生成默认 4 字段全栈模块（也可传入 --fields 自定义字段）
+bun run gen:module agreements --label 合同台账 --fields "code:string:合同编号,amount:number:金额,kind:enum:采购|销售:类型,signedAt:date:签约日期,remark:text:备注?"
 ```
 
 仅在明确要清空本地数据库时才执行 `docker compose down -v`；日常停止不要加 `-v`。
@@ -110,7 +125,8 @@ apps/
 packages/
   api/src/               contracts.ts · permissions.ts · system.ts · asset-agent.ts（前后端共享 Zod 契约与权限矩阵）
   db/src/schema/         console.ts：账户、会话、资产、角色权限矩阵、系统配置、操作日志
-scripts/                 init-local.sh · bootstrap-project.sh · gen-module.mjs · ci-scope.mjs · deploy-production.sh · verify-*.py
+scripts/                 setup-server.mjs（本地向导）、bootstrap-project.sh、init-local.sh、gen-module.mjs、check-migrations.mjs、doctor.mjs、lib/strip-example.mjs、ci-scope.mjs、deploy-production.sh、verify-*.py
+docs/                    onboarding.html（初始化工作台，可 file:// 离线打开）、UPGRADE.md
 .github/workflows/       ci.yml · deploy-production.yml
 compose.yaml             本地开发基础栈（配合 compose.override.yaml 热更新）
 compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段非 root 构建）
@@ -119,7 +135,7 @@ compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段�
 ## 开发指引
 
 - 页面代码写在 `apps/web/src/features/<模块>/`；`routes/` 只负责路由、鉴权和 `validateSearch`；新增菜单只需在 `apps/web/src/config/app-config.ts` 的 `NAV_REGISTRY` 注册一处，侧栏、抽屉和 `Cmd+K` 快速导航自动同步。
-- 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页），也可以直接运行 `bun run gen:module <slug> --label <中文名>` 生成全栈骨架。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
+- 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页，支持多选批量操作栏、`DetailDrawer` 详情抽屉与 `@/lib/csv` 安全导出），也可以直接运行 `bun run gen:module <slug> --label <中文名> [--fields "..."]` 生成全栈骨架。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
 - 资产台账默认展示客户端筛选与管理员新增/编辑/删除闭环，后端同时提供 `/console/assets/page` 服务端分页 + 动态筛选参考实现。
 - 新增后端接口按业务域放在 `apps/server/src/modules/<模块>.ts` 并挂载到 `console.ts`；前后端输入输出 Schema 统一放在 `packages/api/`。管理员写操作必须在同一事务中调用 `audit()` / `auditResource()` 写入 `console_audit`，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
 - 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航（最多二级）→ 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。
@@ -155,9 +171,14 @@ git remote get-url origin   # 应输出新仓库的地址，而不是 optimax-st
 
 **必须在第一次 `docker compose up` 之前执行。** 数据卷名由 compose 项目名决定，脚本会自动扫描本机空闲的相邻五位端口（默认从 `38150/38151` 起）、替换 `package.json` 与 `compose.yaml` 项目/镜像名、生成独立 `SESSION_COOKIE_NAME`（避免同机多项目 `127.0.0.1` Cookie 互相覆盖）与随机数据库密码，并更新 `bun.lock`：
 
+推荐先运行 `bun run setup`，在「新建项目」页选择起点（空白业务系统 / 含示例台账 / 仅补齐本地密钥），实时预览界面、文件改动与命令，再点「预演检查」和「立即执行初始化」。没有 Node 或 Bun 时直接运行脚本：
+
 ```sh
+./scripts/bootstrap-project.sh my-console --title "我的运营台" --dry-run   # 先预览计划，不改任何文件
 ./scripts/bootstrap-project.sh my-console --title "我的运营台"
+# 正式业务项目可附加 --no-example 移除示例资产台账（同时生成 remove_example_assets 迁移）
 # 如需正式业务项目默认隐藏 /demo/* 演示分组，可附加 --no-demos；如需指定端口可附加 --web-port 38160
+# 初始化会同步写入 .starter-version 记录上游模板基线提交；后续对照升级见 docs/UPGRADE.md
 ```
 
 另请按产品需要替换 `apps/web/index.html` 的 `<title>`、`public/brand/` 图标与 `app-config.ts` 的 `APP_CONFIG.logoSrc`（配置见 [品牌素材](./apps/web/public/brand/README.md)），并同步更新 `README.md` 与 `PROJECT.md` 中的项目说明（保留 `AGENTS.md` 中的侧栏布局基线等规范）。如需连同 workspace 包命名空间 `@optimax-starter/*` 一并替换，请批量修改各 `package.json` 与 import 后重新运行 `bun install`。
@@ -215,6 +236,8 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 | [REUSE.md](./REUSE.md) | 复用来源总表 |
 | [RUNTIME.md](./RUNTIME.md) | API 运行时选择、已知限制与恢复记录 |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | 部署说明 |
+| [UPGRADE.md](./docs/UPGRADE.md) | `.starter-version` 与派生项目上游同步升级指南 |
+| [onboarding.html](./docs/onboarding.html) | 初始化工作台：`bun run setup` 直连执行，或 `file://` 离线生成命令 |
 | [SPEC_ADOPTION.md](./SPEC_ADOPTION.md) | 团队规范（spec）基线的采用情况与差异 |
 | [PROJECT.md](./PROJECT.md) | 项目事实摘要 |
 

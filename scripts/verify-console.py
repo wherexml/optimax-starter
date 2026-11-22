@@ -56,6 +56,8 @@ credentials = {"username": username, "password": secrets.token_hex(16)}
 row = call(admin, "POST", "/accounts", 201, {**credentials, "name": "临时验收", "role": "member"})
 asset_name = "临时资产_" + secrets.token_hex(4)
 created_asset = None
+bulk_assets = []
+bulk_audit_watermark = 0
 
 try:
     call(member, "POST", "/login", 401, {**credentials, "password": "invalid"})
@@ -103,6 +105,41 @@ try:
     audit_rows = call(admin, "GET", "/audit?action=asset.delete&size=20", 200)["items"]
     assert any(item["detail"].get("entityId") == created_asset["id"] for item in audit_rows)
 
+    recent_audits = call(admin, "GET", "/audit?size=5", 200)["items"]
+    bulk_audit_watermark = max((int(item["id"]) for item in recent_audits), default=0)
+    bulk_a = call(
+        admin,
+        "POST",
+        "/assets",
+        201,
+        {"name": "批量资产A_" + secrets.token_hex(4), "domain": "采购", "owner": "平台组", "stage": "待复核"},
+    )
+    bulk_b = call(
+        admin,
+        "POST",
+        "/assets",
+        201,
+        {"name": "批量资产B_" + secrets.token_hex(4), "domain": "财务", "owner": "运营组", "stage": "待复核"},
+    )
+    bulk_assets = [bulk_a, bulk_b]
+    bulk_ids = [bulk_a["id"], bulk_b["id"]]
+    call(member, "POST", "/assets/bulk-stage", 403, {"ids": bulk_ids, "stage": "已登记"})
+    call(member, "POST", "/assets/bulk-delete", 403, {"ids": bulk_ids})
+    bulk_stage_res = call(admin, "POST", "/assets/bulk-stage", 200, {"ids": bulk_ids, "stage": "已登记"})
+    assert bulk_stage_res["ok"] is True and bulk_stage_res["updated"] == 2
+    bulk_update_audits = call(admin, "GET", "/audit?action=asset.bulk_update&size=20", 200)["items"]
+    assert any(
+        int(item["id"]) > bulk_audit_watermark and item["detail"].get("matched") == 2 and item["detail"].get("stage") == "已登记"
+        for item in bulk_update_audits
+    )
+    bulk_delete_res = call(admin, "POST", "/assets/bulk-delete", 200, {"ids": bulk_ids})
+    assert bulk_delete_res["ok"] is True and bulk_delete_res["deleted"] == 2
+    bulk_delete_audits = call(admin, "GET", "/audit?action=asset.bulk_delete&size=20", 200)["items"]
+    assert any(
+        int(item["id"]) > bulk_audit_watermark and item["detail"].get("matched") == 2
+        for item in bulk_delete_audits
+    )
+
     target = "/accounts/" + str(row["id"])
     call(member, "PATCH", target, 403, {"active": False})
     call(admin, "PATCH", target, 400, {"email": "invalid-email"})
@@ -140,11 +177,21 @@ finally:
         if created_asset
         else ""
     )
+    bulk_cleanup = "".join(
+        f"DELETE FROM console_audit WHERE detail->>'entityId'='{int(item['id'])}' AND action LIKE 'asset.%'; "
+        f"DELETE FROM console_asset WHERE id={int(item['id'])} AND name='{item['name']}'; "
+        for item in bulk_assets
+    )
+    if bulk_audit_watermark or bulk_assets:
+        bulk_cleanup += (
+            f"DELETE FROM console_audit WHERE id>{int(bulk_audit_watermark)} "
+            f"AND action IN ('asset.bulk_update', 'asset.bulk_delete'); "
+        )
     subprocess.run(
         ["docker", "compose", "exec", "-T", "db", "psql", "-v", "ON_ERROR_STOP=1", "-U", "starter", "-d", "starter"],
         cwd=root,
         input=(
-            f"BEGIN; {asset_cleanup}"
+            f"BEGIN; {asset_cleanup}{bulk_cleanup}"
             f"DELETE FROM console_audit WHERE target_id={int(row['id'])}; "
             f"DELETE FROM console_session WHERE account={int(row['id'])}; "
             f"DELETE FROM console_account WHERE id={int(row['id'])} AND username='{username}'; COMMIT;"

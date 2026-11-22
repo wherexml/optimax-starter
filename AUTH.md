@@ -23,17 +23,18 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；预留 `/console/auth/providers` 企业 SSO 发现入口 |
-| Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要） |
-| Token 传递 | HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`） |
+| 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；可选标准 OIDC 企业单点登录（授权码 + PKCE S256，`AUTH_OIDC_*`，默认关闭），见 [§5](#5-oauth--sso) |
+| Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要；记录登录 `ip_address`，`last_seen_at` 由会话中间件每 60 秒最多刷新一次） |
+| Token 传递 | 浏览器：HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`）；Agent / 集成：`Authorization: Bearer optx_…` 个人 API 密钥（`console_api_token`，见 [§12](#12-cookiebearer-与本地存储)） |
 | Session 有效期 | 8 小时（`28800` 秒） |
 | 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
-| OAuth Provider | 默认无；通过 `AUTH_SSO_*` 环境变量预留扩展挂载位 |
-| 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
-| 登录限流 | 应用网关/反代层按实际部署环境配置 |
-| 权限模型 | 三层角色（`super_admin`、`admin`、`member`）+ `console_role_permission` 模块级「查看 / 操作」权限矩阵；写操作在服务端 `ADMIN_LOCK` 事务咨询锁内二次复核操作者启用态、角色与实时有效权限 |
+| OAuth Provider | 默认无；`AUTH_OIDC_*` 配置标准 OIDC（仅关联已有启用账户，绝不自动建号）；旧 `AUTH_SSO_*` 自定义入口仍兼容 |
+| 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户（设置初始密码或生成 72 小时一次性激活链接）；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
+| 登录限流 | 应用层 PostgreSQL `console_login_guard`：账户 `user:<小写账户名>` 30 分钟内失败 5 次锁 30 分钟；来源 `ip:<客户端 IP>` 15 分钟内失败 20 次锁 30 分钟；锁定期返回 `429` + `Retry-After` + `AUTH_LOCKED`，见 [§4](#4-密码登录) |
+| 客户端 IP | 默认取 TCP 对端地址；仅 `TRUST_PROXY=true` 时信任 `X-Forwarded-For` 首跳 / `X-Real-IP`（必须是合法 IPv4/IPv6） |
+| 权限模型 | 三层角色（`super_admin`、`admin`、`member`）+ `console_role_permission` 模块级「查看 / 操作」权限矩阵；同一咨询锁 key 分共享/独占两种模式：业务写入取 `PERMISSION_SHARED_LOCK`（互不阻塞），账户、权限矩阵、系统设置、本人改密、激活与 SSO 关联取独占 `ADMIN_LOCK`；锁内二次复核操作者启用态、角色与实时有效权限 |
 | 租户字段 | 无（单组织后台基线） |
-| 审计日志 | `console_audit` 只追加表，记录 `actor_source`（`human` / `agent`）并对敏感键名递归 `[REDACTED]` 脱敏；同事务覆盖账户生命周期、本人资料与改密、权限矩阵修改/恢复默认、系统时区与 AI 熔断开关变更、资产增删改及 Agent 筛选回执 |
+| 审计日志 | `console_audit` 只追加表，记录 `actor_source`（`human` / `agent` / `system`；Cookie 会话恒为 `human`，Bearer 取密钥创建时选择的 `agent` 或 `system`）并对敏感键名递归 `[REDACTED]` 脱敏；同事务覆盖账户生命周期、激活链接生成/撤销/使用、本人资料与改密、权限矩阵修改/恢复默认、系统时区与 AI 熔断开关变更、资产增删改及 Agent 筛选回执；另记录 `auth.login` / `auth.login_failed`（含 `ip`、`reason`）/ `auth.logout` / `auth.sso_login` / `auth.sso_failed`。本人改密时“当前密码错误”不写审计 |
 
 ---
 
@@ -63,7 +64,9 @@ Session 表最低字段：
 Session 续期：
 
 - 可以使用 idle timeout，但续期必须由服务端控制。
-- 服务端发现 session 失效时返回 `AUTH_SESSION_EXPIRED` 或同等稳定错误码。
+- 服务端发现 session 失效时返回 `AUTH_SESSION_EXPIRED` 或同等稳定错误码（Starter 当前统一返回 `401` + `AUTH_REQUIRED`）。
+
+Starter 实现（2026-11-21）：`console_session` 已有 `id`、`account`、`created_at`、`expires`、`user_agent`，并新增 `ip_address`（登录 IP，随访问 IP 变化刷新）与 `last_seen_at`（非阻塞更新，60 秒节流）；`GET /console/me/sessions` 返回 `ipAddress`、`lastSeenAt`，个人设置「在线会话」展示。
 - 客户端对过期、撤销与退出的响应统一见 [FRONTEND.md §8](./FRONTEND.md#8-登录态权限与启动自检)。
 
 ---
@@ -88,9 +91,36 @@ Session 续期：
 | 限流维度 | email + IP |
 | 成功后 | 清理失败计数 |
 
+Starter 实现（`apps/server/src/core/login-guard.ts`，2026-11-21）：
+
+| 桶 | 键 | 阈值 | 锁定 |
+| --- | --- | --- | --- |
+| 账户 | `user:<小写账户名>` | 30 分钟窗口内失败 5 次 | 30 分钟 |
+| 来源 | `ip:<客户端 IP>` | 15 分钟窗口内失败 20 次（兼顾企业 NAT 与本机连续跑验收脚本） | 30 分钟 |
+
+- 计数通过单条 `INSERT … ON CONFLICT DO UPDATE` 原子累加，并发失败不会丢计数；窗口或锁到期后自动开启新窗口。
+- 未知账户名与真实账户名同样计数，并做一次等价 Argon2id 校验，响应始终为 `401` `"账户或密码错误"`（`AUTH_INVALID_CREDENTIALS`），不泄露账户是否存在；停用账户同样计为失败。
+- 任一桶锁定期内直接返回 `429`、`Retry-After`（整数秒 ≥ 1）与 `{ error: "登录失败次数过多，请于 X 分钟后再试", code: "AUTH_LOCKED", requestId }`，即使密码正确也拒绝；同时写 `auth.login_failed`（`reason: "locked"`）。
+- 登录成功只清理账户桶，来源桶自然衰减；管理员重置密码、重新启用账户、本人通过激活链接设置密码、SSO 登录成功都会删除该账户桶。
+- 公开激活接口 `GET/POST /console/auth/invites/:token*` 共用来源桶：无效令牌计入失败，锁定期返回 `429`。
+
 ---
 
 ## 5. OAuth / SSO
+
+Starter 实现（`apps/server/src/core/oidc.ts`，2026-11-21，零第三方 OAuth 依赖，仅 Node 24 `fetch` + `node:crypto`）：
+
+| 项 | 实现 |
+| --- | --- |
+| 开关 | `AUTH_OIDC_ENABLED=true` 且 `AUTH_OIDC_ISSUER`、`AUTH_OIDC_CLIENT_ID`、`AUTH_OIDC_LABEL` 均有效时，`GET /console/auth/providers` 返回 `{ id, label, loginPath: "/console/auth/sso/<id>/start" }`；旧 `AUTH_SSO_*` 条目保留且不重复 ID |
+| 回调 | 固定 `/console/auth/sso/<provider>/callback`（`AUTH_OIDC_REDIRECT_URI` 可覆盖），需在 IdP 注册 |
+| 发现与密钥 | `.well-known/openid-configuration` 与 JWKS 内存缓存 1 小时；生产强制 HTTPS、校验 `issuer` 一致、禁止重定向；未知 `kid` 刷新 JWKS 一次 |
+| 防护 | `state`（库内仅存 SHA-256，10 分钟，`DELETE … RETURNING` 一次性消费）+ HttpOnly `SameSite=Lax` 绑定 Cookie（`timingSafeEqual`）+ PKCE S256 + `nonce` |
+| id_token | 支持 `RS256/384/512`、`PS256/384/512`、`ES256/384/512`、`EdDSA`，以及 IdP 声明时的 `HS256`（client secret）；拒绝 `alg=none`，校验 `iss`、`aud`（多受众时 `azp`）、`exp`/`nbf`/`iat`（60 秒偏差）与 `nonce` |
+| 账户关联 | 先查 `console_auth_identity (provider, subject)`；未关联且 `AUTH_OIDC_ALLOW_EMAIL_LINK` 不为 `false` 时，按 `email_verified=true` 的邮箱（大小写不敏感，多账户命中视为未匹配）或 `preferred_username` 精确匹配已有启用账户并写入关联；`preferred_username` 不会自动关联 `admin` / `super_admin`；绝不自动建号 |
+| 成功 | 创建 Session（含 IP / `last_seen_at`）、`SameSite=Strict` Cookie、清理账户锁定桶、写 `auth.sso_login`（`provider`、`ip`），302 回站内相对路径 |
+| 失败 | 只重定向到 `/login?sso_error=` 固定枚举：`provider_disabled`、`cancelled`、`state_invalid`、`token_failed`、`unmatched`、`inactive`、`internal`；`unmatched` / `inactive` 写 `auth.sso_failed`；不回显上游错误文本 |
+| 密钥 | 优先 `AUTH_OIDC_CLIENT_SECRET_FILE`（私有文件），回退 `AUTH_OIDC_CLIENT_SECRET`；不进日志、审计或响应 |
 
 OAuth 必须包含：
 
@@ -220,6 +250,14 @@ OAuth 必须包含：
 
 禁用、删除、角色变更后必须考虑现有 session 是否立即失效。
 
+Starter 激活链接（2026-11-21）：
+
+- 新增账户可选「生成一次性激活链接」（`inviteOnly: true`）：账户以随机不可用密码创建并保持停用（对应 `invited`），返回仅显示一次的 `invitePath` 与 `expiresAt`。
+- `POST /console/accounts/:id/invite` 为已有账户重新生成链接（不可为本人生成；普通 `admin` 仅限 `member`），同时撤销该账户所有未使用链接（`account.invite_revoke`）。
+- `console_account_invite` 只存令牌 SHA-256，72 小时有效、仅可使用一次；`GET /console/auth/invites/:token` 返回 `404` 无效 / `410` 已撤销、已使用、已过期。
+- `POST /console/auth/invites/:token/accept` 在独占 `ADMIN_LOCK` 事务内复核并锁定链接、设置密码并启用账户、撤销该账户全部 Session 与其余未使用链接、清理账户锁定桶，写 `account.invite_accept`。
+- 停用账户会同时撤销其未使用的激活链接，避免旧链接绕过停用。
+
 ---
 
 ## 12. Cookie、Bearer 与本地存储
@@ -236,6 +274,19 @@ Bearer：
 - 只放在内存、系统安全存储或服务端环境变量。
 - 不写入日志、URL、localStorage 或公开文档。
 - 泄露后必须能撤销或过期。
+
+Starter 个人 API 密钥（`apps/server/src/modules/tokens.ts`、`core/bearer.ts`，前端 `/settings` 「API 密钥」卡片）：
+
+| 项 | 规则 |
+| --- | --- |
+| 格式与存储 | `optx_` + 32 位 base64url（24 字节随机）；库内只存 SHA-256 摘要与显示前缀，明文仅在创建响应中返回一次 |
+| 管理 | `GET/POST /console/me/tokens`、`DELETE /console/me/tokens/:id` 仅允许网页 Cookie 会话；Bearer 调用 `/me/password`、`/me/sessions*`、`/me/tokens*` 返回 `403 PERM_INTERACTIVE_REQUIRED` |
+| 字段 | `name`、`actorSource`（`agent` / `system`）、`ttlDays`（1 / 7 / 30 / 90 / 365）、`scopes`（必须是本人当前有效权限子集）；每账户最多 20 个有效密钥 |
+| 有效权限 | 每次请求实时计算 `getEffectivePermissions(role) ∩ scopes`；角色降级、账户停用、撤销或过期立即生效 |
+| 鉴权 | 只要请求头的方案是 Bearer（含缺失或畸形凭证）即只走密钥校验，失败 `401 AUTH_INVALID_TOKEN`，绝不回退 Cookie |
+| CSRF | Bearer 请求免 `Origin` 校验（浏览器不会跨站自动附带 Authorization 头），仍受 `REQUEST_POLICIES` 的 Content-Type 与体积限制；Cookie 请求（含 multipart 上传与 CSV 导入）始终要求 `Origin === CORS_ORIGIN` |
+| 使用记录 | `last_used_at` / `last_used_ip` 每分钟最多刷新一次（IP 变化时立即刷新），非阻塞 |
+| 审计 | `token.create`（前缀、来源、scopes、到期时间）/ `token.revoke`（前缀）；Bearer 发起的写操作以密钥的 `actorSource` 记录 |
 
 localStorage：
 

@@ -3,7 +3,7 @@ import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 // - Four DashboardStatCards (each value is the drilldown link, with subtitle links below).
 // - A 2:1 main grid: the left list replaces TenantSecurityList; the right column is RecentActivityList for admins
 //   and the review queue for members.
-// - Quick access cards (FeatureCard).
+// - Task shortcuts (FeatureCard) that open pre-filtered views rather than duplicating the sidebar.
 // Every figure comes from /console/assets, /console/accounts or /console/audit; there are no trends, risks or tenants.
 import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import {
   Activity,
   ArrowRight,
   BadgeCheck,
+  Bot,
   Boxes,
   Clock,
   KeyRound,
@@ -19,8 +20,6 @@ import {
   Pencil,
   Power,
   RotateCw,
-  ScrollText,
-  Settings,
   ShieldCheck,
   UserPlus,
   Users,
@@ -49,11 +48,14 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   "account.revoke": LogOut,
   "profile.update": Pencil,
   "profile.password_change": KeyRound,
+  "profile.session_revoke": LogOut,
   "permission.update": ShieldCheck,
   "permission.reset": ShieldCheck,
   "system.timezone_update": Clock,
   "system.ai_circuit": Power,
   "agent.asset_filter": Activity,
+  "asset.bulk_update": Pencil,
+  "asset.bulk_delete": Boxes,
 };
 
 export function DashboardPage() {
@@ -62,7 +64,6 @@ export function DashboardPage() {
   const canReadAssets = hasPermission(me.data, "assets:read");
   const canReadAccounts = hasPermission(me.data, "accounts:read");
   const canReadAudit = hasPermission(me.data, "audit:read");
-  const canReadPermissions = hasPermission(me.data, "system:permission:read");
   const canReadSystem =
     hasPermission(me.data, "system:settings:read") ||
     hasPermission(me.data, "system:ai:read");
@@ -197,7 +198,6 @@ export function DashboardPage() {
         <QuickAccess
           canReadAssets={canReadAssets}
           canReadAccounts={canReadAccounts}
-          canReadPermissions={canReadPermissions}
           canReadSystem={canReadSystem}
           canReadAudit={canReadAudit}
         />
@@ -515,7 +515,7 @@ function RecentActivity({ page }: { page: AuditPage }) {
         const Icon = ACTIVITY_ICONS[e.action] ?? Activity;
         const label = AUDIT_ACTION_LABELS[e.action] ?? e.action;
         const target =
-          e.targetName && e.targetId !== e.actorId ? ` · ${e.targetName}` : "";
+          e.targetName && e.targetId !== e.actorId ? `（${e.targetName}）` : "";
         return (
           <li key={e.id}>
             <Link to="/audit" search={{ action: e.action }}>
@@ -524,7 +524,7 @@ function RecentActivity({ page }: { page: AuditPage }) {
               </span>
               <span className="activity-main">
                 <span className="activity-text">
-                  {e.actorName} · {label}
+                  {e.actorName} {label}
                   {target}
                 </span>
                 <time className="activity-meta" dateTime={e.at}>
@@ -554,7 +554,7 @@ function ReviewQueue({ rows }: { rows: Asset[] }) {
               <span className="queue-main">
                 <strong>{r.name}</strong>
                 <small>
-                  {r.domain} · {r.owner}
+                  {r.domain} / {r.owner}
                 </small>
               </span>
               <ArrowRight size={14} aria-hidden="true" />
@@ -569,14 +569,26 @@ function ReviewQueue({ rows }: { rows: Asset[] }) {
   );
 }
 
-// ---------------------------------------------------------------- FeatureCard quick access
-function Feature({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+// ---------------------------------------------------------------- task shortcuts
+// Task / filter-oriented shortcuts instead of mirroring the sidebar: each lands on a pre-filtered view.
+function Feature({
+  icon: Icon,
+  title,
+  hint,
+}: {
+  icon: LucideIcon;
+  title: string;
+  hint: string;
+}) {
   return (
     <>
       <span className="stat-icon">
         <Icon size={18} aria-hidden="true" />
       </span>
-      <span>{title}</span>
+      <span className="feature-text">
+        <span>{title}</span>
+        <small>{hint}</small>
+      </span>
       <ArrowRight size={16} aria-hidden="true" />
     </>
   );
@@ -584,56 +596,45 @@ function Feature({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
 function QuickAccess({
   canReadAssets,
   canReadAccounts,
-  canReadPermissions,
   canReadSystem,
   canReadAudit,
 }: {
   canReadAssets: boolean;
   canReadAccounts: boolean;
-  canReadPermissions: boolean;
   canReadSystem: boolean;
   canReadAudit: boolean;
 }) {
   const id = useId();
+  const count = [canReadAssets, canReadAccounts, canReadAudit, canReadSystem].filter(
+    Boolean,
+  ).length;
+  if (!count) return null;
   return (
     <section aria-labelledby={id}>
       <h2 id={id} className="dash-section-title">
-        快捷入口
+        常用任务
       </h2>
-      <div className="feature-grid">
+      <div className="feature-grid" data-count={count}>
         {canReadAssets && (
-          <>
-            <Link to="/assets" className="feature-card">
-              <Feature icon={Boxes} title="资产台账" />
-            </Link>
-            <Link to="/assets" search={{ stage: "待复核" }} className="feature-card">
-              <Feature icon={Clock} title="待复核资产" />
-            </Link>
-          </>
-        )}
-        {canReadAccounts && (
-          <Link to="/accounts" className="feature-card">
-            <Feature icon={Users} title="账户管理" />
+          <Link to="/assets" search={{ stage: "待复核" }} className="feature-card">
+            <Feature icon={Clock} title="待复核资产" hint="处理待复核的台账记录" />
           </Link>
         )}
-        {canReadPermissions && (
-          <Link to="/permissions" className="feature-card">
-            <Feature icon={ShieldCheck} title="系统权限" />
+        {canReadAccounts && (
+          <Link to="/accounts" search={{ status: "disabled" }} className="feature-card">
+            <Feature icon={Power} title="已停用账户" hint="核对或重新启用账户" />
+          </Link>
+        )}
+        {canReadAudit && (
+          <Link to="/audit" search={{ source: "agent" }} className="feature-card">
+            <Feature icon={Bot} title="Agent 操作日志" hint="查看 AI 代理执行的操作" />
           </Link>
         )}
         {canReadSystem && (
           <Link to="/system" search={{ tab: "status" }} className="feature-card">
-            <Feature icon={Activity} title="系统配置" />
+            <Feature icon={Activity} title="AI 运行状态" hint="查看模型连通与熔断状态" />
           </Link>
         )}
-        {canReadAudit && (
-          <Link to="/audit" className="feature-card">
-            <Feature icon={ScrollText} title="操作日志" />
-          </Link>
-        )}
-        <Link to="/settings" className="feature-card">
-          <Feature icon={Settings} title="个人设置" />
-        </Link>
       </div>
     </section>
   );

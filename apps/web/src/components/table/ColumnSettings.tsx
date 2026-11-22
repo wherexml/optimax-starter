@@ -1,4 +1,5 @@
 import { Settings2, GripVertical } from "lucide-react";
+import { useId } from "react";
 import {
   DndContext,
   closestCenter,
@@ -6,10 +7,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { isLockedColumn, reorderColumns } from "./column-settings-utils";
 type ColumnConfig = { visible: boolean; width: number };
 
 interface SortableColumnItemProps {
@@ -38,6 +39,7 @@ function SortableColumnItem({
   label,
   onToggle,
 }: SortableColumnItemProps) {
+  const checkboxId = useId();
   const {
     attributes,
     listeners,
@@ -66,11 +68,11 @@ function SortableColumnItem({
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
       <Checkbox
-        aria-label={label}
+        id={checkboxId}
         checked={visible}
         onCheckedChange={onToggle}
       />
-      <label className="text-sm flex-1 cursor-pointer" onClick={onToggle}>
+      <label htmlFor={checkboxId} className="text-sm flex-1 cursor-pointer">
         {label}
       </label>
     </div>
@@ -110,7 +112,7 @@ export function ColumnSettings({
       ...columns,
       [columnKey]: {
         ...columns[columnKey],
-        visible: !columns[columnKey].visible,
+        visible: !(columns[columnKey]?.visible ?? true),
       },
     };
     onColumnsChange(newColumns, columnOrder);
@@ -118,24 +120,25 @@ export function ColumnSettings({
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    const activeId = String(active.id);
+    const overId = over ? String(over.id) : null;
 
-    // 禁止拖拽 actions 列（操作列永远在最右边）
-    if (active.id === "actions" || over?.id === "actions") {
+    if (isLockedColumn(activeId) || (overId && isLockedColumn(overId))) {
       return;
     }
 
-    if (over && active.id !== over.id) {
-      const oldIndex = columnOrder.indexOf(active.id as string);
-      const newIndex = columnOrder.indexOf(over.id as string);
-      const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
-      onColumnsChange(columns, newOrder);
+    if (overId && activeId !== overId) {
+      onColumnsChange(columns, reorderColumns(columnOrder, activeId, overId));
     }
   };
+
+  const sortableColumns = columnOrder.filter((col) => !isLockedColumn(col));
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           className="gap-1"
@@ -156,20 +159,18 @@ export function ColumnSettings({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={columnOrder.filter((col) => col !== "actions")}
+              items={sortableColumns}
               strategy={verticalListSortingStrategy}
             >
-              {columnOrder
-                .filter((col) => col !== "actions")
-                .map((columnKey) => (
-                  <SortableColumnItem
-                    key={columnKey}
-                    columnKey={columnKey}
-                    visible={columns[columnKey]?.visible ?? true}
-                    label={columnLabels[columnKey] || columnKey}
-                    onToggle={() => toggleColumn(columnKey)}
-                  />
-                ))}
+              {sortableColumns.map((columnKey) => (
+                <SortableColumnItem
+                  key={columnKey}
+                  columnKey={columnKey}
+                  visible={columns[columnKey]?.visible ?? true}
+                  label={columnLabels[columnKey] || columnKey}
+                  onToggle={() => toggleColumn(columnKey)}
+                />
+              ))}
             </SortableContext>
           </DndContext>
         </div>

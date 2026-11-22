@@ -6,9 +6,9 @@
 
 完整选型、三段式间距（固定 Header / 独立滚动 Body / 固定 Footer + 未保存拦截条）与字号规范见 [FRONTEND.md 表单弹窗与输入控件](../../FRONTEND.md#表单弹窗与输入控件)，在线复杂样板见 [forms-demo](../../apps/web/src/features/forms-demo/README.md)（`/demo/forms?dialog=create`）。
 
-- **弹窗与布局**：`components/dialog.tsx`、`components/form-dialog.tsx`（含 `UnsavedChangesBanner`）、`components/field.tsx`（`FormSection`、`FieldLayout`、`FieldLabelRow`、`FieldCharCount`、`FieldHint`、`FieldError`）、`components/label.tsx`。
+- **弹窗与布局**：`components/dialog.tsx`、`components/form-dialog.tsx`（含 `UnsavedChangesBanner`）、`components/detail-drawer.tsx`（`DetailDrawer`、`DetailSection`、`DetailField`）、`components/field.tsx`（`FormSection`、`FieldLayout`、`FieldLabelRow`、`FieldCharCount`、`FieldHint`、`FieldError`）、`components/label.tsx`。
 - **文本与复合输入**：`components/input.tsx`、`components/input-group.tsx`（`InputGroup`、`InputGroupAddon`、`ClearableInput`、`CopyableInput`）、`components/password-input.tsx`（显隐切换与 `generateSecurePassword`）、`components/number-input.tsx`、`components/tag-input.tsx`、`components/textarea.tsx`。
-- **选择与开关**：`components/select.tsx`、`components/combobox.tsx`、`components/multi-select.tsx`、`components/segmented-control.tsx`、`components/switch.tsx`（含 `SwitchField`）、`components/checkbox.tsx`、`components/popover.tsx`、`components/button.tsx`。
+- **选择与开关**：`components/select.tsx`、`components/combobox.tsx`、`components/multi-select.tsx`、`components/segmented-control.tsx`、`components/switch.tsx`（含 `SwitchField`）、`components/checkbox.tsx`（支持 `indeterminate` 半选态）、`components/popover.tsx`、`components/button.tsx`。
 
 ## 2. 内容刷新与页面骨架屏
 

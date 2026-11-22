@@ -3,9 +3,15 @@ import path from "node:path";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 
 import { consoleApi, initializeConsole } from "./console";
+import {
+  defaultErrorCode,
+  errorJson,
+  getClientIp,
+  getRequestId,
+  resolveRequestId,
+} from "./core/http";
 import { ENV } from "./env.server";
 import { db } from "./services";
 
@@ -27,7 +33,94 @@ const MIME_TYPES: Record<string, string> = {
 
 const app = new Hono();
 
-app.use(logger());
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "same-origin",
+};
+
+// Single-line JSON access log. Never includes headers, cookies, tokens, query strings or bodies.
+function accessLog(entry: Record<string, unknown>) {
+  const line = JSON.stringify({ time: new Date().toISOString(), ...entry });
+  if (entry.level === "error") console.error(line);
+  else if (entry.level === "warn") console.warn(line);
+  else console.log(line);
+}
+
+const safeMessage = (value: unknown) =>
+  String(value ?? "")
+    .replace(/[\u0000-\u001f]+/g, " ")
+    .slice(0, 200);
+
+// 1) Request context: X-Request-Id (validated or generated), security headers, access log.
+app.use("*", async (c, next) => {
+  const requestId = resolveRequestId(c.req.header("x-request-id"));
+  c.set("requestId", requestId);
+  const started = performance.now();
+  try {
+    await next();
+  } finally {
+    try {
+      c.header("X-Request-Id", requestId);
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.header(name, value);
+    } catch {
+      // Immutable upstream headers: logging below still runs.
+    }
+    const status = c.res?.status ?? 500;
+    accessLog({
+      level: status >= 500 ? "error" : status >= 400 ? "warn" : "info",
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status,
+      latencyMs: Math.round(performance.now() - started),
+      ip: getClientIp(c),
+    });
+  }
+});
+
+// 2) Safety net: any legacy `{ error }` JSON error gains `code` + `requestId` without changing `error`.
+app.use("/console/*", async (c, next) => {
+  await next();
+  const res = c.res;
+  if (res.status < 400 || !res.headers.get("content-type")?.includes("application/json")) return;
+  try {
+    const body = (await res.clone().json()) as Record<string, unknown>;
+    if (!body || typeof body !== "object" || typeof body.error !== "string") return;
+    if (typeof body.code === "string" && typeof body.requestId === "string") return;
+    const headers = new Headers(res.headers);
+    headers.delete("content-length");
+    c.res = new Response(
+      JSON.stringify({
+        ...body,
+        code: typeof body.code === "string" ? body.code : defaultErrorCode(res.status),
+        requestId: getRequestId(c),
+      }),
+      { status: res.status, headers },
+    );
+  } catch {
+    // Non-JSON or unreadable body: leave the response untouched.
+  }
+});
+
+app.onError((error, c) => {
+  accessLog({
+    level: "error",
+    requestId: getRequestId(c),
+    method: c.req.method,
+    path: c.req.path,
+    error: safeMessage(error?.name),
+    message: safeMessage(error?.message),
+  });
+  return errorJson(c, 500, "服务内部错误，请稍后重试", "SYS_INTERNAL_ERROR");
+});
+
+app.notFound((c) =>
+  c.req.path.startsWith("/console/") || c.req.path === "/console"
+    ? errorJson(c, 404, "接口不存在", "DATA_NOT_FOUND")
+    : c.text("Not Found", 404),
+);
+
 app.use(
   "/*",
   cors({

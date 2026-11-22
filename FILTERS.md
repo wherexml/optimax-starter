@@ -29,7 +29,7 @@
 | `domain` | string 或 string[] | 多个值为“或”；选中的业务域如果数据里不存在，结果为 0 条，不会变成不限 |
 
 - 不同字段之间为“且”；某字段未选任何值时不加限制。
-- 数据流：`/assets` 页面默认调用 `GET /console/assets` 取回全部记录并在浏览器端过滤；大数据量模块可改用 `GET /console/assets/page`（服务端 SQL 同等实现多选 OR、跨字段 AND 与 `contains`/`equals`）。
+- 数据流：`/assets` 页面调用 `GET /console/assets/page`（服务端 SQL 实现多选 OR、跨字段 AND 与 `contains`/`equals`，另含 `sortBy`/`sortDir`/`page`/`size`），筛选选项来自 `GET /console/assets/facets`；筛选、排序或每页条数变化时页码重置为 1，URL 省略默认值（`sortBy=id`、`sortDir=desc`、`page=1`、`size=20`）。工作台仍用 `GET /console/assets` 做全量统计。
 - 解析（`parseAssetSearch`）：
   - 单值和数组都接受，去空格、去重、排序，最多 20 项，`domain` 每项不超过 80 字符；
   - 有限数字会转成字符串保留：路由会把纯数字的查询值（如 `?domain=123`）解析成 number，这样它们仍能匹配；对象、嵌套数组、布尔值、null、非有限数字和超长字符串直接丢弃，不报错；

@@ -19,7 +19,15 @@ type Props = {
   apply: (filters: AssetAgentFilters) => void | Promise<void>;
   children: ReactNode;
 };
-const signature = (value: AssetAgentFilters) => JSON.stringify(parseAssetSearch(value));
+/**
+ * The agent contract is strict (q / qOp / stage / domain). Owner, sorting and server paging stay
+ * page-owned: they are stripped before planning and an agent apply resets paging to page 1.
+ */
+export function toAgentFilters(value: Record<string, unknown>): AssetAgentFilters {
+  const { q, qOp, stage, domain } = parseAssetSearch(value);
+  return { ...(q ? { q } : {}), ...(q && qOp ? { qOp } : {}), ...(stage ? { stage } : {}), ...(domain ? { domain } : {}) };
+}
+const signature = (value: AssetAgentFilters) => JSON.stringify(toAgentFilters(value));
 const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
 export function AssetAgent(props: Props) {
@@ -60,7 +68,7 @@ export function AssetAgent(props: Props) {
     let applied = false;
     setState({ kind: 'loading', message: '正在筛选…' });
     try {
-      plan = await request<AssetAgentPlan>('/assets/agent/plan', 'POST', { instruction: instruction.trim(), current: latest.current.filters }, { signal });
+      plan = await request<AssetAgentPlan>('/assets/agent/plan', 'POST', { instruction: instruction.trim(), current: toAgentFilters(latest.current.filters) }, { signal });
       signal.throwIfAborted();
       if (active.current !== permit) return;
       const next = validateAssetAgentFilters(plan.filters, latest.current.domains);
@@ -73,13 +81,13 @@ export function AssetAgent(props: Props) {
       if (signature(latest.current.filters) !== signature(next)) throw new Error('筛选状态已变化，请重试');
       applied = true;
       permit.applied = true;
-      await request('/assets/agent/result', 'POST', { runId: plan.runId, ok: true, filters: latest.current.filters, matched: latest.current.matched }, { signal });
+      await request('/assets/agent/result', 'POST', { runId: plan.runId, ok: true, filters: toAgentFilters(latest.current.filters), matched: latest.current.matched }, { signal });
       if (active.current === permit && mounted.current) setState({ kind: 'success', message: '已应用筛选' });
     } catch (error) {
       if (!signal.aborted && active.current === permit && mounted.current) {
         const message = error instanceof Error ? error.message : '筛选未完成，请重试';
         if (plan && !applied) {
-          await request('/assets/agent/result', 'POST', { runId: plan.runId, ok: false, filters: latest.current.filters, matched: latest.current.matched, error: message.slice(0, 200) }, { signal }).catch(() => undefined);
+          await request('/assets/agent/result', 'POST', { runId: plan.runId, ok: false, filters: toAgentFilters(latest.current.filters), matched: latest.current.matched, error: message.slice(0, 200) }, { signal }).catch(() => undefined);
         }
         if (!signal.aborted && active.current === permit && mounted.current) setState({ kind: 'error', message: applied ? '筛选已应用，模型回执暂不可用' : message });
       }
@@ -121,7 +129,7 @@ export function AssetAgent(props: Props) {
         if (details.source !== 'agent' || !permit || permit.controller.signal.aborted) { details.cancel(); throw new Error('筛选请求已停止'); }
         if (!current.ready || scope?.closest('[inert]')) { details.cancel(); throw new Error('请等待资产加载完成后重试'); }
         if (current.draft.dirty || current.draft.signature !== permit.draft || signature(current.filters) !== permit.filters) { details.cancel(); throw new Error('筛选已被手动更改，请重试'); }
-        application.current = (async () => { await current.apply(parseAssetSearch(value)); await frame(); await frame(); })();
+        application.current = (async () => { await current.apply(toAgentFilters(value)); await frame(); await frame(); })();
       }}
     >{props.children}</AssetFilterScope>
   </>;

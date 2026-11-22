@@ -393,28 +393,32 @@ export function FilterBar({
         type="button"
         id={addId}
         variant="outline"
-        size="icon"
-        className="h-9 w-9"
+        size={rows.length === 0 ? "sm" : "icon"}
+        className={rows.length === 0 ? "h-9 gap-1.5" : "h-9 w-9"}
         aria-label="添加筛选"
         title="添加筛选"
         disabled={!unused.length}
         onClick={add}
       >
         <Plus size={16} aria-hidden="true" />
+        {rows.length === 0 && <span>添加筛选</span>}
       </Button>
-      <Button
-        type="submit"
-        variant={dirty ? "default" : "outline"}
-        size="icon"
-        className="filter-apply h-9 w-9"
-        aria-label="应用筛选"
-        title="应用筛选"
-        aria-describedby={dirty ? `${base}-pending` : undefined}
-        data-pending={dirty || undefined}
-        disabled={Boolean(error) || malformed}
-      >
-        <Search size={16} aria-hidden="true" />
-      </Button>
+      {(rows.length > 0 || dirty) && (
+        <Button
+          type="submit"
+          variant={dirty ? "default" : "outline"}
+          size="sm"
+          className="filter-apply h-9 gap-1.5"
+          aria-label="应用筛选"
+          title="应用筛选"
+          aria-describedby={dirty ? `${base}-pending` : undefined}
+          data-pending={dirty || undefined}
+          disabled={Boolean(error) || malformed}
+        >
+          <Search size={15} aria-hidden="true" />
+          <span>应用筛选</span>
+        </Button>
+      )}
       {dirty && (
         <span id={`${base}-pending`} className="sr-only">
           有未应用的更改

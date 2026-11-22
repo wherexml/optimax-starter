@@ -1,5 +1,5 @@
 // Adapted from skylance-easm/easm-webui/src/components/DataTable/DataTable.tsx.
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -7,6 +7,8 @@ import {
   getPaginationRowModel,
   flexRender,
   type ColumnDef,
+  type RowSelectionState,
+  type SortingState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -16,12 +18,25 @@ import {
   TableHeader,
   TableRow,
 } from "./primitives";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@optimax-starter/ui/components/skeleton";
 import { useVirtualRows } from "@/hooks/useVirtualRows";
 import { useVirtualViewport } from "@/hooks/useVirtualViewport";
 
 import { ColumnSettings } from "./ColumnSettings";
 import { DataTablePagination } from "./DataTablePagination";
+import { hasVisibleDataColumn } from "./column-settings-utils";
+
+export type SortDirection = "asc" | "desc";
+
+/** 服务端排序：受控 sortBy/sortDir；表头点击在 asc/desc 之间切换，不再回到未排序。 */
+export interface ServerSortingConfig {
+  sortBy: string;
+  sortDir: SortDirection;
+  onChange: (next: { sortBy: string; sortDir: SortDirection }) => void;
+}
+
 export function DataTable<T extends { id: number }>({
   data,
   columns,
@@ -30,6 +45,10 @@ export function DataTable<T extends { id: number }>({
   toolbar,
   toolbarEnd,
   pagination,
+  enableRowSelection = false,
+  bulkActions,
+  onRowClick,
+  sorting,
 }: {
   data: T[];
   columns: ColumnDef<T>[];
@@ -45,21 +64,98 @@ export function DataTable<T extends { id: number }>({
     sizes: number[];
     onChange: (p: { pageIndex: number; pageSize: number }) => void;
   };
+  enableRowSelection?: boolean;
+  bulkActions?: (ctx: {
+    selectedRows: T[];
+    clearSelection: () => void;
+  }) => ReactNode;
+  onRowClick?: (row: T) => void;
+  sorting?: ServerSortingConfig;
 }) {
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    if (!enableRowSelection) {
+      setRowSelection((prev) => (Object.keys(prev).length ? {} : prev));
+      return;
+    }
+    const existing = new Set(data.map((row) => String(row.id)));
+    setRowSelection((prev) => {
+      const entries = Object.entries(prev).filter(([id, checked]) => checked && existing.has(id));
+      if (entries.length === Object.keys(prev).length) return prev;
+      return Object.fromEntries(entries);
+    });
+  }, [data, enableRowSelection]);
+
+  const resolvedColumns = useMemo<ColumnDef<T>[]>(() => {
+    if (!enableRowSelection) return columns;
+    const selectColumn: ColumnDef<T> = {
+      id: "select",
+      enableSorting: false,
+      enableHiding: false,
+      header: ({ table: t }) => (
+        <Checkbox
+          aria-label="全选当前页"
+          checked={
+            t.getIsAllPageRowsSelected()
+              ? true
+              : t.getIsSomePageRowsSelected()
+                ? "indeterminate"
+                : false
+          }
+          onCheckedChange={(v) => t.toggleAllPageRowsSelected(Boolean(v))}
+        />
+      ),
+      cell: ({ row }) => (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            aria-label={`选择第 ${row.index + 1} 行`}
+            checked={row.getIsSelected()}
+            disabled={!row.getCanSelect()}
+            onCheckedChange={(v) => row.toggleSelected(Boolean(v))}
+          />
+        </div>
+      ),
+    };
+    return [selectColumn, ...columns];
+  }, [columns, enableRowSelection]);
+
+  const sortingState = useMemo<SortingState | undefined>(
+    () =>
+      sorting ? [{ id: sorting.sortBy, desc: sorting.sortDir === "desc" }] : undefined,
+    [sorting?.sortBy, sorting?.sortDir],
+  );
+
   const table = useReactTable({
     data,
-    columns,
-    state: pagination
+    columns: resolvedColumns,
+    enableRowSelection,
+    state: {
+      columnOrder,
+      rowSelection,
+      ...(pagination
+        ? {
+            pagination: {
+              pageIndex: pagination.pageIndex,
+              pageSize: pagination.pageSize,
+            },
+          }
+        : {}),
+      ...(sortingState ? { sorting: sortingState } : {}),
+    },
+    ...(sorting
       ? {
-          columnOrder,
-          pagination: {
-            pageIndex: pagination.pageIndex,
-            pageSize: pagination.pageSize,
-          },
+          manualSorting: true,
+          enableSortingRemoval: false,
+          onSortingChange: () => undefined,
         }
-      : { columnOrder },
+      : {}),
     onColumnOrderChange: setColumnOrder,
+    onRowSelectionChange: setRowSelection,
     getRowId: (row) => String(row.id),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -70,6 +166,10 @@ export function DataTable<T extends { id: number }>({
       ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize))
       : undefined,
   });
+  const selectedRows = enableRowSelection
+    ? table.getSelectedRowModel().flatRows.map((r) => r.original)
+    : [];
+  const clearSelection = () => setRowSelection({});
   const { scrollContainerRef, handleScroll, scrollTop, viewportHeight } =
     useVirtualViewport({ enabled: true });
   const rows = table.getRowModel().rows;
@@ -119,7 +219,7 @@ export function DataTable<T extends { id: number }>({
             )}
             translations={{ columnSettings: "列设置", dragToReorder: "列顺序" }}
             onColumnsChange={(prefs, order) => {
-              if (!Object.values(prefs).some((c) => c.visible)) return;
+              if (!hasVisibleDataColumn(prefs)) return;
               table.setColumnVisibility(
                 Object.fromEntries(
                   Object.entries(prefs).map(([id, c]) => [id, c.visible]),
@@ -130,6 +230,28 @@ export function DataTable<T extends { id: number }>({
           />
         </div>
       </div>
+      {enableRowSelection && selectedRows.length > 0 && bulkActions && (
+        <div
+          role="region"
+          aria-label="批量操作"
+          className="flex flex-wrap items-center justify-between gap-2 border-b-[0.5px] border-[var(--hairline)] bg-accent/55 px-3 py-2 text-sm"
+        >
+          <span className="font-medium text-foreground">
+            已选 <span className="tabular-nums">{selectedRows.length}</span> 项
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {bulkActions({ selectedRows, clearSelection })}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearSelection}
+            >
+              取消选择
+            </Button>
+          </div>
+        </div>
+      )}
       {/* 表格主体 - 自动填满剩余空间 */}
       <div
         ref={scrollContainerRef}
@@ -167,11 +289,27 @@ export function DataTable<T extends { id: number }>({
                         : undefined
                     }
                   >
-                    {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                    {header.isPlaceholder ? null : (
+                        sorting
+                          ? header.column.columnDef.enableSorting === true
+                          : header.column.getCanSort()
+                      ) ? (
                       <button
                         type="button"
                         className="-mx-1 inline-flex min-h-11 items-center gap-1 rounded-sm px-1 font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onClick={header.column.getToggleSortingHandler()}
+                        onClick={
+                          sorting
+                            ? () =>
+                                sorting.onChange({
+                                  sortBy: header.column.id,
+                                  // Same column flips asc ⇄ desc; a new column starts at asc.
+                                  sortDir:
+                                    sorting.sortBy === header.column.id && sorting.sortDir === "asc"
+                                      ? "desc"
+                                      : "asc",
+                                })
+                            : header.column.getToggleSortingHandler()
+                        }
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -249,6 +387,21 @@ export function DataTable<T extends { id: number }>({
                     key={row.id}
                     data-row-id={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    className={onRowClick ? "cursor-pointer" : undefined}
+                    onClick={
+                      onRowClick
+                        ? (e) => {
+                            if (
+                              (e.target as HTMLElement).closest(
+                                "button,a,input,[role=checkbox]",
+                              )
+                            ) {
+                              return;
+                            }
+                            onRowClick(row.original);
+                          }
+                        : undefined
+                    }
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
@@ -317,6 +470,7 @@ export function DataTable<T extends { id: number }>({
                 }}
                 onPaginationChange={pagination.onChange}
                 pageSizeOptions={pagination.sizes}
+                showSelectionInfo={false}
               />
             </div>
           )
@@ -327,6 +481,7 @@ export function DataTable<T extends { id: number }>({
                 pagination={{ ...table.getState().pagination, total: data.length }}
                 onPaginationChange={(p) => table.setPagination(p)}
                 pageSizeOptions={[8, 20, 100]}
+                showSelectionInfo={false}
               />
             </div>
           )}

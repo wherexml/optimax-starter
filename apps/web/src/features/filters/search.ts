@@ -1,5 +1,6 @@
 import {
   ACTOR_SOURCES,
+  ASSET_SORT_FIELDS,
   ASSET_STAGES,
   AUDIT_ACTIONS,
   AUDIT_ACTION_LABELS,
@@ -8,6 +9,7 @@ import {
   type AccountSearch,
   type ActorSource,
   type AssetSearch,
+  type AssetSortField,
   type AssetStage,
   type AuditSearch,
 } from "@optimax-starter/api";
@@ -48,18 +50,48 @@ const scalarOrList = <T extends string>(a: T[]): T | T[] | undefined =>
 export const asList = <T extends string>(v: T | T[] | undefined): T[] =>
   v === undefined ? [] : Array.isArray(v) ? v : [v];
 
+// Server paging/sorting defaults are omitted from URLs so the plain /assets link stays canonical.
+export const ASSET_SEARCH_DEFAULTS = {
+  sortBy: "id" as AssetSortField,
+  sortDir: "desc" as const,
+  page: 1,
+  size: 20,
+};
+export const ASSET_PAGE_SIZES = [20, 50, 100] as const;
+const SORT_FIELDS: readonly string[] = ASSET_SORT_FIELDS;
+
+const intParam = (v: unknown): number | undefined => {
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\d{1,6}$/.test(v.trim()) ? Number(v) : NaN;
+  return Number.isInteger(n) ? n : undefined;
+};
+
 export function parseAssetSearch(v: Record<string, unknown>): AssetSearch {
   const q = text(v.q),
     stage = scalarOrList(
       list(v.stage, 10).filter((s): s is AssetStage => STAGES.includes(s)),
     ),
-    domain = scalarOrList(list(v.domain, 80));
+    domain = scalarOrList(list(v.domain, 80)),
+    owner = scalarOrList(list(v.owner, 60)),
+    sortBy =
+      typeof v.sortBy === "string" && SORT_FIELDS.includes(v.sortBy)
+        ? (v.sortBy as AssetSortField)
+        : undefined,
+    sortDir = v.sortDir === "asc" || v.sortDir === "desc" ? v.sortDir : undefined,
+    page = intParam(v.page),
+    size = intParam(v.size);
   return {
     ...(q ? { q } : {}),
     // Contains is the default and is left out of the URL. qOp is kept only alongside q.
     ...(q && v.qOp === "equals" ? { qOp: "equals" as const } : {}),
     ...(stage ? { stage } : {}),
     ...(domain ? { domain } : {}),
+    ...(owner ? { owner } : {}),
+    ...(sortBy && sortBy !== ASSET_SEARCH_DEFAULTS.sortBy ? { sortBy } : {}),
+    ...(sortDir && sortDir !== ASSET_SEARCH_DEFAULTS.sortDir ? { sortDir } : {}),
+    ...(page && page > 1 && page <= 100000 ? { page } : {}),
+    ...(size && size !== ASSET_SEARCH_DEFAULTS.size && (ASSET_PAGE_SIZES as readonly number[]).includes(size)
+      ? { size }
+      : {}),
   };
 }
 

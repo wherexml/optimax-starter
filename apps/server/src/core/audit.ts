@@ -71,10 +71,14 @@ function cleanRecord(detail: AuditDetail | Record<string, unknown>): Record<stri
   return sanitizeAuditDetail(detail) as Record<string, unknown>;
 }
 
+// actor.id may be null for unauthenticated events (e.g. failed login of an unknown username);
+// console_audit.actor_id is nullable.
+export type AuditActor = Omit<Party, "id"> & { id: number | null };
+
 export function audit(
   tx: AuditWriter,
   action: AuditAction,
-  actor: Party,
+  actor: AuditActor,
   target: Party | null,
   detail: AuditDetail = {},
   actorSource: ActorSource = "human",

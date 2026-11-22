@@ -38,6 +38,32 @@
   background: var(--background);
   font-size: 16px;
 }
+.dark {
+  --background: #111110;
+  --foreground: #eeeeec;
+  --primary: #3e63dd;
+  --primary-foreground: #fff;
+  --accent: #182449;
+  --accent-foreground: #9eb1ff;
+  --surface-subtle: #191918;
+  --brand-hover: #5472e4;
+  --ring: #3d63dd;
+  --border: #2e2e2b;
+  --input: #3b3a37;
+  --muted: #222221;
+  --muted-foreground: #b5b3ad;
+  --card: #191918;
+  --card-foreground: #eeeeec;
+  --popover: #1f1f1e;
+  --popover-foreground: #eeeeec;
+  --secondary: #222221;
+  --secondary-foreground: #eeeeec;
+  --destructive: #dc3e42;
+  --warning: #302008;
+  --warning-foreground: #ffca16;
+  --hairline: #2e2e2b;
+  color-scheme: dark;
+}
 body {
   font-size: 14px;
   line-height: 1.55;
@@ -161,7 +187,7 @@ aside nav a.active {
 .nav-group-title { padding: 0 12px 4px; color: var(--muted-foreground); font-size: 13px; font-weight: 500; }
 .nav-children { display: flex; flex-direction: column; gap: 4px; }
 .page-tabs { --tab-accent: #2f6fed; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.page-tabs-scroll { overflow-x: auto; padding: 0; border-bottom: 1px solid var(--border); background: rgb(255 255 255 / 0.95); }
+.page-tabs-scroll { overflow-x: auto; padding: 0; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--background) 95%, transparent); }
 .page-tabs [data-slot="tabs-list"] { display: flex; gap: 4px; min-width: 100%; width: max-content; }
 .page-tabs [data-slot="tabs-tab"] {
   min-height: 40px;
@@ -681,6 +707,25 @@ aside nav a.active {
     scale: 0.98;
   }
 }
+/* DetailDrawer: slides from the right edge */
+.drawer-content[data-state="open"] {
+  animation: drawer-in 180ms var(--ease);
+}
+.drawer-content[data-state="closed"] {
+  animation: drawer-out 140ms var(--ease) forwards;
+}
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes drawer-out {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
 @theme inline {
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
@@ -1183,7 +1228,33 @@ a.domain-pending:hover {
 .feature-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  /* One balanced row on desktop: column count follows the permitted shortcuts (1-4), so nothing orphans. */
+  grid-template-columns: repeat(var(--feature-cols, 4), minmax(0, 1fr));
+}
+.feature-grid[data-count="1"] { --feature-cols: 1; }
+.feature-grid[data-count="2"] { --feature-cols: 2; }
+.feature-grid[data-count="3"] { --feature-cols: 3; }
+.feature-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.feature-text small {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+}
+@media (max-width: 1100px) {
+  .feature-grid[data-count="4"] {
+    --feature-cols: 2;
+  }
+}
+@media (max-width: 640px) {
+  .feature-grid {
+    --feature-cols: 1 !important;
+  }
 }
 .feature-card {
   display: flex;

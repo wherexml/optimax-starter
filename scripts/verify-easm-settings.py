@@ -33,6 +33,23 @@ def change(old,new,code=200):return call(m,'POST','/me/password',code,{'current'
 new=secrets.token_hex(14);before=call(a,'GET','/audit')['total']
 change('wrong-current',new,400);change(pw,'short',400);change(pw,pw,400)
 assert call(a,'GET','/audit')['total']==before
+sessions=call(m,'GET','/me/sessions')
+assert isinstance(sessions,list) and len(sessions)>=2
+cur_sessions=[s for s in sessions if s.get('current')]
+other_sessions=[s for s in sessions if not s.get('current')]
+assert len(cur_sessions)==1 and len(other_sessions)>=1
+call(m,'DELETE',f"/me/sessions/{cur_sessions[0]['id']}",400)
+revoked_one=call(m,'DELETE',f"/me/sessions/{other_sessions[0]['id']}",200)
+assert revoked_one.get('ok') is True
+call(m2,'GET','/me',401)
+s_logs=call(a,'GET','/audit?action=profile.session_revoke&size=20')['items']
+assert any(x['actorId']==f['id'] for x in s_logs)
+m3=client();login(m2,u,pw);login(m3,u,pw)
+revoked_others=call(m,'POST','/me/sessions/revoke-others',200,{})
+assert revoked_others.get('ok') is True and revoked_others.get('revoked',0)>=2
+call(m,'GET','/me',200);call(m2,'GET','/me',401);call(m3,'GET','/me',401)
+print('PASS session list, self-delete guard, single session revoke, and revoke-others')
+login(m2,u,pw)
 call(m,'GET','/me');call(m2,'GET','/me')
 change(pw,new);f['password']=new;STATE.write_text(json.dumps(f));call(m,'GET','/me',401);call(m2,'GET','/me',401);login(client(),u,pw,401);login(m,u,new)
 logs=call(a,'GET','/audit?size=100');mine=[x for x in logs['items'] if x['actorId']==f['id']]

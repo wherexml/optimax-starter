@@ -2,7 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { RotateCw } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
-import { DataTable } from "@/components/table/DataTable";
+import { DataTable, type ServerSortingConfig } from "@/components/table/DataTable";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "@/components/ui/toast";
@@ -37,6 +37,14 @@ export interface ResourceTableSlotProps<TData extends { id: number }> {
   refreshLabel?: string;
   toolbarEnd?: ReactNode;
   pagination?: ServerPaginationConfig;
+  /** 服务端排序（受控）；提供时表格使用 manualSorting。 */
+  sorting?: ServerSortingConfig;
+  enableRowSelection?: boolean;
+  bulkActions?: (ctx: {
+    selectedRows: TData[];
+    clearSelection: () => void;
+  }) => ReactNode;
+  onRowClick?: (row: TData) => void;
   wrapTable?: (table: ReactNode) => ReactNode;
   children?: ReactNode;
 }
@@ -66,6 +74,10 @@ export function ResourceTableSlot<TData extends { id: number }>({
   refreshLabel,
   toolbarEnd,
   pagination,
+  sorting,
+  enableRowSelection,
+  bulkActions,
+  onRowClick,
   wrapTable,
   children,
 }: ResourceTableSlotProps<TData>) {
@@ -144,6 +156,10 @@ export function ResourceTableSlot<TData extends { id: number }>({
       isLoading={isLoading}
       error={error}
       pagination={pagination}
+      sorting={sorting}
+      enableRowSelection={enableRowSelection}
+      bulkActions={bulkActions}
+      onRowClick={onRowClick}
     />
   );
 

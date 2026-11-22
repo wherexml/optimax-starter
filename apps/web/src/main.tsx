@@ -3,6 +3,8 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
+import { NotFoundFallback, RouteErrorFallback } from "./components/RouteFallbacks";
+import { ThemeProvider } from "./features/theme/ThemeProvider";
 import { routeTree } from "./routeTree.gen";
 import { QueryClient } from "@tanstack/react-query";
 const queryClient = new QueryClient();
@@ -12,10 +14,14 @@ const router = createRouter({
   defaultPreload: "intent",
   scrollRestoration: true,
   defaultPendingComponent: () => <Loader />,
+  defaultNotFoundComponent: NotFoundFallback,
+  defaultErrorComponent: RouteErrorFallback,
 
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </ThemeProvider>
     );
   },
 });

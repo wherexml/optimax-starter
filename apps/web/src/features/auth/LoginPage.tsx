@@ -1,6 +1,6 @@
 // Page composition ported from optimax-riskops/src/pages/Login.tsx.
-import { useState } from "react";
-import { AlertCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -9,14 +9,94 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { request } from "@/console-client";
+import { APP_CONFIG, storageKey } from "@/config/app-config";
+import { api, unwrapRpc, type AuthProviderInfo } from "@/console-client";
 const schema = z.object({
   username: z.string().trim().min(1, "请输入账户名").max(64),
   password: z.string().min(1, "请输入密码").max(256),
 });
-const rememberKey = "optimax.rememberedUsername";
+const rememberKey = storageKey("rememberedUsername");
+// Only same-origin absolute paths or https URLs are rendered as SSO links; this blocks javascript:, data: and protocol-relative values.
+const SAFE_LOGIN_PATH = /^\/(?!\/)|^https:\/\//;
+// Fixed dictionary for /login?sso_error=<code>. Unknown values fall back to a generic message;
+// nothing from the URL is ever rendered verbatim.
+const SSO_ERROR_MESSAGES: Record<string, string> = {
+  provider_disabled: "单点登录未启用或配置不完整，请使用账户密码登录",
+  cancelled: "已取消单点登录",
+  state_invalid: "单点登录会话已失效，请重新发起登录",
+  token_failed: "无法验证身份提供方返回的凭据，请稍后重试",
+  unmatched: "该企业身份未关联任何账户，请联系管理员",
+  inactive: "关联账户已停用，请联系管理员",
+  internal: "单点登录暂时不可用，请稍后重试",
+};
+
+type Notice = { tone: "error" | "success"; message: string } | null;
+
+// Pure read of one-shot notices from the URL (safe under StrictMode double-invocation).
+function readNotice(): Notice {
+  try {
+    const params = new URLSearchParams(location.search);
+    const sso = params.get("sso_error");
+    const activated = params.get("activated");
+    if (!sso && !activated) return null;
+    if (sso) {
+      return { tone: "error", message: SSO_ERROR_MESSAGES[sso] ?? SSO_ERROR_MESSAGES.internal! };
+    }
+    return { tone: "success", message: "账户已激活，请使用新密码登录" };
+  } catch {
+    return null;
+  }
+}
+
+function readRemembered() {
+  try {
+    return localStorage.getItem(rememberKey) || "";
+  } catch {
+    return "";
+  }
+}
 export function LoginPage() {
-  const initial = localStorage.getItem(rememberKey) || "";
+  const [initial] = useState(readRemembered);
+  const [notice, setNotice] = useState<Notice>(readNotice);
+  useEffect(() => {
+    // Strip one-shot params so refresh/back does not repeat the notice.
+    try {
+      const params = new URLSearchParams(location.search);
+      if (!params.has("sso_error") && !params.has("activated")) return;
+      params.delete("sso_error");
+      params.delete("activated");
+      const rest = params.toString();
+      history.replaceState(history.state, "", `${location.pathname}${rest ? `?${rest}` : ""}`);
+    } catch {
+      // History API unavailable: the notice can simply be dismissed.
+    }
+  }, []);
+  const [providers, setProviders] = useState<AuthProviderInfo[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    // Non-blocking SSO discovery: any failure leaves password login as the only option.
+    api.auth.providers
+      .$get()
+      .then((res) => (res.ok ? res.json() : []))
+      .then((list) => {
+        if (cancelled || !Array.isArray(list)) return;
+        setProviders(
+          (list as AuthProviderInfo[]).filter(
+            (p) =>
+              p &&
+              typeof p.id === "string" &&
+              typeof p.label === "string" &&
+              p.label.trim() !== "" &&
+              typeof p.loginPath === "string" &&
+              SAFE_LOGIN_PATH.test(p.loginPath),
+          ),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [remember, setRemember] = useState(!!initial),
     [showPassword, setShowPassword] = useState(false),
     [error, setError] = useState("");
@@ -28,9 +108,13 @@ export function LoginPage() {
   async function submit(values: z.infer<typeof schema>) {
     setError("");
     try {
-      await request("/login", "POST", values);
-      if (remember) localStorage.setItem(rememberKey, values.username);
-      else localStorage.removeItem(rememberKey);
+      await unwrapRpc(api.login.$post({ json: values }), { allow401: true });
+      try {
+        if (remember) localStorage.setItem(rememberKey, values.username);
+        else localStorage.removeItem(rememberKey);
+      } catch {
+        // Storage can be unavailable (private mode, blocked site data); login still proceeds.
+      }
       location.replace("/");
     } catch (err) {
       setError((err as Error).message);
@@ -39,7 +123,7 @@ export function LoginPage() {
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#06111d] text-white">
       <img
-        src="/login-background-4k.png"
+        src="/login-background-4k.webp"
         data-login-background
         alt=""
         aria-hidden="true"
@@ -66,10 +150,10 @@ export function LoginPage() {
 
             <div className="mt-8 max-w-[540px] lg:mt-10 xl:mt-12">
               <h1 className="m-0 text-3xl font-semibold leading-tight tracking-normal text-white drop-shadow-2xl sm:text-4xl xl:text-5xl">
-                Optimax Starter
+                {APP_CONFIG.loginTitle}
               </h1>
               <p data-login-intro className="mt-4 text-sm leading-7 text-white/85 sm:text-base sm:leading-8">
-                Optimax Starter 为企业应用提供可直接运行的管理底座，整合账户权限、资产台账、操作日志与个人设置，让团队把时间投入真正的业务。统一的界面组件、工程规范和本地运行方式，帮助开发者快速启动新项目；可选的自然语言筛选试点将 AI 接入实际操作，在保留清晰权限边界与可核对结果的同时，逐步扩展业务能力。
+                {APP_CONFIG.loginTitle} 为企业应用提供可直接运行的管理底座，整合账户权限、资产台账、操作日志与个人设置，让团队把时间投入真正的业务。统一的界面组件、工程规范和本地运行方式，帮助开发者快速启动新项目；可选的自然语言筛选试点将 AI 接入实际操作，在保留清晰权限边界与可核对结果的同时，逐步扩展业务能力。
               </p>
             </div>
           </div>
@@ -82,6 +166,35 @@ export function LoginPage() {
                 登录
               </h2>
             </div>
+
+            {notice && (
+              <div
+                role={notice.tone === "error" ? "alert" : "status"}
+                aria-live="polite"
+                data-login-notice={notice.tone}
+                className={cn(
+                  "mt-6 flex items-start gap-3 rounded-lg border p-3",
+                  notice.tone === "error"
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                )}
+              >
+                {notice.tone === "error" ? (
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                ) : (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                )}
+                <p className="m-0 flex-1 text-sm font-medium">{notice.message}</p>
+                <button
+                  type="button"
+                  aria-label="关闭提示"
+                  onClick={() => setNotice(null)}
+                  className="shrink-0 opacity-70 transition-opacity hover:opacity-100"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            )}
 
             <form
               noValidate
@@ -200,6 +313,27 @@ export function LoginPage() {
                 {loading ? "登录中..." : "登录"}
               </Button>
             </form>
+
+            {providers.length > 0 && (
+              <div data-login-sso className="mt-6">
+                <div className="flex items-center gap-3 text-xs text-neutral-500">
+                  <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
+                  <span>或使用企业单点登录</span>
+                  <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
+                </div>
+                <div className="mt-4 flex flex-col gap-3">
+                  {providers.map((p) => (
+                    <a
+                      key={p.id}
+                      href={p.loginPath}
+                      className="inline-flex h-11 w-full items-center justify-center rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      {p.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </div>

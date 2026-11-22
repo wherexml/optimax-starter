@@ -25,6 +25,7 @@ import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
+import { JobsTab } from "./JobsTab";
 import { parseSystemSearch, SYSTEM_TAB_ITEMS } from "./search";
 
 const route = getRouteApi("/system");
@@ -83,15 +84,17 @@ export function SystemPage() {
     hasPermission(me.data, "system:ai:manage");
   const canReadSettings = hasPermission(me.data, "system:settings:read");
   const canManageSettings = hasPermission(me.data, "system:settings:manage");
+  const canReadJobs = hasPermission(me.data, "jobs:read");
 
   const visibleTabs = useMemo(
     () =>
       SYSTEM_TAB_ITEMS.filter(
         (item) =>
           (item.value === "status" && canReadAi) ||
-          (item.value === "settings" && canReadSettings),
+          (item.value === "settings" && canReadSettings) ||
+          (item.value === "jobs" && canReadJobs),
       ),
-    [canReadAi, canReadSettings],
+    [canReadAi, canReadSettings, canReadJobs],
   );
 
   const activeTab: SystemTab = visibleTabs.some((t) => t.value === tab)
@@ -142,7 +145,7 @@ export function SystemPage() {
   const activeTimezone =
     settingsQuery.data?.timezone ?? DEFAULT_SYSTEM_TIMEZONE;
 
-  if (!canReadAi && !canReadSettings) {
+  if (!canReadAi && !canReadSettings && !canReadJobs) {
     return (
       <>
         <PageHeader title="系统配置" />
@@ -171,8 +174,9 @@ export function SystemPage() {
             onClick={() =>
               void runRefresh(() =>
                 Promise.all([
-                  statusQuery.refetch(),
+                  ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
                   ...(canReadSettings ? [settingsQuery.refetch()] : []),
+                  ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
                   cache.invalidateQueries({ queryKey: ["asset-agent-config"] }),
                 ]),
               )
@@ -216,7 +220,12 @@ export function SystemPage() {
               canManageSettings={canManageSettings}
             />
           </TabsPanel>
+          <TabsPanel value="jobs">
+            {canReadJobs && tabState === "jobs" ? <JobsTab /> : null}
+          </TabsPanel>
         </Tabs>
+      ) : activeTab === "jobs" ? (
+        <JobsTab />
       ) : activeTab === "status" ? (
         <StatusControlPanel
           query={statusQuery}

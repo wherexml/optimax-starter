@@ -35,7 +35,7 @@ export function AssetFormDialog({
   trigger,
 }: {
   asset?: Asset;
-  close: (message?: string) => void;
+  close: (message?: string, created?: Asset) => void;
   trigger: HTMLElement | null;
 }) {
   const editing = Boolean(asset);
@@ -65,12 +65,13 @@ export function AssetFormDialog({
       editing
         ? request<Asset>(`/assets/${asset!.id}`, "PATCH", values)
         : request<Asset>("/assets", "POST", values),
-    onSuccess: async (_data, values) => {
+    onSuccess: async (savedData, values) => {
       await cache.invalidateQueries({ queryKey: ["assets"] });
       close(
         editing
           ? `已更新资产 ${values.name.trim()}`
           : `已登记资产 ${values.name.trim()}`,
+        editing ? undefined : savedData,
       );
     },
     onError: (error) =>

@@ -8,6 +8,7 @@ import {
   normalizePersistedRolePermissions,
   validateRolePermissionsInput,
   type AccountRole,
+  type ActorSource,
   type SystemPermissionMatrixPayload,
 } from "@optimax-starter/api";
 import { db } from "../services";
@@ -113,6 +114,7 @@ export async function updatePermissionMatrixTx(
   tx: Tx,
   actor: Party,
   inputRoles: Partial<Record<AccountRole, string[]>>,
+  actorSource: ActorSource = "human",
 ): Promise<SystemPermissionMatrixPayload> {
   const { roles: beforeByRole } = await readRoleMap(tx);
   const now = new Date();
@@ -159,7 +161,7 @@ export async function updatePermissionMatrixTx(
         targetRole: role,
         beforePermissions: before,
         afterPermissions: normalized,
-      },
+      }, actorSource,
     );
   }
 
@@ -169,6 +171,7 @@ export async function updatePermissionMatrixTx(
 export async function resetPermissionMatrixTx(
   tx: Tx,
   actor: Party,
+  actorSource: ActorSource = "human",
 ): Promise<SystemPermissionMatrixPayload> {
   const { roles: beforeByRole } = await readRoleMap(tx);
   const now = new Date();
@@ -205,7 +208,7 @@ export async function resetPermissionMatrixTx(
     {
       from: changed ? "custom" : "default",
       to: "default",
-    },
+    }, actorSource,
   );
 
   return getPermissionMatrixPayload(tx);

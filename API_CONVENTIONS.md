@@ -23,14 +23,18 @@
 | --- | --- |
 | API 主风格 | 同源 Hono REST JSON |
 | Base URL | 业务接口 `/console/*`；就绪探针 `/healthz` |
-| 认证传递 | 见 [AUTH.md](./AUTH.md#2-认证事实卡)（HttpOnly `SameSite=Strict` Cookie + 非 GET 请求 `Origin` 强校验） |
-| 错误格式 | Starter 精简格式 `{ "error": "<可读中文原因>" }` 并配精确 HTTP 状态码（`400/401/403/404/409/413/422/502/503`） |
+| 认证传递 | 见 [AUTH.md](./AUTH.md#2-认证事实卡)：浏览器使用 HttpOnly `SameSite=Strict` Cookie + 非 GET 请求 `Origin` 强校验；Agent / 集成使用 `Authorization: Bearer optx_…` 个人 API 密钥（免 `Origin` 校验，不回退 Cookie） |
+| 错误格式 | Starter 兼容格式 `{ "error": "<可读中文原因>", "code": "<稳定错误码>", "requestId": "<请求 ID>" }` 并配精确 HTTP 状态码（`400/401/403/404/409/410/413/415/422/429/500/502/503`）；`error` 保持字符串以兼容旧客户端与 `scripts/verify-*.py`，见 [§5](#5-错误码) |
 | 分页方式 | 页码分页 `page`（从 1 起）+ `size`（上限 100），响应 `{ items, total, page, size }`（见 `/console/audit` 与 `/console/assets/page`） |
-| 实时通道 | 无 |
-| 文件入口 | 无 |
+| 实时通道 | 无；后台任务进度通过 `GET /console/jobs/:id` 轮询 |
+| 文件入口 | `POST /console/attachments`（multipart：`entityType=asset`、`entityId`、`file`）、`GET /console/attachments?entityType=asset&entityId=`、`GET /console/attachments/:id/download`、`DELETE /console/attachments/:id`；CSV 导入 `GET /console/assets/import/template`、`POST /console/assets/import/{preview,commit}`（JSON `{ csv, filename?, onDuplicate? }` 或 multipart `file` + `onDuplicate`） |
+| 长任务 | `POST /console/jobs`（`{ type, payload }`，`jobCreateSchema` 判别联合、`.strict()`）→ `201` 返回任务；`GET /console/jobs?status&type&mine&page&size`；`POST /console/jobs/:id/{retry,cancel}` |
 | 外部入口 | 无对外 Webhook 或通用模型代理；模型供应商仅由服务端受信配置访问，见 [AI 模块](./apps/server/src/core/ai/README.md) |
 | 契约生成 | 前后端共享 Zod Schema 与 DTO：[packages/api](./packages/api/README.md) |
-| requestId | Hono 请求日志；网关层按实际反代配置注入 |
+| requestId | 每个响应（含错误、`/healthz`、静态资源）回写 `X-Request-Id`；入站值仅在匹配 `^[a-zA-Z0-9._-]{8,64}$` 时沿用，否则生成 UUID；错误 JSON 同时带 `requestId` |
+| 访问日志 | 单行 JSON `{ time, level, requestId, method, path, status, latencyMs, ip }`，不记录请求头、Cookie、令牌、查询串或请求体；未捕获异常返回 `500` `SYS_INTERNAL_ERROR`，日志仅含错误名与截断消息 |
+| 安全响应头 | `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: same-origin` |
+| 请求体策略 | `apps/server/src/console.ts` 的 `REQUEST_POLICIES` 路由匹配器；默认非 GET 仅接受 `application/json` 且 ≤ 64 KiB，超限 `413` `FILE_TOO_LARGE`，来源或类型不符 `403`（`PERM_ORIGIN_INVALID` / `VALIDATION_UNSUPPORTED_MEDIA`）；已追加：CSV 导入 JSON/multipart ≤ 2 MiB、附件仅 multipart ≤ 上传上限 + 1 MiB、`POST /jobs` JSON ≤ 2 MiB。上传类型错误 `415`（`FILE_TYPE_BLOCKED` / `FILE_TYPE_MISMATCH`），导入超同步上限 `422` `VALIDATION_TOO_MANY_ROWS` |
 
 ---
 
@@ -109,6 +113,10 @@
 | `RATE_` | 限流、配额 | `RATE_LIMITED` |
 | `SYS_` | 系统内部错误 | `SYS_INTERNAL_ERROR` |
 
+Starter 实现（2026-11-21）：服务端统一由 `errorJson(c, status, error, code?, headers?)`（`apps/server/src/core/http.ts`，经 `guards.ts` 导出）输出 `{ error, code, requestId }`；`Refusal(status, message, code?)` 未指定 `code` 时按下表默认映射；顶层中间件兜底为任何遗留 `{ error }` 错误补齐 `code` 与 `requestId`，`error` 文案不变。Starter 不采用嵌套 `error` 对象，字段级定位仍以中文 `error` 文案为准。
+
+已使用的专用错误码：`AUTH_INVALID_CREDENTIALS`、`AUTH_LOCKED`（`429` + `Retry-After`）、`AUTH_REQUIRED`、`AUTH_PASSWORD_MISMATCH`、`AUTH_INVITE_INVALID`（`404`）、`AUTH_INVITE_REVOKED` / `AUTH_INVITE_USED` / `AUTH_INVITE_EXPIRED`（`410`）、`PERM_ORIGIN_INVALID`、`VALIDATION_UNSUPPORTED_MEDIA`、`SYS_INTERNAL_ERROR`。
+
 HTTP / RPC 映射：
 
 | HTTP | RPC 语义 | 典型错误码 |
@@ -118,6 +126,7 @@ HTTP / RPC 映射：
 | 403 | Forbidden | `PERM_DENIED` |
 | 404 | Not Found | `DATA_NOT_FOUND` |
 | 409 | Conflict | `DATA_CONFLICT` |
+| 410 | Gone | `DATA_EXPIRED` |
 | 413 | Payload Too Large | `FILE_TOO_LARGE` |
 | 415 | Unsupported Media Type | `FILE_UNSUPPORTED_TYPE` |
 | 422 | Validation Error | `VALIDATION_FAILED` |
@@ -249,6 +258,10 @@ REST 完整成功响应（沿用 §4 的 `data` 包装）：
 - 返回字段至少包含 `id`、`filename`、`size`、`mimeType`、`url` 或下载入口。
 - HTML/SVG/Office/PDF 预览必须写清安全策略。
 - 下载接口要重新校验权限，不能只靠隐藏 URL。
+
+Starter 附件响应字段：`{ id, entityType, entityId, originalName, mimeType, sizeBytes, sha256, uploadedBy, createdAt }`，下载入口固定为 `/console/attachments/:id/download`（不返回存储键或预签名 URL）。安全细则见 [BACKEND.md §12](./BACKEND.md#12-文件webhook-与外部系统)。
+
+资产分页 `GET /console/assets/page`：`q`、`qOp=contains|equals`、`stage`/`domain`/`owner`（可重复参数）、`sortBy=id|name|domain|owner|stage`（默认 `id`）、`sortDir=asc|desc`（默认 `desc`）、`page`（默认 1）、`size`（默认 20，上限 100）。前端 URL 省略这些默认值。
 
 ---
 

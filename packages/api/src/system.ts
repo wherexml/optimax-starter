@@ -1,14 +1,15 @@
 import { z } from "zod";
 
-export const ACTOR_SOURCES = ["human", "agent"] as const;
+export const ACTOR_SOURCES = ["human", "agent", "system"] as const;
 export type ActorSource = (typeof ACTOR_SOURCES)[number];
 
 export const ACTOR_SOURCE_LABELS: Record<ActorSource, string> = {
   human: "人工",
   agent: "Agent",
+  system: "系统",
 };
 
-export const SYSTEM_TABS = ["status", "settings"] as const;
+export const SYSTEM_TABS = ["status", "settings", "jobs"] as const;
 export type SystemTab = (typeof SYSTEM_TABS)[number];
 
 export const DEFAULT_SYSTEM_TIMEZONE = "Asia/Shanghai";

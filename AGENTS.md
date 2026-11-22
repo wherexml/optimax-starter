@@ -9,10 +9,11 @@
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
 | 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，账户与防提权见 [accounts](./apps/web/src/features/accounts/README.md)，三层角色权限矩阵见 [permissions](./apps/web/src/features/permissions/README.md)，运行探针、AI 一键熔断与时区配置见 [system](./apps/web/src/features/system/README.md)，人机双源审计见 [audit](./apps/web/src/features/audit/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
 | 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量在 `apps/web/src/index.css` |
-| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module` |
+| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`，含 `rpc.ts` 端到端类型导出）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module`（支持 `--fields`） |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
-| 验证入口 | [TESTING.md](./TESTING.md) |
+| 验证入口 | [TESTING.md](./TESTING.md)；代码检查与单测：`bun run lint`、`bun run test` |
 | 生产边界 | 默认只读；部署细节见 [DEPLOYMENT.md](./DEPLOYMENT.md) |
+| 派生升级 | [.starter-version 与目录边界](./docs/UPGRADE.md) |
 
 ## 本地演示账号
 
@@ -102,7 +103,7 @@
 
 - 单选使用共享 UI 的 Select，接入与验收约定见 [FRONTEND.md](./FRONTEND.md#单选下拉)；三段式表单弹窗与标准化输入控件见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)。
 
-- `FilterBar` 的多选和匹配方式需逐字段开启（`multi` / `operatorKey`），数据查询链路未实现相应语义的字段不得开启（资产台账当前在客户端过滤）。约定见 [FILTERS.md](./FILTERS.md)。
+- `FilterBar` 的多选和匹配方式需逐字段开启（`multi` / `operatorKey`），数据查询链路未实现相应语义的字段不得开启（资产台账经 `GET /console/assets/page` 服务端过滤，`stage` / `domain` / `owner` 多选与 `q` 的 `contains` / `equals` 均由 SQL 实现）。约定见 [FILTERS.md](./FILTERS.md)。
 
 - 资产筛选的空条件行、顺序与未应用草稿需在刷新后恢复；搜索框只对自身设置密码管理器忽略标记，不修改登录/密码框。持久化与 URL 优先级见 [FILTERS.md 刷新恢复](./FILTERS.md#刷新恢复与输入语义)。
 

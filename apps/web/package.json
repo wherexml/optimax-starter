@@ -34,6 +34,7 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "class-variance-authority": "^0.7.1",
+    "hono": "catalog:",
     "react-hook-form": "^7.61.1",
     "@hookform/resolvers": "^5.2.2",
     "@ui-sdk/core": "0.1.0-beta.3",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@optimax-starter/config": "workspace:*",
+    "server": "workspace:*",
     "@tanstack/react-query-devtools": "^5.104.2",
     "@tanstack/react-router-devtools": "^1.167.2",
     "@tanstack/router-plugin": "^1.168.45",

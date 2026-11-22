@@ -30,14 +30,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { request } from "@/console-client";
+import { request, type Account, type AccountInviteLink } from "@/console-client";
 import { useAccount } from "@/features/auth/session";
+
+export type CreatedAccount = Account & Partial<AccountInviteLink>;
+
+type CredentialMode = "password" | "invite";
 
 export function CreateAccountDialog({
   close,
   trigger,
 }: {
-  close: (createdName?: string) => void;
+  close: (created?: CreatedAccount) => void;
   trigger: HTMLButtonElement | null;
 }) {
   const me = useAccount();
@@ -51,10 +55,12 @@ export function CreateAccountDialog({
       role: "member",
       email: "",
       company: "",
+      inviteOnly: false,
     },
   });
   const { isDirty } = form.formState;
   const [confirming, setConfirming] = useState(false);
+  const [mode, setMode] = useState<CredentialMode>("password");
   const nameValue = form.watch("name");
 
   const keepEditing = () => {
@@ -64,10 +70,17 @@ export function CreateAccountDialog({
 
   const cache = useQueryClient();
   const add = useMutation({
-    mutationFn: (values: AccountCreateInput) => request("/accounts", "POST", values),
-    onSuccess: async (_data, values) => {
+    mutationFn: (values: AccountCreateInput) =>
+      request<CreatedAccount>(
+        "/accounts",
+        "POST",
+        mode === "invite"
+          ? { ...values, password: undefined, inviteOnly: true }
+          : { ...values, inviteOnly: undefined },
+      ),
+    onSuccess: async (created) => {
       await cache.invalidateQueries({ queryKey: ["accounts"] });
-      close(values.name.trim());
+      close(created);
     },
     onError: (error) =>
       form.setError(
@@ -87,7 +100,11 @@ export function CreateAccountDialog({
       submitText="创建账户"
       loading={add.isPending}
       formId="create-account"
-      footerStart="带 * 项为必填，初始密码至少 10 位"
+      footerStart={
+        mode === "invite"
+          ? "带 * 项为必填，账户在激活前保持停用"
+          : "带 * 项为必填，初始密码至少 10 位"
+      }
       unsaved={
         confirming
           ? {
@@ -206,6 +223,40 @@ export function CreateAccountDialog({
           </FormSection>
 
           <FormSection title="凭证与角色">
+            <div
+              role="radiogroup"
+              aria-label="初始凭证方式"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+            >
+              {(
+                [
+                  ["password", "设置初始密码", "管理员设置密码并线下告知"],
+                  ["invite", "生成一次性激活链接", "72 小时有效，由本人设置密码"],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === value}
+                  onClick={() => {
+                    setMode(value);
+                    form.setValue("inviteOnly", value === "invite");
+                    form.clearErrors("password");
+                  }}
+                  className={
+                    "flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors " +
+                    (mode === value
+                      ? "border-primary bg-primary/5 text-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted/50")
+                  }
+                >
+                  <span className="font-medium text-foreground">{label}</span>
+                  <span className="text-xs">{hint}</span>
+                </button>
+              ))}
+            </div>
+            {mode === "password" && (
             <FormField
               control={form.control}
               name="password"
@@ -218,6 +269,7 @@ export function CreateAccountDialog({
                       toggleLabel="初始密码"
                       autoComplete="new-password"
                       placeholder="至少 10 位，可一键生成"
+                      value={field.value ?? ""}
                       onGenerate={(generated) =>
                         form.setValue("password", generated, {
                           shouldDirty: true,
@@ -230,6 +282,7 @@ export function CreateAccountDialog({
                 </FormItem>
               )}
             />
+            )}
             <FormField
               control={form.control}
               name="role"

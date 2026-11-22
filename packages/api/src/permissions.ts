@@ -32,8 +32,11 @@ export interface PermissionCatalogEntry {
 
 export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
   { code: "workbench:read", label: "查看工作台", module: "工作台", kind: "view" },
+  // @starter:example-assets-start
   { code: "assets:read", label: "查看资产台账", module: "资产台账", kind: "view" },
   { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },
+  // @starter:example-assets-end
+  // @starter:permission-catalog
   { code: "accounts:read", label: "查看账户管理", module: "账户管理", kind: "view" },
   { code: "accounts:manage", label: "维护成员账户", module: "账户管理", kind: "operate" },
   { code: "system:settings:read", label: "查看系统配置", module: "系统配置", kind: "view" },
@@ -46,6 +49,8 @@ export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
     kind: "operate",
     immutable: true,
   },
+  { code: "jobs:read", label: "查看后台任务", module: "后台任务", kind: "view" },
+  { code: "jobs:manage", label: "管理后台任务", module: "后台任务", kind: "operate" },
   { code: "audit:read", label: "查看操作日志", module: "操作日志", kind: "view" },
   {
     code: "system:permission:read",
@@ -91,17 +96,25 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<AccountRole, readonly string[
   super_admin: CATALOG_CODES,
   admin: [
     "workbench:read",
+    // @starter:example-assets-start
     "assets:read",
     "assets:manage",
+    // @starter:example-assets-end
+    // @starter:admin-permissions
     "accounts:read",
     "accounts:manage",
     "system:settings:read",
     "system:ai:read",
+    "jobs:read",
+    "jobs:manage",
     "audit:read",
   ],
   member: [
     "workbench:read",
+    // @starter:example-assets-start
     "assets:read",
+    // @starter:example-assets-end
+    // @starter:member-permissions
   ],
 };
 
@@ -201,6 +214,7 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
     operateCodes: {},
     disabledReason: "工作台为汇总只读视图，无独立写入项",
   },
+  // @starter:example-assets-start
   {
     id: "assets",
     label: "资产台账",
@@ -209,6 +223,8 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
     viewCodes: { default: ["assets:read"] },
     operateCodes: { default: ["assets:manage"] },
   },
+  // @starter:example-assets-end
+  // @starter:permission-rows
   {
     id: "accounts",
     label: "账户管理",
@@ -238,6 +254,15 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
     viewCodes: { admin: ["system:ai:read"], super_admin: ["system:ai:read"] },
     operateCodes: { super_admin: ["system:ai:manage"] },
     disabledReason: "AI 全局熔断开关仅允许超级管理员操作",
+  },
+  {
+    id: "jobs",
+    label: "后台任务",
+    description: "异步导出、批量导入与过期数据清理等后台任务查看、重试与取消",
+    actions: ALL_ACTIONS,
+    viewCodes: { admin: ["jobs:read"], super_admin: ["jobs:read"] },
+    operateCodes: { admin: ["jobs:manage"], super_admin: ["jobs:manage"] },
+    disabledReason: "全局后台任务队列不向普通成员开放（成员仍可查看本人创建的导出任务）",
   },
   {
     id: "audit",
