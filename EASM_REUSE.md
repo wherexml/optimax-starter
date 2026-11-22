@@ -4,7 +4,7 @@
 
 | EASM 源 | Starter 落点 | 改写要点 |
 | --- | --- | --- |
-| `pages/Index.tsx` | `features/dashboard/DashboardPage.tsx` | 保留结构：4 张统计卡片 → 2:1 主栅格 → 快捷入口。租户安全态势改为业务域列表（含待复核数）；最近活动管理员显示真实操作日志，成员显示待复核队列。删除报告、租户、趋势、渐变背景和滚动位置恢复 |
+| `pages/Index.tsx` | `features/dashboard/DashboardPage.tsx` | 原版仅作早期起点参照；工作台现已演进为由 `features/dashboard/registry.ts` 驱动的「业务总览 / 治理与审计」Bento 双视图（含趋势面积/柱状图、环形图、分类榜单与模块注册），见 [工作台文档](./apps/web/src/features/dashboard/README.md) |
 | `components/dashboard/DashboardStatCard.tsx` | 同上 `StatCard` | 标签和数值合成一个链接，下方各项为独立链接，避免在 `role=button` 里嵌套按钮；不显示趋势 |
 | `components/dashboard/RecentActivityList.tsx` | 同上 `RecentActivity` | 数据来自 `GET /console/audit?size=5`，点击进入按该操作类型筛选的操作日志；时间显示为相对时间 |
 | `components/common/FeatureCard` | 同上 `QuickAccess` | 只保留图标和标题，不写描述文案 |

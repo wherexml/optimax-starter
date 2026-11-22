@@ -28,10 +28,9 @@ export const MARKED_FILES = [
   "packages/api/src/permissions.ts",
   "apps/server/src/console.ts",
   "apps/web/src/config/app-config.ts",
+  "apps/web/src/features/dashboard/registry.ts",
 ];
 
-const DASHBOARD = "apps/web/src/features/dashboard/DashboardPage.tsx";
-const DASHBOARD_TEMPLATE = "scripts/lib/templates/core-dashboard.tsx.tpl";
 const NAV_DEMO = "apps/web/src/features/navigation-demo/NavigationDemoPage.tsx";
 
 const BLOCK_RE = new RegExp(
@@ -95,12 +94,6 @@ export function stripExample({ root = DEFAULT_ROOT, dryRun = false, log = consol
     const { content, blocks } = removeExampleBlocks(readFileSync(abs(rel), "utf-8"), rel);
     plannedEdits.push({ rel, content, note: `移除 ${blocks} 个示例块` });
   }
-  if (!existsSync(abs(DASHBOARD_TEMPLATE))) throw new Error(`缺少模板: ${DASHBOARD_TEMPLATE}`);
-  plannedEdits.push({
-    rel: DASHBOARD,
-    content: readFileSync(abs(DASHBOARD_TEMPLATE), "utf-8"),
-    note: "替换为仅依赖核心模块的工作台",
-  });
   if (existsSync(abs(NAV_DEMO))) {
     const next = rewriteNavigationDemo(readFileSync(abs(NAV_DEMO), "utf-8"));
     if (next) plannedEdits.push({ rel: NAV_DEMO, content: next, note: "/assets 查询改为本地示例数据" });

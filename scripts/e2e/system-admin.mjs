@@ -192,7 +192,7 @@ export async function verifySystemAdmin(
     );
     check("Saving permission matrix succeeds with bottom-right toast", true);
 
-    // 3. /system UI: World Model top Tabs, health probes, AI circuit breaker & timezone settings
+    // 3. /system UI: World Model top Tabs, health probes & timezone settings
     await page.click('nav a[href^="/system"]');
     await waitIdle("系统配置");
     await page.waitForFunction(() => location.search === "?tab=status");
@@ -210,45 +210,23 @@ export async function verifySystemAdmin(
         radius: st?.borderRadius,
         gap: tabs && panel ? Math.round(panel.top - tabs.bottom) : null,
         hasDbOk: bodyText.includes("正常（") && bodyText.includes("ms）"),
-        hasEditableBadge: bodyText.includes("可维护"),
+        hasAiCircuitCard: Boolean(
+          document.querySelector('section[aria-label="AI 客户端与熔断控制"]'),
+        ),
         hasMiddleDot: bodyText.includes("\u00b7"),
       };
     });
     check(
-      "SystemPage status tab uses World Model 2px underline, 12px panel gap, live DB probe, and zero middle dots",
-      sysTabMetrics.tabLabel === "运行控制" &&
+      "SystemPage status tab uses World Model 2px underline, 12px panel gap, live DB probe, no AI circuit card, and zero middle dots",
+      sysTabMetrics.tabLabel === "运行状态" &&
         sysTabMetrics.underline === "2px" &&
         sysTabMetrics.radius === "0px" &&
         Math.abs((sysTabMetrics.gap ?? 0) - 12) <= 2 &&
         sysTabMetrics.hasDbOk &&
-        sysTabMetrics.hasEditableBadge &&
+        !sysTabMetrics.hasAiCircuitCard &&
         !sysTabMetrics.hasMiddleDot,
       sysTabMetrics,
     );
-
-    // Trip AI circuit breaker via ConfirmDialog
-    await page.click('button:has-text("一键熔断 AI")');
-    await page.waitForSelector('[data-slot="dialog-content"]');
-    await page.click('[data-slot="dialog-content"] button:has-text("确认熔断")');
-    await page.waitForFunction(() =>
-      document
-        .querySelector('section[aria-label="AI 客户端与熔断控制"]')
-        ?.textContent?.includes("已熔断"),
-    );
-    await shot("desktop-system-circuit-open");
-    check("One-click AI circuit breaker opens and updates status badge to 已熔断", true);
-
-    // Restore AI circuit breaker
-    await page.click('button:has-text("恢复 AI 服务")');
-    await page.waitForSelector('[data-slot="dialog-content"]');
-    await page.click('[data-slot="dialog-content"] button:has-text("确认恢复")');
-    await page.waitForFunction(
-      () =>
-        !document
-          .querySelector('section[aria-label="AI 客户端与熔断控制"]')
-          ?.textContent?.includes("已熔断"),
-    );
-    check("Restoring AI service closes circuit breaker", true);
 
     // Switch to 基础配置 tab via keyboard ArrowRight
     await page.focus('[role="tab"][aria-selected="true"]');

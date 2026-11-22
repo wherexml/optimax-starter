@@ -20,5 +20,6 @@
    - `Switch` / `SwitchField` 与 `Checkbox`（带说明的开关配置行与复选确认项）
    - 动态禁用态及原因说明（切换「Agent 上报」时回调地址与轮询周期自动禁用并就近展示原因）。
 4. **全局通知速查（右下角堆栈 `Toaster` + `toast`）**：在同一页底部提供成功、提示、风险警告、异常告警、`toast.promise` 异步进度、带撤销操作按钮与多条堆叠展开的一键实测面板。
+5. **骨架屏与内容刷新速查（`ContentRefresh`）**：支持页面头部「刷新表单示例」主动触发流光骨架（`immediate` 最小节拍），并可在底部对比预览 `dashboard`（Bento 趋势 + 环形图）与 `table` 两种流光骨架及无外框独立四瓣矢量加载图形（接入 `packages/ui` 共享 `content-refresh`）。
 
 复验脚本：`scripts/e2e/forms-dialog.mjs`、`scripts/e2e/notifications.mjs`。规范正文见 [FRONTEND.md 表单弹窗与输入控件](../../../../../FRONTEND.md#表单弹窗与输入控件)。

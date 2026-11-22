@@ -6,7 +6,7 @@
 
 - `routes/demo.navigation.tsx` 只连接路由、搜索参数与页面。
 - `search.ts` 维护 Tab 白名单 `all / registered / pending`。缺省或非法值规范化为 `?tab=all`；切换用 replace，刷新保留 URL。UI SDK 的同步本地状态负责即时交互，路由负责深链。
-- `NavigationDemoPage.tsx` 使用 UI SDK Tabs 的名称、键盘和 ARIA；仅激活面板挂载并读取 `GET /console/assets`，每个视图有独立 Query key。表格复用资产台账列定义，支持排序、列设置、刷新和失败反馈。加载与显式刷新边界只包住面板表格，顶部 Tab 保持可操作。
+- `NavigationDemoPage.tsx` 通过共享 [PageTabs](../../components/ui/page-tabs.tsx) / `PageTabsPanel` 封装 `@ui-sdk/react/tabs` 的名称、键盘、横向溢出滚入可视区与 ARIA 语义；仅激活面板挂载并读取 `GET /console/assets`，每个视图有独立 Query key。表格复用资产台账列定义，支持排序、列设置、刷新和失败反馈。加载与显式刷新边界只包住面板表格，顶部 Tab 保持可操作。
 - `agent-bridge.ts` 提供同一 UI SDK 注册表的导航操作桥，供 E2E 验证真实组件；只允许 Tabs `setValue`，不接入资产模型请求。
 - 无表单草稿、管理员专属 Tab 或多页关闭栏；新增这些行为时遵循 [FRONTEND](../../../../../FRONTEND.md#页内导航与标签行为)。
 

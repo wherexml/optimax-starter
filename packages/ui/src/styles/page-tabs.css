@@ -1,0 +1,66 @@
+/* Page-level horizontal underline tabs (@optimax-starter/ui/components/page-tabs) */
+
+.page-tabs {
+  --tab-accent: #2f6fed;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.page-tabs-scroll {
+  overflow-x: auto;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 95%, transparent);
+}
+
+.page-tabs [data-slot="tabs-list"] {
+  display: flex;
+  gap: 4px;
+  min-width: 100%;
+  width: max-content;
+}
+
+.page-tabs [data-slot="tabs-tab"] {
+  min-height: 40px;
+  flex: none;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    border-color 150ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.page-tabs [data-slot="tabs-tab"]:hover {
+  color: var(--foreground);
+}
+
+.page-tabs [data-slot="tabs-tab"][data-selected] {
+  border-bottom-color: var(--tab-accent);
+  color: var(--foreground);
+}
+
+.page-tabs [data-slot="tabs-tab"]:focus-visible,
+.page-tabs [data-slot="tabs-panel"]:focus-visible {
+  outline: 2px solid var(--tab-accent);
+  outline-offset: -2px;
+}
+
+.page-tabs [data-slot="tabs-panel"] {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .page-tabs [data-slot="tabs-tab"] {
+    min-height: 44px;
+  }
+}

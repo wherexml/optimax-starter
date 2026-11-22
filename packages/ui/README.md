@@ -9,6 +9,7 @@
 - **弹窗与布局**：`components/dialog.tsx`、`components/form-dialog.tsx`（含 `UnsavedChangesBanner`）、`components/detail-drawer.tsx`（`DetailDrawer`、`DetailSection`、`DetailField`）、`components/field.tsx`（`FormSection`、`FieldLayout`、`FieldLabelRow`、`FieldCharCount`、`FieldHint`、`FieldError`）、`components/label.tsx`。
 - **文本与复合输入**：`components/input.tsx`、`components/input-group.tsx`（`InputGroup`、`InputGroupAddon`、`ClearableInput`、`CopyableInput`）、`components/password-input.tsx`（显隐切换与 `generateSecurePassword`）、`components/number-input.tsx`、`components/tag-input.tsx`、`components/textarea.tsx`。
 - **选择与开关**：`components/select.tsx`、`components/combobox.tsx`、`components/multi-select.tsx`、`components/segmented-control.tsx`、`components/switch.tsx`（含 `SwitchField`）、`components/checkbox.tsx`（支持 `indeterminate` 半选态）、`components/popover.tsx`、`components/button.tsx`。
+- **工作台与可视化原语（`@optimax-starter/ui`）**：基于 `recharts` 与 `@optimax-starter/ui/lib/data-tone` 语义 Token，提供 `components/kpi-card.tsx`（`KpiCard` / `KpiCardSkeleton` / `KpiCardError`）、`components/spark-chart.tsx`、`components/trend-area-chart.tsx`（含面积/柱状形态切换与 4 格摘要条）、`components/donut-chart.tsx`、`components/category-bar.tsx`、`components/bar-list.tsx`、`components/tracker.tsx`（均不耦合路由库，支持 `renderMain` / `renderRow` / `renderLegendItem` 注入跳转链接）。
 
 ## 2. 内容刷新与页面骨架屏
 
@@ -24,11 +25,11 @@ import { ContentRefresh, PageSkeleton } from "@optimax-starter/ui/components/con
 <PageSkeleton layout="dashboard" label="正在加载页面" />
 ```
 
-`layout` 支持 `dashboard`（四列指标和表格）与 `table`；`label` 仅供辅助技术读取；`logoSrc` 可覆盖默认品牌图；`delay` 默认 120ms，快速请求不会闪现骨架屏。慢请求持续播放四瓣图标，4.8 秒一周，每次转 90° 后停顿，花瓣轻微展开再合拢。结束时用 220ms 收拢至最近的下一整刻度。系统启用减少动态效果时，图标静止、结束立即恢复内容。没有假进度和强制等待。
+`layout` 支持 `dashboard`（四列指标卡、Bento 图表与精简表格骨架）与 `table`；`immediate` 可在主动点击刷新时跳过 `120ms` 延迟立即展开骨架；`label` 仅供辅助技术读取；`delay` 默认 120ms，快速首次读取不会闪现骨架屏（保留可选 `logoSrc` 类型字段以兼容历史调用方）。慢请求或主动刷新时持续播放骨条渐变流光与无边框独立四瓣几何矢量图形旋转（外圈轨迹与 90° 步进花瓣舒展后在 220ms 内平稳收拢）。系统启用减少动态效果时，图标与骨条流光静止、结束立即恢复内容。没有假进度和强制等待。
 
 边界内部内容保持挂载、滚动位置和表单状态；仅显示骨架屏期间将其隐藏并设为 inert。侧栏、顶部 Tab 应放在边界外。无论成功或失败，调用方都必须解除 loading；错误和空结果由业务组件展示。边界卸载会清理计时器、动画、观察器和事件监听器，恢复原有 aria/inert 属性。
 
-Starter 已通过 `features/refresh/WorkspaceRefresh` 接入四个数据页：首次读取仅跟踪带 `meta.contentRefresh` 的当前活动查询；工具栏刷新通过 `useContentRefresh()` 包住实际 Promise（并发请求用 `Promise.all`）。Starter 调用处统一传入 `APP_CONFIG.logoSrc`，含 Router fallback 和导航 Demo，使内页加载与侧栏使用同一产品标识；共享 UI 的默认 OptiMax 品牌不变。后台更新和业务写操作不覆盖整页。认证和页面错误沿用原有流程。
+Starter 已通过 `features/refresh/WorkspaceRefresh` 接入全部数据页：首次读取仅跟踪带 `meta.contentRefresh` 的当前活动查询；工具栏及页头主动刷新通过 `useContentRefresh()` 包住实际 Promise（并发请求用 `Promise.all`）并立即展示骨架。后台更新和业务写操作不覆盖整页。认证和页面错误沿用原有流程。
 
 非 React 页面可导入 `lib/content-refresh` 的 `createContentRefresh(element, options)`，调用 `setBusy(boolean)` / `destroy()`。浏览器入口 `lib/content-refresh-browser.ts` 可构建为 IIFE，导出 `window.OptiMaxRefresh`；同时带上 `styles/content-refresh.css`。World 的导出脚本在 `industry-model/scripts/sync-content-refresh.mjs`，产物保留源文件摘要，两边共享源码且运行时互不依赖。
 
@@ -60,3 +61,25 @@ toast.promise(syncTask, {
 - **配色与尺寸**：遵循 `DESIGN.md`（`0.5px` 细边框、`10px/6px` 同心圆角、无左侧彩色装饰条、严格 `14px/12px` 两档字号；品牌蓝/琥珀/红色语义图标，不使用绿色或紫色主题色，`prefers-reduced-motion` 下关闭位移过渡）。
 
 验收入口：[notifications.mjs](../../scripts/e2e/notifications.mjs)，在线交互速查见 `/demo/forms`。
+
+## 4. 页面级顶层标签（PageTabs）
+
+`@optimax-starter/ui/components/page-tabs`（`apps/web/src/components/ui/page-tabs.tsx` 重导出）封装 `@ui-sdk/react/tabs` 与 `@optimax-starter/ui` 的 `page-tabs.css` 统一样式，供内容区顶部第三级平级视图切换复用（卡片内轻量 2–4 项切换仍使用 `SegmentedControl`）：
+
+```tsx
+import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
+
+<PageTabs
+  label="系统配置"
+  items={visibleTabs}
+  value={activeTab}
+  hideSingleTab
+  onValueChange={(next) => void navigate({ search: { tab: next }, replace: true })}
+>
+  <PageTabsPanel value="status"><StatusPanel /></PageTabsPanel>
+  <PageTabsPanel value="settings"><SettingsPanel /></PageTabsPanel>
+</PageTabs>
+```
+
+- **内置行为**：同步本地切换状态（快速按键与 Agent 操作不丢帧，并支持 `details.cancel()` 草稿拦截）、窄屏横向溢出自动滚动定位当前选中标签、`2px` `#2f6fed` 下划线与移动端 `44px` 触控高度。
+- **单视图降级**：传入 `hideSingleTab` 且可见项 `≤ 1` 时，自动省略顶部单标签条并仅渲染当前激活面板，避免触发未授权或非当前面板查询。

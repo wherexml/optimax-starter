@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { RotateCw, Save } from "lucide-react";
 import {
   DEFAULT_SYSTEM_TIMEZONE,
@@ -9,11 +8,11 @@ import {
   type SystemStatusResponse,
   type SystemTab,
 } from "@optimax-starter/api";
-import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
 import {
   Select,
   SelectContent,
@@ -36,12 +35,6 @@ const SOURCE_LABELS: Record<SystemSettingsResponse["source"], string> = {
   default: "系统默认配置",
 };
 
-const AI_MODE_LABELS: Record<SystemStatusResponse["ai"]["configMode"], string> = {
-  client: "服务端直连网关",
-  legacy: "兼容本地转发",
-  invalid: "配置校验未通过",
-  disabled: "未配置模型参数",
-};
 
 function formatUptime(sec: number): string {
   if (sec < 60) return `${sec} 秒`;
@@ -79,9 +72,6 @@ export function SystemPage() {
   const navigate = route.useNavigate();
 
   const canReadAi = hasPermission(me.data, "system:ai:read");
-  const canManageAi =
-    me.data?.role === "super_admin" &&
-    hasPermission(me.data, "system:ai:manage");
   const canReadSettings = hasPermission(me.data, "system:settings:read");
   const canManageSettings = hasPermission(me.data, "system:settings:manage");
   const canReadJobs = hasPermission(me.data, "jobs:read");
@@ -90,7 +80,7 @@ export function SystemPage() {
     () =>
       SYSTEM_TAB_ITEMS.filter(
         (item) =>
-          (item.value === "status" && canReadAi) ||
+          (item.value === "status" && (canReadSettings || canReadAi)) ||
           (item.value === "settings" && canReadSettings) ||
           (item.value === "jobs" && canReadJobs),
       ),
@@ -101,32 +91,11 @@ export function SystemPage() {
     ? tab
     : (visibleTabs[0]?.value ?? "status");
 
-  const [tabState, setTabState] = useState<SystemTab>(activeTab);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setTabState(activeTab);
-  }, [activeTab]);
-
   useEffect(() => {
     if (visibleTabs.length > 0 && activeTab !== tab) {
       void navigate({ search: { tab: activeTab }, replace: true });
     }
   }, [activeTab, navigate, tab, visibleTabs.length]);
-
-  useEffect(() => {
-    const selected = listRef.current?.querySelector<HTMLElement>("[data-selected]");
-    if (selected && listRef.current) {
-      const viewport = listRef.current.getBoundingClientRect();
-      const item = selected.getBoundingClientRect();
-      if (item.left < viewport.left) {
-        listRef.current.scrollLeft -= viewport.left - item.left;
-      }
-      if (item.right > viewport.right) {
-        listRef.current.scrollLeft += item.right - viewport.right;
-      }
-    }
-  }, [tabState]);
 
   const statusQuery = useQuery({
     meta: { contentRefresh: true },
@@ -187,57 +156,32 @@ export function SystemPage() {
         }
       />
 
-      {visibleTabs.length > 1 ? (
-        <Tabs
-          className="page-tabs"
-          value={tabState}
-          onValueChange={(next) => {
-            if (!next) return;
-            const parsed = parseSystemSearch({ tab: next }).tab;
-            setTabState(parsed);
-            void navigate({ search: { tab: parsed }, replace: true });
-          }}
-        >
-          <div className="page-tabs-scroll" ref={listRef}>
-            <TabsList aria-label="系统配置">
-              {visibleTabs.map((item) => (
-                <TabsTab key={item.value} value={item.value}>
-                  {item.label}
-                </TabsTab>
-              ))}
-            </TabsList>
-          </div>
-          <TabsPanel value="status">
-            <StatusControlPanel
-              query={statusQuery}
-              canManageAi={canManageAi}
-              timeZone={activeTimezone}
-            />
-          </TabsPanel>
-          <TabsPanel value="settings">
-            <BaseSettingsPanel
-              query={settingsQuery}
-              canManageSettings={canManageSettings}
-            />
-          </TabsPanel>
-          <TabsPanel value="jobs">
-            {canReadJobs && tabState === "jobs" ? <JobsTab /> : null}
-          </TabsPanel>
-        </Tabs>
-      ) : activeTab === "jobs" ? (
-        <JobsTab />
-      ) : activeTab === "status" ? (
-        <StatusControlPanel
-          query={statusQuery}
-          canManageAi={canManageAi}
-          timeZone={activeTimezone}
-        />
-      ) : (
-        <BaseSettingsPanel
-          query={settingsQuery}
-          canManageSettings={canManageSettings}
-        />
-      )}
+      <PageTabs
+        label="系统配置"
+        items={visibleTabs}
+        value={activeTab}
+        hideSingleTab
+        onValueChange={(next) => {
+          const parsed = parseSystemSearch({ tab: next }).tab;
+          void navigate({ search: { tab: parsed }, replace: true });
+        }}
+      >
+        <PageTabsPanel value="status">
+          <StatusControlPanel
+            query={statusQuery}
+            timeZone={activeTimezone}
+          />
+        </PageTabsPanel>
+        <PageTabsPanel value="settings">
+          <BaseSettingsPanel
+            query={settingsQuery}
+            canManageSettings={canManageSettings}
+          />
+        </PageTabsPanel>
+        <PageTabsPanel value="jobs">
+          {canReadJobs ? <JobsTab /> : null}
+        </PageTabsPanel>
+      </PageTabs>
     </>
   );
 }
@@ -255,19 +199,11 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 
 function StatusControlPanel({
   query,
-  canManageAi,
   timeZone,
 }: {
   query: ReturnType<typeof useQuery<SystemStatusResponse, Error>>;
-  canManageAi: boolean;
   timeZone: string;
 }) {
-  const cache = useQueryClient();
-  const [confirmCircuit, setConfirmCircuit] = useState<
-    "disable" | "enable" | null
-  >(null);
-  const circuitTrigger = useRef<HTMLButtonElement>(null);
-
   if (query.isPending) {
     return (
       <div
@@ -275,7 +211,7 @@ function StatusControlPanel({
         aria-label="正在加载"
         className="panel p-6 text-sm text-muted-foreground"
       >
-        正在探测系统与模型状态…
+        正在探测系统运行状态…
       </div>
     );
   }
@@ -292,158 +228,60 @@ function StatusControlPanel({
   }
 
   const data = query.data;
-  const { probe, ai } = data;
+  const { probe } = data;
   const dbHealthy = probe.db === "ok";
 
-  const aiBadge = ai.circuitOpen
-    ? { variant: "danger" as const, label: "已熔断", summary: "全局断路器已开启，所有模型请求在网关前直接拦截（503）" }
-    : ai.configMode === "disabled"
-      ? { variant: "neutral" as const, label: "未配置凭证", summary: "服务端未配置模型参数，断路器处于默认放行状态" }
-      : ai.configMode === "invalid"
-        ? { variant: "warning" as const, label: "配置异常", summary: `服务端模型配置未通过校验（${ai.configReason ?? "invalid"}）` }
-        : { variant: "brand" as const, label: "运行就绪", summary: "模型通道与并发限流队列正常放行" };
-
-  const queueText =
-    ai.queue && ai.limits
-      ? `执行中 ${ai.queue.active}/${ai.limits.concurrency}，排队 ${ai.queue.waiting}/${ai.limits.queueLimit}，活跃账户 ${ai.queue.activeActors}（单户上限 ${ai.limits.actorLimit}）`
-      : "未挂载队列";
+  const summaryCells = [
+    {
+      label: "数据库延迟",
+      value: dbHealthy ? `${probe.dbLatencyMs ?? 0} ms` : "异常",
+    },
+    {
+      label: "当前活跃会话",
+      value: `${probe.activeSessions} 个`,
+    },
+    {
+      label: "进程持续运行",
+      value: formatUptime(probe.uptimeSec),
+    },
+    {
+      label: "运行环境",
+      value: `Node ${probe.nodeVersion}`,
+    },
+  ];
 
   return (
-    <>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="panel" aria-label="服务与数据库探针">
-          <header className="panel-head">
-            <h2>服务与数据库探针</h2>
-            <Badge variant={dbHealthy ? "brand" : "danger"}>
-              {dbHealthy ? "健康" : "异常"}
-            </Badge>
-          </header>
-          <dl className="m-0">
-            <MetricRow
-              label="数据库探针 (/healthz)"
-              value={
-                dbHealthy
-                  ? `正常（${probe.dbLatencyMs ?? 0} ms）`
-                  : "连接不可达"
-              }
-            />
-            <MetricRow
-              label="当前活跃会话"
-              value={`${probe.activeSessions} 个`}
-            />
-            <MetricRow
-              label="进程持续运行"
-              value={formatUptime(probe.uptimeSec)}
-            />
-            <MetricRow label="运行环境" value={`Node ${probe.nodeVersion}`} />
-            <MetricRow
-              label="最近探测时间"
-              value={formatCheckedAt(data.checkedAt, timeZone)}
-            />
-          </dl>
-        </section>
-
-        <section className="panel" aria-label="AI 客户端与熔断控制">
-          <header className="panel-head">
-            <h2>AI 客户端与熔断控制</h2>
-            <Badge variant={canManageAi ? "brand" : "neutral"}>
-              {canManageAi ? "可维护" : "只读"}
-            </Badge>
-          </header>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border-[0.5px] border-[var(--hairline)] bg-[var(--surface-subtle)] p-3.5">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <Badge variant={aiBadge.variant}>{aiBadge.label}</Badge>
-                  <span className="text-sm font-medium text-foreground">
-                    全局 AI 熔断开关
-                  </span>
-                </div>
-                <p className="m-0 text-xs leading-[18px] text-muted-foreground">
-                  {aiBadge.summary}
-                </p>
-              </div>
-              {ai.circuitOpen ? (
-                <Button
-                  key="restore-ai"
-                  ref={circuitTrigger}
-                  type="button"
-                  size="sm"
-                  disabled={!canManageAi}
-                  title={!canManageAi ? "仅超级管理员可操作 AI 熔断开关" : undefined}
-                  onClick={() => setConfirmCircuit("enable")}
-                >
-                  恢复 AI 服务
-                </Button>
-              ) : (
-                <Button
-                  key="trip-ai"
-                  ref={circuitTrigger}
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  disabled={!canManageAi}
-                  title={!canManageAi ? "仅超级管理员可操作 AI 熔断开关" : undefined}
-                  onClick={() => setConfirmCircuit("disable")}
-                >
-                  一键熔断 AI
-                </Button>
-              )}
+    <section className="panel" aria-label="服务与数据库探针">
+      <header className="panel-head">
+        <h2>服务与数据库探针</h2>
+        <Badge variant={dbHealthy ? "success" : "danger"}>
+          {dbHealthy ? "健康" : "异常"}
+        </Badge>
+      </header>
+      <div className="mb-3 grid grid-cols-2 gap-px overflow-hidden rounded-lg border-[0.5px] border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-4">
+        {summaryCells.map((cell) => (
+          <div key={cell.label} className="bg-card px-3.5 py-2.5">
+            <div className="text-[11px] text-muted-foreground">{cell.label}</div>
+            <div className="mt-1 text-base font-semibold tabular-nums text-foreground">
+              {cell.value}
             </div>
-
-            <dl className="m-0">
-              <MetricRow
-                label="接入模式"
-                value={AI_MODE_LABELS[ai.configMode]}
-              />
-              <MetricRow label="当前模型" value={ai.model ?? "—"} />
-              <MetricRow label="实时队列水位" value={queueText} />
-              <MetricRow
-                label="单次超时上限"
-                value={ai.timeoutMs ? `${ai.timeoutMs} ms` : "—"}
-              />
-            </dl>
           </div>
-        </section>
+        ))}
       </div>
-
-      {confirmCircuit && (
-        <ConfirmDialog
-          title={
-            confirmCircuit === "disable" ? "开启 AI 全局熔断" : "恢复 AI 服务"
+      <dl className="m-0">
+        <MetricRow
+          label="数据库探针 (/healthz)"
+          value={
+            dbHealthy ? `正常（${probe.dbLatencyMs ?? 0} ms）` : "连接不可达"
           }
-          description={
-            confirmCircuit === "disable"
-              ? "开启后将立即拦截全站自然语言筛选与模型请求（返回 503），状态持久化至数据库并写入操作日志。"
-              : "关闭熔断后，若服务端已配置有效模型凭证，AI 能力将立即恢复放行并写入操作日志。"
-          }
-          submitText={confirmCircuit === "disable" ? "确认熔断" : "确认恢复"}
-          submitVariant={confirmCircuit === "disable" ? "destructive" : "default"}
-          trigger={circuitTrigger.current}
-          action={() =>
-            request("/system/ai-circuit", "PATCH", {
-              enabled: confirmCircuit === "enable",
-            })
-          }
-          close={async (done) => {
-            const mode = confirmCircuit;
-            setConfirmCircuit(null);
-            if (done) {
-              await Promise.all([
-                cache.invalidateQueries({ queryKey: ["system-status"] }),
-                cache.invalidateQueries({ queryKey: ["asset-agent-config"] }),
-                cache.invalidateQueries({ queryKey: ["audit"] }),
-              ]);
-              toast.success(
-                mode === "disable"
-                  ? "已开启 AI 全局熔断"
-                  : "已恢复 AI 服务放行",
-              );
-            }
-          }}
         />
-      )}
-    </>
+        <MetricRow label="生效系统时区" value={timeZone} />
+        <MetricRow
+          label="最近探测时间"
+          value={formatCheckedAt(data.checkedAt, timeZone)}
+        />
+      </dl>
+    </section>
   );
 }
 

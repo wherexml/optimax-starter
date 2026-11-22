@@ -1,17 +1,14 @@
-import { refreshBrand } from "./refresh-brand";
-
 export type SkeletonLayout = "dashboard" | "table";
 export interface ContentRefreshOptions {
   layout?: SkeletonLayout;
   label?: string;
+  /** 仅保留以兼容旧调用方类型签名，内部加载图形已改为独立原生矢量图标。 */
   logoSrc?: string;
   delay?: number;
 }
-let sequence = 0;
 
 /** DOM-only renderer: the same mark and skeleton can be used without React. */
 export function createRefreshVisual(options: ContentRefreshOptions = {}) {
-  const id = `om-refresh-${++sequence}`;
   const el = document.createElement("div");
   el.className = "om-refresh-visual";
   el.setAttribute("role", "status");
@@ -20,14 +17,32 @@ export function createRefreshVisual(options: ContentRefreshOptions = {}) {
     <div class="om-skeleton" aria-hidden="true" data-layout="${options.layout === "table" ? "table" : "dashboard"}">
       <div class="om-skeleton-heading"><i class="om-bone om-bone-title"></i><i class="om-bone om-bone-action"></i></div>
       <div class="om-skeleton-metrics">${Array.from({ length: 4 }, () => '<div><i class="om-bone om-bone-label"></i><i class="om-bone om-bone-value"></i></div>').join("")}</div>
+      <div class="om-skeleton-bento">
+        <div class="om-skeleton-chart">
+          <div class="om-skeleton-chart-head"><i class="om-bone om-bone-chart-title"></i><i class="om-bone om-bone-pill"></i></div>
+          <div class="om-skeleton-submetrics">${Array.from({ length: 4 }, () => '<div><i class="om-bone om-bone-sub-label"></i><i class="om-bone om-bone-sub-val"></i></div>').join("")}</div>
+          <i class="om-bone om-bone-canvas"></i>
+        </div>
+        <div class="om-skeleton-donut">
+          <i class="om-bone om-bone-chart-title"></i>
+          <i class="om-bone om-bone-ring"></i>
+          <div class="om-skeleton-legend">
+            <div><i class="om-bone"></i><i class="om-bone"></i></div>
+            <div><i class="om-bone"></i><i class="om-bone"></i></div>
+          </div>
+        </div>
+      </div>
       <div class="om-skeleton-table">${Array.from({ length: 8 }, () => `<div>${Array.from({ length: 5 }, () => '<i class="om-bone"></i>').join("")}</div>`).join("")}</div>
       <div class="om-skeleton-sweep"></div>
     </div>
-    <div class="om-refresh-indicator" aria-hidden="true"><svg class="om-refresh-brand" viewBox="0 0 256 256">
-      <defs><image id="${id}" width="256" height="256"/>${["M128 128 0 0H256Z", "M128 128 256 0V256Z", "M128 128 256 256H0Z", "M128 128 0 256V0Z"].map((d, i) => `<clipPath id="${id}-${i}"><path d="${d}"/></clipPath>`).join("")}</defs>
-      ${[[0, -9], [9, 0], [0, 9], [-9, 0]].map(([x, y], i) => `<g class="om-refresh-petal" style="--petal-x:${x}px;--petal-y:${y}px"><g clip-path="url(#${id}-${i})"><use href="#${id}"/></g></g>`).join("")}
+    <div class="om-refresh-indicator" aria-hidden="true"><svg class="om-refresh-brand" viewBox="0 0 32 32" fill="none">
+      <circle class="om-refresh-track" cx="16" cy="16" r="13.25" stroke="currentColor" stroke-opacity="0.1" stroke-width="1.25"/>
+      <circle class="om-refresh-arc" cx="16" cy="16" r="13.25" stroke="var(--primary, #3e63dd)" stroke-opacity="0.62" stroke-width="1.35" stroke-linecap="round" stroke-dasharray="19 65"/>
+      <g class="om-refresh-petal" style="--petal-x:0px;--petal-y:-2px"><rect x="13.7" y="9.1" width="4.6" height="4.6" rx="1.25" transform="rotate(45 16 11.4)" fill="var(--primary, #3e63dd)"/></g>
+      <g class="om-refresh-petal" style="--petal-x:2px;--petal-y:0px"><rect x="18.3" y="13.7" width="4.6" height="4.6" rx="1.25" transform="rotate(45 20.6 16)" fill="var(--primary, #3e63dd)" fill-opacity="0.72"/></g>
+      <g class="om-refresh-petal" style="--petal-x:0px;--petal-y:2px"><rect x="13.7" y="18.3" width="4.6" height="4.6" rx="1.25" transform="rotate(45 16 20.6)" fill="var(--primary, #3e63dd)" fill-opacity="0.44"/></g>
+      <g class="om-refresh-petal" style="--petal-x:-2px;--petal-y:0px"><rect x="9.1" y="13.7" width="4.6" height="4.6" rx="1.25" transform="rotate(45 11.4 16)" fill="var(--primary, #3e63dd)" fill-opacity="0.72"/></g>
     </svg></div>`;
-  el.querySelector("image")!.setAttribute("href", options.logoSrc || refreshBrand);
   el.querySelector(".om-refresh-sr")!.textContent = options.label || "正在刷新内容";
   return el;
 }
@@ -112,6 +127,10 @@ export function createContentRefresh(host: HTMLElement, options: ContentRefreshO
     const target = Math.ceil((angle - .05) / 90) * 90;
     const timing: KeyframeAnimationOptions = { duration: 220, easing: "cubic-bezier(.25,0,.15,1)", fill: "forwards" };
     animations.push(brand.animate([{ transform: `rotate(${angle}deg)` }, { transform: `rotate(${target}deg)` }], timing));
+    const arc = visual.querySelector<SVGCircleElement>(".om-refresh-arc");
+    if (arc) {
+      animations.push(arc.animate([{ opacity: getComputedStyle(arc).opacity }, { opacity: "0" }], timing));
+    }
     visual.querySelectorAll<SVGGElement>(".om-refresh-petal").forEach(petal => {
       animations.push(petal.animate([{ transform: getComputedStyle(petal).transform }, { transform: "translate(0,0)" }], timing));
     });
@@ -122,14 +141,25 @@ export function createContentRefresh(host: HTMLElement, options: ContentRefreshO
   window.addEventListener("resize", schedulePosition);
   window.addEventListener("scroll", schedulePosition, true);
   return {
-    setBusy(next: boolean) {
-      if (disposed || next === busy) return;
+    setBusy(next: boolean, immediate = false) {
+      if (disposed) return;
+      if (next === busy) {
+        if (busy && immediate && !visible) {
+          clearTimeout(delayTimer);
+          show();
+        }
+        return;
+      }
       busy = next;
       clearTimeout(delayTimer);
       if (busy) {
         host.setAttribute("aria-busy", "true");
         cancelMotion();
-        if (!visible) delayTimer = setTimeout(show, options.delay ?? 120);
+        if (!visible) {
+          const waitMs = immediate ? 0 : (options.delay ?? 120);
+          if (waitMs <= 0) show();
+          else delayTimer = setTimeout(show, waitMs);
+        }
       } else if (visible) settle();
       else restore();
     },

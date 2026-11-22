@@ -19,11 +19,11 @@
 
 | 类别 | 包含路径 | 升级策略 |
 | --- | --- | --- |
-| **模板底座（推荐同步）** | `apps/server/src/core/`（含 `job-policy.ts`、`attachment-registry.ts`、`seed.ts` 注册表）、`apps/server/src/modules/` 中的核心模块（`accounts`、`attachments`、`audit`、`auth`、`jobs`、`system`、`tokens`）、`packages/db/src/schema/console.ts`、`packages/api/src/contracts.ts` 等核心契约、`packages/ui/`、`apps/web/src/components/`、`scripts/`（含 `gen-module.mjs`、`lib/`、`check-migrations.mjs`、`doctor.mjs`、`bootstrap-project.sh`、`deploy-production.sh`）、`docs/onboarding.html` | 重点查看上游 diff 并选择性同步；中心注册文件里的 `// @starter:*` 注释锚点必须保留 |
-| **业务扩展（保留本地）** | `packages/db/src/schema/assets.ts` 与生成模块的 `schema/<slug>.ts`、`packages/api/src/<slug>.ts`、`apps/server/src/modules/assets*.ts` 与 `modules/<slug>.ts`、`apps/web/src/features/<业务>/`、`apps/web/src/routes/<业务>.tsx`、`packages/db/src/migrations/`、`scripts/verify-<slug>.py` | 承载业务表与页面，不整文件覆盖；只在需要通用新契约时手工挑选合并 |
+| **模板底座（推荐同步）** | `apps/server/src/core/`（含 `job-policy.ts`、`attachment-registry.ts`、`seed.ts` 注册表）、`apps/server/src/modules/` 中的核心模块（`accounts`、`attachments`、`audit`、`auth`、`jobs`、`system`、`tokens`）、`packages/db/src/schema/console.ts`、`packages/api/src/contracts.ts` 等核心契约、`packages/ui/`、`apps/web/src/components/`、`apps/web/src/features/dashboard/DashboardPage.tsx`、`scripts/`（含 `gen-module.mjs`、`lib/`、`check-migrations.mjs`、`doctor.mjs`、`bootstrap-project.sh`、`deploy-production.sh`）、`docs/onboarding.html` | 重点查看上游 diff 并选择性同步；中心注册文件里的 `// @starter:*` 注释锚点必须保留 |
+| **业务扩展（保留本地）** | `packages/db/src/schema/assets.ts` 与生成模块的 `schema/<slug>.ts`、`packages/api/src/<slug>.ts`、`apps/server/src/modules/assets*.ts` 与 `modules/<slug>.ts`、`apps/web/src/features/<业务>/`、`apps/web/src/features/dashboard/registry.ts`（含 `// @starter:dashboard-modules` 锚点）、`apps/web/src/routes/<业务>.tsx`、`packages/db/src/migrations/`、`scripts/verify-<slug>.py` | 承载业务表与页面，不整文件覆盖；只在需要通用新契约时手工挑选合并 |
 | **派生独立配置（禁止覆盖）** | `.env`、`.starter-version`、`package.json`（项目名等）、`compose.yaml`（项目名与镜像名）、`apps/web/src/config/app-config.ts`、`apps/web/public/brand/` | 包含各项目端口、Cookie 名、品牌文案与业务导航，切勿整文件覆盖 |
 
-中心注册文件（`schema/index.ts`、`packages/api/src/index.ts`、`contracts.ts`、`permissions.ts`、`apps/server/src/console.ts`、`app-config.ts`）同时含底座与业务条目：业务条目位于 `// @starter:*` 锚点之前，示例模块被 `// @starter:example-assets-start` / `end` 包裹。合并时保留本地业务行与全部锚点，只吸收上游新增的核心行。
+中心注册文件（`schema/index.ts`、`packages/api/src/index.ts`、`contracts.ts`、`permissions.ts`、`apps/server/src/console.ts`、`app-config.ts`、`dashboard/registry.ts`）同时含底座与业务条目：业务条目位于 `// @starter:*` 锚点之前，示例模块被 `// @starter:example-assets-start` / `end` 包裹。合并时保留本地业务行与全部锚点，只吸收上游新增的核心行。
 
 示例 `assets` 模块可在初始化时用 `--no-example` 移除（会生成 `remove_example_assets` 迁移）；移除后不要再同步上游的 `assets*` 文件。
 

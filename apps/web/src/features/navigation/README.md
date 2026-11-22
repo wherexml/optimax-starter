@@ -8,6 +8,11 @@
 - 弹窗限制视口内高度，列表单独滚动；方向键选择自动滚入可视区。关闭按钮与搜索输入各有独立空间。
 - Cmd/Ctrl+K 打开，↑/↓ 循环选择，Enter 跳转，Esc 关闭并归还焦点；保留输入法组合输入保护。
 
+## 侧栏激活滑块与路由过渡
+
+- [useSidebarGlide.ts](./useSidebarGlide.ts) 与 `index.css` 实现 Magpie 风格纵向滑行指示器 `.nav-glide-pill` 及内容区 `.route-stage` 入场过渡（`prefers-reduced-motion` 下自动禁用位移动画）。
+- 兼容桌面展开态、图标折叠态（`64px`）与移动端抽屉尺寸/方向重算；通过 `pointerup` 防抖计时器与 `settleToActive` 消除异步导航切换时的首帧回弹。
+
 ## 浏览器验收
 
 先启动本地 Compose 并以本地演示管理员登录，在 Ego TaskSpace 执行：

@@ -84,6 +84,11 @@ const fields = parseFieldsSpec(fieldsSpec);
 const primaryField = getPrimaryField(fields);
 const primaryUnique = primaryField.type !== "boolean";
 const enumFields = fields.filter((f) => f.type === "enum");
+const multiEnumFields = enumFields.filter((f) => f.options.length >= 3);
+const singleEnumFields = enumFields.filter((f) => f.options.length < 3);
+const comboboxEnumFields = enumFields.filter((f) => f.options.length > 6);
+const selectEnumFields = enumFields.filter((f) => f.options.length <= 6);
+const dateFields = fields.filter((f) => f.type === "date");
 const primaryEnum = enumFields[0] ?? null;
 const searchField =
   primaryField.type === "string" || primaryField.type === "text"
@@ -91,6 +96,9 @@ const searchField =
     : fields.find((f) => f.type === "string" || f.type === "text") ?? null;
 const categoryField =
   fields.find((f) => f.name === "category" || f.name === "domain") ?? null;
+const ownerField =
+  fields.find((f) => f.name === "owner" || f.name === "assignee" || f.name === "manager") ?? null;
+const booleanField = fields.find((f) => f.type === "boolean") ?? null;
 
 const singularSlug = (singular.trim() || (slug.endsWith("s") ? slug.slice(0, -1) : slug)).replace(
   /-/g,
@@ -197,8 +205,16 @@ function buildApiContractContent() {
     searchLines.push("  q?: string;");
     searchLines.push('  qOp?: "contains" | "equals";');
   }
-  if (primaryEnum) {
-    searchLines.push(`  ${primaryEnum.name}?: ${enumTypeName(primaryEnum)};`);
+  for (const f of enumFields) {
+    if (f.options.length >= 3) {
+      searchLines.push(`  ${f.name}?: ${enumTypeName(f)} | ${enumTypeName(f)}[];`);
+    } else {
+      searchLines.push(`  ${f.name}?: ${enumTypeName(f)};`);
+    }
+  }
+  for (const f of dateFields) {
+    searchLines.push(`  ${f.name}From?: string;`);
+    searchLines.push(`  ${f.name}To?: string;`);
   }
   searchLines.push("  page?: number;");
   searchLines.push("  size?: number;");
@@ -245,15 +261,65 @@ function buildApiContractContent() {
     })
     .join("\n");
 
+  const searchHelpers = [];
+  if (multiEnumFields.length > 0) {
+    searchHelpers.push(`function parseEnumList<const T extends readonly string[]>(
+  raw: unknown,
+  allowed: T,
+): T[number] | T[number][] | undefined {
+  const input = Array.isArray(raw) ? raw.slice(0, 100) : [raw];
+  const out = new Set<T[number]>();
+  for (const item of input) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (allowed.includes(trimmed)) out.add(trimmed as T[number]);
+    if (out.size >= 20) break;
+  }
+  const sorted = [...out].sort((a, b) => a.localeCompare(b, "zh-CN"));
+  return sorted.length === 0 ? undefined : sorted.length === 1 ? sorted[0] : sorted;
+}`);
+  }
+  if (dateFields.length > 0) {
+    searchHelpers.push(`const DAY_RE = /^\\d{4}-\\d{2}-\\d{2}$/;
+
+function parseDayParam(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || !DAY_RE.test(raw)) return undefined;
+  const [y, m, d] = raw.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d!));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d
+    ? raw
+    : undefined;
+}`);
+  }
+
   const searchParserLines = [];
   if (searchField) {
     searchParserLines.push(
       '  const q = typeof v.q === "string" && v.q.trim() && v.q.length <= 200 ? v.q : undefined;',
     );
   }
-  if (primaryEnum) {
+  for (const f of enumFields) {
+    if (f.options.length >= 3) {
+      searchParserLines.push(
+        `  const enum_${f.name} = parseEnumList(v.${f.name}, ${enumConstName(f)});`,
+      );
+    } else {
+      searchParserLines.push(
+        `  const enum_${f.name} = typeof v.${f.name} === "string" && (${enumConstName(f)} as readonly string[]).includes(v.${f.name}) ? (v.${f.name} as ${enumTypeName(f)}) : undefined;`,
+      );
+    }
+  }
+  for (const f of dateFields) {
+    searchParserLines.push(`  const rawFrom_${f.name} = parseDayParam(v.${f.name}From);`);
+    searchParserLines.push(`  const rawTo_${f.name} = parseDayParam(v.${f.name}To);`);
     searchParserLines.push(
-      `  const enumVal = typeof v.${primaryEnum.name} === "string" && (${enumConstName(primaryEnum)} as readonly string[]).includes(v.${primaryEnum.name}) ? (v.${primaryEnum.name} as ${enumTypeName(primaryEnum)}) : undefined;`,
+      `  const validRange_${f.name} = !(rawFrom_${f.name} && rawTo_${f.name} && rawTo_${f.name} < rawFrom_${f.name});`,
+    );
+    searchParserLines.push(
+      `  const from_${f.name} = validRange_${f.name} ? rawFrom_${f.name} : undefined;`,
+    );
+    searchParserLines.push(
+      `  const to_${f.name} = validRange_${f.name} ? rawTo_${f.name} : undefined;`,
     );
   }
   searchParserLines.push("  const page = Number(v.page);");
@@ -263,8 +329,12 @@ function buildApiContractContent() {
     searchParserLines.push("    ...(q ? { q } : {}),");
     searchParserLines.push('    ...(q && v.qOp === "equals" ? { qOp: "equals" as const } : {}),');
   }
-  if (primaryEnum) {
-    searchParserLines.push(`    ...(enumVal ? { ${primaryEnum.name}: enumVal } : {}),`);
+  for (const f of enumFields) {
+    searchParserLines.push(`    ...(enum_${f.name} ? { ${f.name}: enum_${f.name} } : {}),`);
+  }
+  for (const f of dateFields) {
+    searchParserLines.push(`    ...(from_${f.name} ? { ${f.name}From: from_${f.name} } : {}),`);
+    searchParserLines.push(`    ...(to_${f.name} ? { ${f.name}To: to_${f.name} } : {}),`);
   }
   searchParserLines.push("    ...(Number.isInteger(page) && page > 1 ? { page } : {}),");
   searchParserLines.push("    ...(size === 50 || size === 100 ? { size } : {}),");
@@ -296,7 +366,7 @@ export const ${camel}PatchSchema = ${camel}InputSchema.partial().refine(
   (v) => Object.values(v).some((x) => x !== undefined),
 );
 
-export function parse${singularPascal}Search(v: Record<string, unknown>): ${singularPascal}Search {
+${searchHelpers.length ? `${searchHelpers.join("\n\n")}\n\n` : ""}export function parse${singularPascal}Search(v: Record<string, unknown>): ${singularPascal}Search {
 ${searchParserLines.join("\n")}
 }
 `;
@@ -306,10 +376,17 @@ function buildServerModuleContent() {
   const drizzleImports = new Set(["and", "count", "desc", "eq"]);
   if (searchField) drizzleImports.add("ilike");
   if (primaryUnique) drizzleImports.add("ne");
+  if (multiEnumFields.length > 0) drizzleImports.add("inArray");
+  if (dateFields.length > 0) {
+    drizzleImports.add("gte");
+    drizzleImports.add("lte");
+  }
 
-  const apiImports = [];
-  if (primaryEnum) apiImports.push(enumConstName(primaryEnum));
-  apiImports.push(`${camel}InputSchema`, `${camel}PatchSchema`);
+  const apiImports = [
+    ...enumFields.map((f) => enumConstName(f)),
+    `${camel}InputSchema`,
+    `${camel}PatchSchema`,
+  ];
 
   const optionalTextFields = fields.filter(
     (f) => f.optional && (f.type === "string" || f.type === "text" || f.type === "date"),
@@ -323,10 +400,14 @@ function buildServerModuleContent() {
     querySchemaLines.push("  q: z.string().trim().min(1).max(200).optional(),");
     querySchemaLines.push('  qOp: z.enum(["contains", "equals"]).optional(),');
   }
-  if (primaryEnum) {
+  for (const f of singleEnumFields) {
     querySchemaLines.push(
-      `  ${primaryEnum.name}: z.enum(${enumConstName(primaryEnum)}).optional(),`,
+      `  ${f.name}: z.enum(${enumConstName(f)}).optional(),`,
     );
+  }
+  for (const f of dateFields) {
+    querySchemaLines.push(`  ${f.name}From: dayParam.optional(),`);
+    querySchemaLines.push(`  ${f.name}To: dayParam.optional(),`);
   }
   querySchemaLines.push("  page: z.coerce.number().int().min(1).max(100000).default(1),");
   querySchemaLines.push(
@@ -335,7 +416,8 @@ function buildServerModuleContent() {
 
   const queryDestruct = [];
   if (searchField) queryDestruct.push("q", "qOp");
-  if (primaryEnum) queryDestruct.push(primaryEnum.name);
+  for (const f of singleEnumFields) queryDestruct.push(f.name);
+  for (const f of dateFields) queryDestruct.push(`${f.name}From`, `${f.name}To`);
   queryDestruct.push("page", "size");
 
   const whereParts = [];
@@ -346,11 +428,82 @@ function buildServerModuleContent() {
           : ilike(${camel}Table.${searchField.name}, containsPattern(q))
         : undefined,`);
   }
-  if (primaryEnum) {
+  for (const f of singleEnumFields) {
     whereParts.push(
-      `      ${primaryEnum.name} ? eq(${camel}Table.${primaryEnum.name}, ${primaryEnum.name}) : undefined,`,
+      `      ${f.name} ? eq(${camel}Table.${f.name}, ${f.name}) : undefined,`,
     );
   }
+  for (const f of multiEnumFields) {
+    whereParts.push(
+      `      list_${f.name}.length ? inArray(${camel}Table.${f.name}, list_${f.name}) : undefined,`,
+    );
+  }
+  for (const f of dateFields) {
+    whereParts.push(
+      `      ${f.name}From ? gte(${camel}Table.${f.name}, ${f.name}From) : undefined,`,
+    );
+    whereParts.push(
+      `      ${f.name}To ? lte(${camel}Table.${f.name}, ${f.name}To) : undefined,`,
+    );
+  }
+
+  const extraHelpers = [];
+  if (dateFields.length > 0) {
+    extraHelpers.push(`const DAY_RE = /^\\d{4}-\\d{2}-\\d{2}$/;
+
+function isValidDay(s: string): boolean {
+  if (!DAY_RE.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d!));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m! - 1 && dt.getUTCDate() === d;
+}
+
+const dayParam = z.string().refine(isValidDay);`);
+  }
+  if (multiEnumFields.length > 0) {
+    extraHelpers.push(`const MULTI_ENUM_KEYS = new Set(${JSON.stringify(multiEnumFields.map((f) => f.name))});
+
+function normalizeListValues(values: string[] | undefined): string[] {
+  if (!values?.length) return [];
+  const out: string[] = [];
+  for (const raw of values) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("[")) {
+      try {
+        const arr: unknown = JSON.parse(trimmed);
+        if (Array.isArray(arr)) {
+          for (const item of arr) {
+            if (typeof item === "string" && item.trim()) out.push(item.trim());
+          }
+          continue;
+        }
+      } catch {
+        // Ignore invalid JSON and treat as plain value.
+      }
+    }
+    out.push(trimmed);
+  }
+  return [...new Set(out)].slice(0, 20);
+}`);
+  }
+  const extraHelperBlock = extraHelpers.length ? `${extraHelpers.join("\n\n")}\n\n` : "";
+
+  const dateRangeChecks = dateFields
+    .map(
+      (f) =>
+        `    if (${f.name}From && ${f.name}To && ${f.name}To < ${f.name}From) {\n      return c.json({ error: "筛选条件无效" }, 400);\n    }`,
+    )
+    .join("\n");
+  const multiEnumChecks = multiEnumFields
+    .map(
+      (f) =>
+        `    const list_${f.name} = normalizeListValues(c.req.queries(${JSON.stringify(f.name)}));\n    if (list_${f.name}.some((x) => !(${enumConstName(f)} as readonly string[]).includes(x))) {\n      return c.json({ error: "筛选条件无效" }, 400);\n    }`,
+    )
+    .join("\n");
+  const rawQueryFilter = multiEnumFields.length
+    ? "Object.entries(c.req.query()).filter(([k, v]) => !MULTI_ENUM_KEYS.has(k) && v.trim() !== \"\")"
+    : "Object.entries(c.req.query()).filter(([, v]) => v.trim() !== \"\")";
 
   const normalizeHelper = optionalTextFields.length
     ? `const OPTIONAL_TEXT_KEYS = ${JSON.stringify(optionalTextFields.map((f) => f.name))} as const;
@@ -433,7 +586,7 @@ import {
   type Env,
 } from "../core/guards";
 
-const querySchema = z.object({
+${extraHelperBlock}const querySchema = z.object({
 ${querySchemaLines.join("\n")}
 });
 
@@ -446,12 +599,12 @@ const toResource = (row: { id: number; ${primaryField.name}: unknown }) => ({
 ${normalizeHelper}export const ${camel}Routes = new Hono<Env>()
   .get("/${slug}", requirePermission("${slug}:read"), async (c) => {
     const raw = Object.fromEntries(
-      Object.entries(c.req.query()).filter(([, v]) => v.trim() !== ""),
+      ${rawQueryFilter},
     );
     const parsed = querySchema.safeParse(raw);
     if (!parsed.success) return c.json({ error: "筛选条件无效" }, 400);
     const { ${queryDestruct.join(", ")} } = parsed.data;
-${whereBlock ? `${whereBlock}\n` : ""}    const [items, totals] = await Promise.all([
+${dateRangeChecks ? `${dateRangeChecks}\n` : ""}${multiEnumChecks ? `${multiEnumChecks}\n` : ""}${whereBlock ? `${whereBlock}\n` : ""}    const [items, totals] = await Promise.all([
       db
         .select()
         .from(${camel}Table)${whereClause}
@@ -539,7 +692,8 @@ function buildFormDialogContent() {
   const hasInput = fields.some((f) => f.type === "number" || f.type === "date");
   const hasInt = fields.some((f) => f.type === "int");
   const hasSwitch = fields.some((f) => f.type === "boolean");
-  const hasEnum = enumFields.length > 0;
+  const hasSelect = selectEnumFields.length > 0;
+  const hasCombobox = comboboxEnumFields.length > 0;
   const focusField =
     fields.find(
       (f) =>
@@ -551,10 +705,11 @@ function buildFormDialogContent() {
     ) ?? null;
 
   const uiImports = [];
+  if (hasCombobox) uiImports.push('import { Combobox } from "@/components/ui/combobox";');
   if (hasInput) uiImports.push('import { Input } from "@/components/ui/input";');
   if (hasString) uiImports.push('import { ClearableInput } from "@/components/ui/input-group";');
   if (hasInt) uiImports.push('import { NumberInput } from "@/components/ui/number-input";');
-  if (hasEnum) {
+  if (hasSelect) {
     uiImports.push(`import {
   Select,
   SelectContent,
@@ -614,6 +769,30 @@ function buildFormDialogContent() {
       }
       if (f.type === "enum") {
         const cName = enumConstName(f);
+        if (f.options.length > 6) {
+          return `          <FormField
+            control={form.control}
+            name="${f.name}"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel${reqAttr}>${f.label}</FormLabel>
+                <FormControl>
+                  <Combobox
+                    ref={field.ref}
+                    label="${f.label}"
+                    value={field.value ?? ""}
+                    allowClear={${f.optional ? "true" : "false"}}
+                    placeholder="请选择${f.label}"
+                    searchPlaceholder="搜索${f.label}…"
+                    options={${cName}.map((opt) => ({ value: opt, label: opt }))}
+                    onValueChange={(v) => field.onChange(v || ${f.optional ? "(editing ? null : undefined)" : `${cName}[0]`})}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />`;
+        }
         return `          <FormField
             control={form.control}
             name="${f.name}"
@@ -863,13 +1042,12 @@ ${fieldBlocks}
 }
 
 function buildWebPageContent() {
-  const apiImports = [];
-  if (primaryEnum) apiImports.push(enumConstName(primaryEnum));
-  apiImports.push(
+  const apiImports = [
+    ...enumFields.map((f) => enumConstName(f)),
     `parse${singularPascal}Search`,
     `type ${singularPascal}Page`,
     `type ${singularPascal}Record`,
-  );
+  ];
 
   const hasBadge = fields.some((f) => f.type === "enum" || f.type === "boolean");
   const filterFields = [];
@@ -883,12 +1061,27 @@ function buildWebPageContent() {
     operatorKey: "qOp",
   }`);
   }
-  if (primaryEnum) {
+  for (const f of enumFields) {
+    const multiLine = f.options.length >= 3 ? "\n    multi: true," : "";
     filterFields.push(`  {
-    key: "${primaryEnum.name}",
-    label: "${primaryEnum.label}",
-    type: "select",
-    options: ${enumConstName(primaryEnum)}.map((v) => ({ value: v, label: v })),
+    key: "${f.name}",
+    label: "${f.label}",
+    type: "select",${multiLine}
+    options: ${enumConstName(f)}.map((v) => ({ value: v, label: v })),
+  }`);
+  }
+  for (const f of dateFields) {
+    filterFields.push(`  {
+    key: "${f.name}From",
+    label: "${f.label}起",
+    type: "date",
+    notAfter: "${f.name}To",
+  }`);
+    filterFields.push(`  {
+    key: "${f.name}To",
+    label: "${f.label}止",
+    type: "date",
+    notBefore: "${f.name}From",
   }`);
   }
 
@@ -897,8 +1090,12 @@ function buildWebPageContent() {
     filterStateLines.push("    q: params.q,");
     filterStateLines.push("    qOp: params.qOp,");
   }
-  if (primaryEnum) {
-    filterStateLines.push(`    ${primaryEnum.name}: params.${primaryEnum.name},`);
+  for (const f of enumFields) {
+    filterStateLines.push(`    ${f.name}: params.${f.name},`);
+  }
+  for (const f of dateFields) {
+    filterStateLines.push(`    ${f.name}From: params.${f.name}From,`);
+    filterStateLines.push(`    ${f.name}To: params.${f.name}To,`);
   }
 
   const columnBlocks = fields.map((f) => {
@@ -1091,11 +1288,17 @@ ${filterStateLines.join("\n")}
     meta: { contentRefresh: true },
     queryKey: ["${slug}", params],
     queryFn: () => {
-      const qs = new URLSearchParams(
-        Object.entries({ ...filters, page, size })
-          .filter(([, v]) => v !== undefined && String(v) !== "")
-          .map(([k, v]) => [k, String(v)]),
-      );
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries({ ...filters, page, size })) {
+        if (v === undefined) continue;
+        if (Array.isArray(v)) {
+          for (const item of v) {
+            if (String(item) !== "") qs.append(k, String(item));
+          }
+          continue;
+        }
+        if (String(v) !== "") qs.set(k, String(v));
+      }
       return request<${singularPascal}Page>(\`/${slug}?\${qs.toString()}\`);
     },
     enabled: Boolean(me.data) && canRead,
@@ -1598,6 +1801,26 @@ const centralEdits = [
           `  aliases: ["${slug}", "${singularSlug}", "${label}"],`,
           `  permissionCode: "${slug}:read",`,
           "},",
+        ],
+      },
+    ],
+  },
+  {
+    rel: "apps/web/src/features/dashboard/registry.ts",
+    inserts: [
+      {
+        marker: "@starter:dashboard-modules",
+        lines: [
+          "createGeneratedModuleSpec({",
+          `  id: ${JSON.stringify(slug)},`,
+          `  label: ${JSON.stringify(label)},`,
+          `  to: ${JSON.stringify(`/${slug}`)},`,
+          `  permissionCode: ${JSON.stringify(`${slug}:read`)},`,
+          `  primaryEnumField: ${primaryEnum ? JSON.stringify({ name: primaryEnum.name, label: primaryEnum.label, options: primaryEnum.options }) : "null"},`,
+          `  categoryField: ${categoryField ? JSON.stringify({ name: categoryField.name, label: categoryField.label }) : "null"},`,
+          `  ownerField: ${ownerField ? JSON.stringify({ name: ownerField.name, label: ownerField.label }) : "null"},`,
+          `  booleanField: ${booleanField ? JSON.stringify({ name: booleanField.name, label: booleanField.label }) : "null"},`,
+          "}),",
         ],
       },
     ],

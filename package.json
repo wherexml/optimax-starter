@@ -16,7 +16,8 @@
       "tailwindcss": "^4.3.3",
       "drizzle-orm": "1.0.0-rc.5",
       "@types/pg": "^8.23.1",
-      "hono": "^4.13.7"
+      "hono": "^4.13.7",
+      "recharts": "^3.11.0"
     }
   },
   "type": "module",

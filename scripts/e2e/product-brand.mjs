@@ -70,15 +70,25 @@ export async function verifyProductBrand(task, { evidenceDir, pageLabel = 'p1', 
     });
     await page.click('[aria-label="刷新资产"]');
     await page.waitForFunction(() => !!document.querySelector('.om-refresh-host[data-refresh-visible="true"]'));
-    result.refresh = await page.evaluate(() => ({ href: document.querySelector('.om-refresh-overlay image')?.getAttribute('href'), requests: window.__productBrandGate.hits }));
-    check('content refresh uses the same Starter variant', result.refresh.href === logoPath && result.refresh.requests >= 1);
+    result.refresh = await page.evaluate(() => ({
+      hasBrandImage: Boolean(document.querySelector('.om-refresh-overlay image')),
+      petalCount: document.querySelectorAll('.om-refresh-overlay .om-refresh-petal').length,
+      requests: window.__productBrandGate.hits,
+    }));
+    check(
+      'content refresh uses standalone vector spinner without embedded brand image',
+      !result.refresh.hasBrandImage && result.refresh.petalCount === 4 && result.refresh.requests >= 1,
+    );
     await screenshot('assets-refresh');
     await page.evaluate(() => { window.fetch = window.__productBrandGate.original; window.__productBrandGate.releases.forEach(release => release()); });
     await ready();
     check('real refresh restores the asset table and interaction', await page.evaluate(() => !!document.querySelector('table tbody tr') && !document.querySelector('.om-refresh-host [inert]') && !document.body.innerText.includes('无法连接服务') && window.__productBrandGate.statuses.length >= 1 && window.__productBrandGate.statuses.every(status => status === 200)));
 
     await page.goto(`${baseUrl}/demo/navigation?tab=pending`); await ready();
-    check('Demo table refresh also uses the Starter variant', await page.evaluate(() => [...document.querySelectorAll('.om-refresh-overlay image')].every(image => image.getAttribute('href') === '/brand/optimax-starter.svg')));
+    check(
+      'Demo table refresh also uses the standalone vector spinner',
+      await page.evaluate(() => !document.querySelector('.om-refresh-overlay image') && document.querySelectorAll('.om-refresh-overlay .om-refresh-petal').length === 4),
+    );
     await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await page.goto(`${baseUrl}/assets`); await ready();
     await page.click('[aria-label="打开菜单"]');

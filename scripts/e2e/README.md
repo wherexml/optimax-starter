@@ -35,7 +35,7 @@
 ## 系统管理、三层权限矩阵与 AI 熔断
 
 - HTTP 与事务门禁：主机运行 `python3 scripts/verify-system-governance.py`，验证三层角色（`super_admin / admin / member`）提权拦截、核心与最后一名超管保护、`PUT /console/system/permissions` 权限矩阵联动与恢复默认、`/console/system/status` 探针脱敏、AI 一键熔断开关、系统时区保存与审计触发器回滚、以及 `/console/audit?source=human|agent` 双源过滤；测试结束后自动清理临时账户与配置状态。隔离模型栈 `python3 scripts/e2e/ai-client/run.py` 的 `S7` 用例进一步验证开启熔断后立即返回 `503 AI_CIRCUIT_OPEN`（零上游请求）及 `/assets/agent/result` 写入 `actor_source=agent` 脱敏审计。
-- 浏览器多角色验收：在已登录 Starter 的 Ego TaskSpace 中调用 `system-admin.mjs` 的 `verifySystemAdmin(task, { evidenceDir, superPassword })`，覆盖二级「系统管理」侧栏分组、`/permissions` 查看/操作自动联动与超管列锁定、`/system` 顶部 World Model 下划线 Tab 与键盘切换、AI 一键熔断/恢复弹窗、时区持久化、切换普通 `admin` / `member` 验证无权限菜单动态隐藏、直达无权限 URL 自动跳回首个可访问页、`只读 / 可维护` 徽章与 `仅超管可维护` 保护态、二次点击「恢复默认」、`/audit` 来源徽章，以及 `375×812` 手机视口零横向溢出。
+- 浏览器多角色验收：在已登录 Starter 的 Ego TaskSpace 中调用 `system-admin.mjs` 的 `verifySystemAdmin(task, { evidenceDir, superPassword })`，覆盖二级「系统管理」侧栏分组、`/permissions` 查看/操作自动联动与超管列锁定、`/system` 顶部 `PageTabs` 下划线样式与键盘切换、`运行状态` 探针与无 AI 熔断卡片断言、时区持久化、切换普通 `admin` / `member` 验证无权限菜单动态隐藏、直达无权限 URL 自动跳回首个可访问页、`只读 / 可维护` 徽章与 `仅超管可维护` 保护态、二次点击「恢复默认」、`/audit` 来源徽章，以及 `375×812` 手机视口零横向溢出。
 
 ## 全局通知（右下角堆栈）
 

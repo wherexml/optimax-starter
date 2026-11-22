@@ -11,11 +11,11 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | 路由 | 页面 | 可访问角色 | 说明 |
 | --- | --- | --- | --- |
 | `/login` | 登录 | 匿名 | 用户名 + 密码，服务端数据库 Session（HttpOnly、SameSite=Strict Cookie） |
-| `/` | 工作台 | 全部（`workbench:read`） | 资产统计卡片、业务域分布与下钻；具备审计权限看最近操作，其余看待复核队列；快捷入口按有效权限展示 |
+| `/` | 工作台 | 全部（`workbench:read`） | 注册表驱动的 Bento 双视图（业务总览 / 治理与审计），内置 KPI 卡、趋势面积/柱状图、来源环形图与多维排行；按权限按需请求并随 `--no-example` / `gen:module` 自动适配，见 [工作台文档](./apps/web/src/features/dashboard/README.md) |
 | `/assets` | 资产台账 | 成员只读，管理员与超管可写 | 服务端分页与排序；动态筛选（状态/业务域/责任团队多选、包含/等于）、多行批量操作、行详情抽屉（含相关附件上传/下载/删除）、CSV 批量导入（模板、预览校验、重名策略）、当前页 CSV 导出与「异步导出全部」，以及可选自然语言筛选 |
 | `/accounts` | 账户管理 | 管理员、超级管理员 | 新增、编辑资料、重置密码、强制下线、启停；管理员提权与高权限账户维护仅限超级管理员 |
 | `/permissions` | 系统权限 | 超级管理员 | 「模块 × 角色（查看 / 操作）」双按钮权限矩阵、自动联动与二次点击恢复默认 |
-| `/system` | 系统配置 | 管理员只读，超级管理员可维护 | 顶部 Tab：`运行控制`（数据库探针、AI 队列水位与一键熔断开关）、`基础配置`（全局系统时区）与 `后台任务`（状态/类型筛选、进度、结果下载、重试/取消、清理过期数据，`jobs:read` 可见） |
+| `/system` | 系统配置 | 管理员只读，超级管理员可维护 | 顶部 `PageTabs`：`运行状态`（服务、数据库延迟与活跃会话探针；服务端保留 `PATCH /console/system/ai-circuit` 接口兼容）、`基础配置`（全局系统时区）与 `后台任务`（`FilterBar` 动态筛选、进度、结果下载、重试/取消、清理过期数据，`jobs:read` 可见） |
 | `/audit` | 操作日志 | 管理员、超级管理员 | 按操作来源（`人工 / Agent / 系统`）、操作类型、操作人、日期筛选，服务端分页并跟随系统时区；行详情抽屉与当前页 CSV 导出 |
 | `/settings` | 个人设置 | 全部已登录账户 | 修改显示名称、邮箱、公司；切换外观主题（浅色/深色/跟随系统，防闪烁持久化）；查看与下线本人在线会话；创建/撤销个人 API 密钥（Bearer，权限为角色 ∩ 所选范围，明文仅显示一次）；修改密码撤销全部会话 |
 
@@ -119,7 +119,7 @@ apps/
   web/src/config/        app-config.ts（品牌、本地存储前缀、侧栏与 Cmd+K 统一导航注册表）
   web/src/routes/        路由、鉴权跳转、URL 搜索参数
   web/src/features/      auth · dashboard · assets · accounts · permissions · system · audit · settings · navigation · filters
-  web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui（共享弹窗/输入/右下角通知）
+  web/src/components/    crud（ResourceTableSlot、ConfirmDialog）、table（DataTable）、filters（FilterBar）、ui（PageTabs、图表原语、共享弹窗/输入/右下角通知）
   server/src/core/       config · guards（咨询锁与 RBAC）· permissions · system-settings · audit · ai · seed
   server/src/modules/    auth · accounts · system · audit · assets（含服务端分页与 CRUD 示例）
 packages/
@@ -135,7 +135,7 @@ compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段�
 ## 开发指引
 
 - 页面代码写在 `apps/web/src/features/<模块>/`；`routes/` 只负责路由、鉴权和 `validateSearch`；新增菜单只需在 `apps/web/src/config/app-config.ts` 的 `NAV_REGISTRY` 注册一处，侧栏、抽屉和 `Cmd+K` 快速导航自动同步。
-- 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页，支持多选批量操作栏、`DetailDrawer` 详情抽屉与 `@/lib/csv` 安全导出），也可以直接运行 `bun run gen:module <slug> --label <中文名> [--fields "..."]` 生成全栈骨架。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
+- 标准列表与台账页优先使用 `components/crud/ResourceTableSlot`（组合 `PageHeader`、权限拒绝态、`FilterBar`、`DataTable`、骨架刷新与分页，支持多选批量操作栏、`DetailDrawer` 详情抽屉与 `@/lib/csv` 安全导出），顶层平级页签复用 `components/ui/page-tabs.tsx`（`PageTabs`）；也可以直接运行 `bun run gen:module <slug> --label <中文名> [--fields "..."]` 生成全栈骨架（`>6` 项枚举自动用 `Combobox`，`≥3` 项枚举筛选自动启用 `MultiSelect`，`date` 自动生成起止区间筛选，并同步注册工作台卡片）。多选（`multi`）和“包含/等于”（`operatorKey`）约定见 [FILTERS.md](./FILTERS.md)。
 - 资产台账默认展示客户端筛选与管理员新增/编辑/删除闭环，后端同时提供 `/console/assets/page` 服务端分页 + 动态筛选参考实现。
 - 新增后端接口按业务域放在 `apps/server/src/modules/<模块>.ts` 并挂载到 `console.ts`；前后端输入输出 Schema 统一放在 `packages/api/`。管理员写操作必须在同一事务中调用 `audit()` / `auditResource()` 写入 `console_audit`，日志里不得包含密码、哈希、Cookie 或令牌。详见 [AUTH.md](./AUTH.md)。
 - 界面规范：侧栏自上而下依次为品牌区（折叠按钮在 Logo 右侧）→ 主导航（最多二级）→ 搜索 → 用户信息与菜单；内容区不设空顶栏；不使用绿色或紫色主题。这是强制基线，见 [AGENTS.md](./AGENTS.md) 和 [FRONTEND.md](./FRONTEND.md)。

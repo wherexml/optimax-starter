@@ -18,7 +18,7 @@
 | 品牌色 | 主按钮蓝 #3E63DD，选中底色 #EDF2FE，键盘焦点 #8DA4EF，页面暖砂灰 #FDFDFC。主题变量统一在 `apps/web/src/index.css` |
 | 组件库 | shadcn 风格 Radix 控件（Dialog、Select）、EASM FormDialog、EASM DataTable + ColumnSettings + 分页、TanStack Table；不使用原生 HTML dialog |
 | 图标库 | Lucide |
-| 图表/地图库 | 无；登录页使用 imagegen 新绘背景与渐变遮罩，品牌素材及实际像素尺寸见 [登录模块](./apps/web/src/features/auth/README.md) |
+| 图表/地图库 | `@optimax-starter/ui` 可视化原语（Recharts + Tremor Raw / shadcn v4 风格：`KpiCard`、`SparkChart`、`TrendAreaChart`、`CategoryBar`、`BarList`、`Tracker`）；登录页使用 imagegen 新绘背景与渐变遮罩，品牌素材及实际像素尺寸见 [登录模块](./apps/web/src/features/auth/README.md) |
 | 设计红线 | 主题色和界面文案遵循 AGENTS.md「设计原则」 |
 
 ---
@@ -105,7 +105,7 @@
 
 登录页复用现有 OptiMax 产品 Logo，不添加包裹 Logo 的边框或底板。标题为 `Optimax Starter`；154 字价值介绍是 Steve 本次明确要求的登录页例外，不扩展到业务页。只有背景图由 imagegen 生成，Logo 不重绘；素材来源、实际尺寸、提示词和导出方式见 [登录模块](./apps/web/src/features/auth/README.md)。
 
-浏览器标签与内页使用 [Starter SVG 变体](./apps/web/public/brand/README.md)，保留四瓣品牌特征、中心改为向前切口；SVG 为可编辑路径，并提供同款 PNG/ICO。内页侧栏图标为 32px，无额外底板或外框，加载与内容刷新使用同一 `APP_CONFIG.logoSrc`。标签标题为 `Optimax Starter`；登录页品牌保留现有 OptiMax Logo，侧栏原有布局与浅色样式不变。
+浏览器标签与内页侧栏使用 [Starter SVG 变体](./apps/web/public/brand/README.md)，保留四瓣品牌特征、中心改为向前切口；SVG 为可编辑路径，并提供同款 PNG/ICO。内页侧栏图标为 32px，无额外底板或外框，统一引用 `APP_CONFIG.logoSrc`；内容刷新骨架屏采用无边框底板的独立几何矢量加载图形，与侧栏品牌标识解耦。标签标题为 `Optimax Starter`；登录页品牌保留现有 OptiMax Logo，侧栏原有布局与浅色样式不变。
 
 ### 页面标题区
 

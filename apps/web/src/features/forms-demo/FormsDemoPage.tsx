@@ -1,12 +1,12 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, RotateCw } from "lucide-react";
 
-import { APP_CONFIG } from "@/config/app-config";
 import { request, type Asset } from "@/console-client";
 import { DataTable } from "@/components/table/DataTable";
+import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -91,6 +91,7 @@ const MODE_LABELS: Record<ConnectorMode, string> = {
 };
 
 export function FormsDemoPage() {
+  const runRefresh = useContentRefresh();
   const { dialog } = route.useSearch();
   const navigate = route.useNavigate();
 
@@ -103,6 +104,7 @@ export function FormsDemoPage() {
   );
 
   const assetsQuery = useQuery({
+    meta: { contentRefresh: true },
     queryKey: ["forms-demo-assets"],
     queryFn: () => request<Asset[]>("/assets"),
   });
@@ -222,31 +224,39 @@ export function FormsDemoPage() {
               <Plus size={16} />
               新建接入策略
             </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              title="刷新"
+              aria-label="刷新表单示例"
+              disabled={assetsQuery.isFetching}
+              onClick={() => void runRefresh(() => assetsQuery.refetch())}
+            >
+              <RotateCw size={15} className={assetsQuery.isFetching ? "animate-spin" : undefined} />
+            </Button>
           </div>
         }
       />
 
-      <ContentRefresh
-        loading={assetsQuery.isLoading}
-        layout="table"
-        logoSrc={APP_CONFIG.logoSrc}
-      >
-        <div className="flex flex-col gap-5">
-          <DataTable
-            data={policies}
-            columns={columns}
-            isLoading={assetsQuery.isLoading}
-            error={assetsQuery.error?.message}
-          />
+      <div className="flex flex-col gap-5">
+        <DataTable
+          data={policies}
+          columns={columns}
+          isLoading={assetsQuery.isLoading}
+          error={assetsQuery.error?.message}
+        />
 
-          <StandaloneControlsShowcase
-            domainOptions={domainOptions}
-            ownerOptions={ownerOptions}
-          />
+        <StandaloneControlsShowcase
+          domainOptions={domainOptions}
+          ownerOptions={ownerOptions}
+        />
 
-          <GlobalNotificationShowcase />
-        </div>
-      </ContentRefresh>
+        <GlobalNotificationShowcase />
+
+        <SkeletonRefreshShowcase />
+      </div>
 
       {(dialog === "create" || (dialog === "edit" && activeEditRecord)) && (
         <ComplexFormDialog
@@ -559,6 +569,142 @@ function GlobalNotificationShowcase() {
           清空通知
         </Button>
       </div>
+    </section>
+  );
+}
+
+const PREVIEW_METRICS = [
+  { label: "接入策略", value: "12 项" },
+  { label: "采集节点", value: "24 个" },
+  { label: "最近同步", value: "正常" },
+  { label: "队列等待", value: "0 项" },
+];
+
+const PREVIEW_ROWS = [
+  { id: "PL-001", name: "核心云网关资产同步", owner: "平台组", mode: "API 轮询" },
+  { id: "PL-002", name: "采购门户 Webhook", owner: "供应链研发", mode: "Webhook 推送" },
+  { id: "PL-003", name: "外部证书安全巡检", owner: "安全运营组", mode: "Agent 上报" },
+];
+
+function SkeletonRefreshShowcase() {
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [demoLayout, setDemoLayout] = useState<"dashboard" | "table">("dashboard");
+  const timerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+
+  const triggerTimedPreview = (layout: "dashboard" | "table") => {
+    window.clearTimeout(timerRef.current);
+    setDemoLayout(layout);
+    setPinned(false);
+    setDemoLoading(true);
+    timerRef.current = window.setTimeout(() => {
+      setDemoLoading(false);
+    }, 1400);
+  };
+
+  const togglePinned = () => {
+    window.clearTimeout(timerRef.current);
+    if (pinned) {
+      setPinned(false);
+      setDemoLoading(false);
+      return;
+    }
+    setPinned(true);
+    setDemoLoading(true);
+  };
+
+  return (
+    <section className="panel" aria-label="骨架屏与内容刷新速查">
+      <div className="panel-head">
+        <h2>骨架屏与内容刷新速查</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => triggerTimedPreview("dashboard")}
+          >
+            预览工作台骨架屏
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => triggerTimedPreview("table")}
+          >
+            预览表格骨架屏
+          </Button>
+          <Button
+            type="button"
+            variant={pinned ? "default" : "outline"}
+            size="sm"
+            onClick={togglePinned}
+          >
+            {pinned ? "收拢恢复" : "常驻检视"}
+          </Button>
+        </div>
+      </div>
+
+      <ContentRefresh
+        loading={demoLoading}
+        immediate
+        layout={demoLayout}
+        label="正在刷新示例内容"
+        className="om-refresh-compact overflow-hidden rounded-lg border-[0.5px] border-border bg-background p-4"
+      >
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {PREVIEW_METRICS.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-lg border-[0.5px] border-border bg-card px-3 py-2.5"
+              >
+                <div className="text-xs text-muted-foreground">{item.label}</div>
+                <div className="mt-1 text-base font-semibold text-foreground tabular-nums">
+                  {item.value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border-[0.5px] border-border bg-card">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b-[0.5px] border-border bg-[var(--surface-subtle)] text-muted-foreground">
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    编号
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    策略名称
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-medium">
+                    责任团队
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    接入方式
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {PREVIEW_ROWS.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground tabular-nums">
+                      {row.id}
+                    </td>
+                    <td className="px-3 py-2 font-medium text-foreground">{row.name}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{row.owner}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Badge variant="brand">{row.mode}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </ContentRefresh>
     </section>
   );
 }

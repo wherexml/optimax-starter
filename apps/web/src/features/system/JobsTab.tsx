@@ -12,17 +12,32 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Download, Eraser } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
 import { DataTable } from "@/components/table/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SelectControl, SelectItem } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { attachmentDownloadPath, isActiveJob, jobArtifactId, jobsApi } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
+import type { Filters } from "@/hooks/usePersistedFilters";
 
-const ALL = "__all__";
 const PAGE_SIZES = [20, 50, 100];
 const ACTIVE_REFRESH_MS = 2_000;
+
+const JOB_FILTER_FIELDS: FilterField[] = [
+  {
+    key: "status",
+    label: "任务状态",
+    type: "select",
+    options: JOB_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_LABELS[s] })),
+  },
+  {
+    key: "type",
+    label: "任务类型",
+    type: "select",
+    options: JOB_TYPES.map((t) => ({ value: t, label: JOB_TYPE_LABELS[t] })),
+  },
+];
 
 const STATUS_VARIANT: Record<JobStatus, "neutral" | "brand" | "warning" | "danger" | "outline"> = {
   pending: "neutral",
@@ -51,7 +66,7 @@ export function summarizeJobResult(job: Pick<Job, "type" | "status" | "result" |
     case "assets.bulk_import":
       return `导入 ${num(r.imported)} 行，跳过 ${num(r.skipped)} 行${num(r.errorCount) ? `，无效 ${num(r.errorCount)} 行` : ""}`;
     case "system.cleanup_expired":
-      return `会话 ${num(r.sessions)} · SSO 状态 ${num(r.oidcStates)} · 邀请 ${num(r.invites)} · 登录锁 ${num(r.loginGuards)}`;
+      return `会话 ${num(r.sessions)} / SSO 状态 ${num(r.oidcStates)} / 邀请 ${num(r.invites)} / 登录锁 ${num(r.loginGuards)}`;
     default:
       return "—";
   }
@@ -66,10 +81,18 @@ export function JobsTab() {
   const canManage = hasPermission(me.data, "jobs:manage");
   const canCleanup = canManage || hasPermission(me.data, "system:settings:manage");
 
-  const [status, setStatus] = useState<JobStatus | undefined>();
-  const [type, setType] = useState<JobType | undefined>();
+  const [filters, setFilters] = useState<Filters>({});
   const [paging, setPaging] = useState({ pageIndex: 0, pageSize: PAGE_SIZES[0]! });
   const [pending, setPending] = useState<Pending>(null);
+
+  const status =
+    typeof filters.status === "string" && (JOB_STATUSES as readonly string[]).includes(filters.status)
+      ? (filters.status as JobStatus)
+      : undefined;
+  const type =
+    typeof filters.type === "string" && (JOB_TYPES as readonly string[]).includes(filters.type)
+      ? (filters.type as JobType)
+      : undefined;
 
   const listQuery = { status, type, page: paging.pageIndex + 1, size: paging.pageSize };
   const query = useQuery({
@@ -255,38 +278,14 @@ export function JobsTab() {
         error={query.error?.message}
         toolbar={
           <>
-            <SelectControl
-              aria-label="任务状态"
-              className="h-9 w-36"
-              value={status ?? ALL}
-              onValueChange={(v) => {
-                setStatus(v === ALL ? undefined : (v as JobStatus));
+            <FilterBar
+              fields={JOB_FILTER_FIELDS}
+              values={filters}
+              onApply={(next) => {
+                setFilters(next);
                 resetPage();
               }}
-            >
-              <SelectItem value={ALL}>全部状态</SelectItem>
-              {JOB_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {JOB_STATUS_LABELS[s]}
-                </SelectItem>
-              ))}
-            </SelectControl>
-            <SelectControl
-              aria-label="任务类型"
-              className="h-9 w-40"
-              value={type ?? ALL}
-              onValueChange={(v) => {
-                setType(v === ALL ? undefined : (v as JobType));
-                resetPage();
-              }}
-            >
-              <SelectItem value={ALL}>全部类型</SelectItem>
-              {JOB_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {JOB_TYPE_LABELS[t]}
-                </SelectItem>
-              ))}
-            </SelectControl>
+            />
             {hasActive && (
               <span role="status" className="text-xs text-muted-foreground">
                 自动刷新中
@@ -345,8 +344,7 @@ export function JobsTab() {
           close={async (done) => {
             setPending(null);
             if (done) {
-              setStatus(undefined);
-              setType(undefined);
+              setFilters({});
               resetPage();
               await invalidate();
               toast.success("已创建清理任务");

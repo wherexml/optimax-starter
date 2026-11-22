@@ -230,6 +230,7 @@ AppShell
 
 > 本 starter 的项目规则；二级侧栏上限、顶部 Tab 位置与键盘语义见 [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签)。可操作实现见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)。
 
+- **共享组件与筛选约定**：内容区顶层平级标签统一复用 `components/ui/page-tabs.tsx`（`PageTabs` / `PageTabsPanel`，支持 `hideSingleTab` 单视图自动降级与内置横向滚入可视区），禁止在业务页面重复导入 `@ui-sdk/react/tabs` 或手写 `.page-tabs-scroll` 与滚动定位 `useEffect`；卡片内 2–4 项局部切换复用 `components/ui/segmented-control.tsx`；列表与子面板条件筛选统一复用 `components/filters/FilterBar.tsx`。
 - **状态与深链**：当前标签写入 URL 搜索参数 `tab`，取稳定的英文值（例如 `/reports?tab=drafts`），不用中文显示名。路由 `validateSearch` 只接受白名单值；缺省或非法时显示默认标签，并用 `replace: true` 改正 URL。切换标签同样使用 `replace: true`，与现有搜索参数一致。
 - **默认标签**：没有 `tab` 参数时打开最常用的视图，不把上次选择当默认值。
 - **数据**：每个面板自己的 query 独立请求，未激活面板不请求；不依赖其他面板已加载的数据。面板专属参数（搜索、筛选）在切换标签时清除，不串到其他面板。

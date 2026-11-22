@@ -1,15 +1,31 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createContentRefresh, createRefreshVisual, type ContentRefreshOptions } from "../lib/content-refresh";
 
-type Props = ContentRefreshOptions & { children: ReactNode; loading: boolean; className?: string };
-export function ContentRefresh({ children, loading, className, layout, label, logoSrc, delay }: Props) {
+type Props = ContentRefreshOptions & {
+  children: ReactNode;
+  loading: boolean;
+  immediate?: boolean;
+  className?: string;
+};
+export function ContentRefresh({
+  children,
+  loading,
+  immediate = false,
+  className,
+  layout,
+  label,
+  logoSrc,
+  delay,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const control = useRef<ReturnType<typeof createContentRefresh> | null>(null);
   useLayoutEffect(() => {
     control.current = createContentRefresh(host.current!, { layout, label, logoSrc, delay });
     return () => { control.current?.destroy(); control.current = null; };
   }, [layout, label, logoSrc, delay]);
-  useLayoutEffect(() => { control.current?.setBusy(loading); }, [loading, layout, label, logoSrc, delay]);
+  useLayoutEffect(() => {
+    control.current?.setBusy(loading, immediate);
+  }, [loading, immediate, layout, label, logoSrc, delay]);
   return <div className={className} ref={host}>{children}</div>;
 }
 

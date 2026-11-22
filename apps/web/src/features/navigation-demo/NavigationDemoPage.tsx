@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Tabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { RotateCw } from "lucide-react";
 import { DataTable } from "@/components/table/DataTable";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ContentRefresh } from "@optimax-starter/ui/components/content-refresh";
 import { request, type Asset } from "@/console-client";
 import { ASSET_VIEWS, parseDemoSearch, type AssetView } from "./search";
-import { APP_CONFIG } from "@/config/app-config";
 
 const route = getRouteApi("/demo/navigation");
 
@@ -53,40 +52,25 @@ const demoColumns: ColumnDef<Asset>[] = [
 export function NavigationDemoPage() {
   const { tab } = route.useSearch();
   const navigate = route.useNavigate();
-  const [value, setValue] = useState<AssetView>(tab);
-  const list = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setValue(tab), [tab]);
-  useEffect(() => {
-    const selected = list.current?.querySelector<HTMLElement>('[data-selected]');
-    if (selected && list.current) {
-      const viewport = list.current.getBoundingClientRect();
-      const item = selected.getBoundingClientRect();
-      if (item.left < viewport.left) list.current.scrollLeft -= viewport.left - item.left;
-      if (item.right > viewport.right) list.current.scrollLeft += item.right - viewport.right;
-    }
-  }, [value]);
 
   return (
     <>
       <PageHeader title="资产视图" />
-      <Tabs className="page-tabs" value={value} onValueChange={next => {
-        if (!next) return;
-        const view = parseDemoSearch({ tab: next }).tab;
-        setValue(view);
-        void navigate({ search: { tab: view }, replace: true });
-      }}>
-        <div className="page-tabs-scroll" ref={list}>
-          <TabsList aria-label="资产视图">
-            {ASSET_VIEWS.map(view => <TabsTab key={view.value} value={view.value}>{view.label}</TabsTab>)}
-          </TabsList>
-        </div>
-        {ASSET_VIEWS.map(view => (
-          <TabsPanel key={view.value} value={view.value}>
+      <PageTabs
+        label="资产视图"
+        items={ASSET_VIEWS}
+        value={tab}
+        onValueChange={(next) => {
+          const view = parseDemoSearch({ tab: next }).tab;
+          void navigate({ search: { tab: view }, replace: true });
+        }}
+      >
+        {ASSET_VIEWS.map((view) => (
+          <PageTabsPanel key={view.value} value={view.value}>
             <AssetViewTable view={view.value} />
-          </TabsPanel>
+          </PageTabsPanel>
         ))}
-      </Tabs>
+      </PageTabs>
     </>
   );
 }
@@ -102,11 +86,17 @@ function AssetViewTable({ view }: { view: AssetView }) {
     },
   });
 
-  return <ContentRefresh loading={query.isLoading || refreshing} layout="table" logoSrc={APP_CONFIG.logoSrc}>
+  return <ContentRefresh loading={query.isLoading || refreshing} immediate={refreshing} layout="table">
     <DataTable data={query.data ?? []} columns={demoColumns} isLoading={query.isLoading} error={query.error?.message} toolbarEnd={
-    <Button size="icon" variant="ghost" aria-label="刷新资产视图" title="刷新" onClick={async () => {
+    <Button type="button" size="icon" variant="ghost" aria-label="刷新资产视图" title="刷新" onClick={async () => {
+      const startedAt = performance.now();
       setRefreshing(true);
-      try { await query.refetch(); }
+      try {
+        const res = await query.refetch();
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const remain = res.isError || reduced ? 0 : 260 - (performance.now() - startedAt);
+        if (remain > 0) await new Promise<void>(resolve => { setTimeout(resolve, remain); });
+      }
       finally { setRefreshing(false); }
     }}>
       <RotateCw size={15} />

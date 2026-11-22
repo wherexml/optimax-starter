@@ -16,6 +16,7 @@ import {
   type NavLeafItem,
 } from "@/config/app-config";
 import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
+import { useSidebarGlide } from "@/features/navigation/useSidebarGlide";
 import { QuickNav } from "@/features/navigation/QuickNav";
 import { NotFoundFallback, RouteErrorFallback } from "@/components/RouteFallbacks";
 import {
@@ -169,6 +170,7 @@ function Shell() {
   const [loggingOut, setLoggingOut] = useState(false);
   const aside = useRef<HTMLElement>(null);
   const nav = useRef<HTMLElement>(null);
+  const navPill = useRef<HTMLSpanElement>(null);
   const content = useRef<HTMLElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const userTrigger = useRef<HTMLButtonElement>(null);
@@ -232,6 +234,9 @@ function Shell() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const rail = compact && !mobile;
+  useSidebarGlide(nav, navPill, path, rail, ready);
+
   if (!me.data)
     return me.isError ? (
       <main className="boot">
@@ -256,7 +261,6 @@ function Shell() {
   const canViewAccounts = hasPermission(me.data, "accounts:read");
   const roleLabel = getRoleLabel(me.data.role);
   const initial = me.data.name.slice(0, 1);
-  const rail = compact && !mobile;
   const sidebarNodes = getSidebarNodes(me.data);
   const toggleLabel = mobile ? "关闭菜单" : compact ? "展开菜单" : "折叠菜单";
   const ToggleIcon = mobile ? X : compact ? PanelLeftOpen : PanelLeftClose;
@@ -309,6 +313,12 @@ function Shell() {
           </button>
         </header>
         <nav id="console-nav" ref={nav} aria-label="主导航">
+          <span
+            ref={navPill}
+            className="nav-glide-pill"
+            aria-hidden="true"
+            hidden
+          />
           {sidebarNodes.map((node) => {
             if (node.kind === "item") {
               return <SidebarLeaf key={node.to} item={node} compact={rail} />;
@@ -461,7 +471,13 @@ function Shell() {
             </button>
           )}
           <WorkspaceRefresh key={path} path={path}>
-            <div className="page">{accessible ? <Outlet /> : null}</div>
+            <div className="page">
+              {accessible ? (
+                <div key={path} className="route-stage">
+                  <Outlet />
+                </div>
+              ) : null}
+            </div>
           </WorkspaceRefresh>
         </section>
       </main>
