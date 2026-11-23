@@ -9,11 +9,7 @@ export const ROLE_LABELS: Record<AccountRole, string> = {
   super_admin: "超级管理员",
 };
 
-export const PERMISSION_ROLES: readonly AccountRole[] = [
-  "member",
-  "admin",
-  "super_admin",
-] as const;
+export const PERMISSION_ROLES: readonly AccountRole[] = ["member", "admin", "super_admin"] as const;
 
 export type ModulePermissionAction = "view" | "operate";
 
@@ -36,6 +32,9 @@ export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
   { code: "assets:read", label: "查看资产台账", module: "资产台账", kind: "view" },
   { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },
   // @starter:example-assets-end
+  // @starter:agent-start
+  { code: "agent:use", label: "使用智能助理", module: "智能助理", kind: "view" },
+  // @starter:agent-end
   // @starter:permission-catalog
   { code: "accounts:read", label: "查看账户管理", module: "账户管理", kind: "view" },
   { code: "accounts:manage", label: "维护成员账户", module: "账户管理", kind: "operate" },
@@ -77,9 +76,7 @@ export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
 
 export const CATALOG_CODES: readonly string[] = PERMISSION_CATALOG.map((item) => item.code);
 const CATALOG_CODE_SET = new Set<string>(CATALOG_CODES);
-const CATALOG_ORDER = new Map<string, number>(
-  CATALOG_CODES.map((code, index) => [code, index]),
-);
+const CATALOG_ORDER = new Map<string, number>(CATALOG_CODES.map((code, index) => [code, index]));
 
 export const IMMUTABLE_SUPER_ADMIN_PERMISSIONS = new Set<string>([
   "system:manage",
@@ -100,6 +97,9 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<AccountRole, readonly string[
     "assets:read",
     "assets:manage",
     // @starter:example-assets-end
+    // @starter:agent-start
+    "agent:use",
+    // @starter:agent-end
     // @starter:admin-permissions
     "accounts:read",
     "accounts:manage",
@@ -114,6 +114,9 @@ export const DEFAULT_ROLE_PERMISSION_CODES: Record<AccountRole, readonly string[
     // @starter:example-assets-start
     "assets:read",
     // @starter:example-assets-end
+    // @starter:agent-start
+    "agent:use",
+    // @starter:agent-end
     // @starter:member-permissions
   ],
 };
@@ -122,8 +125,7 @@ export function sortPermissionCodes(codes: Iterable<string>): string[] {
   return [...new Set(codes)].sort(
     (left, right) =>
       (CATALOG_ORDER.get(left) ?? CATALOG_CODES.length) -
-        (CATALOG_ORDER.get(right) ?? CATALOG_CODES.length) ||
-      left.localeCompare(right),
+        (CATALOG_ORDER.get(right) ?? CATALOG_CODES.length) || left.localeCompare(right),
   );
 }
 
@@ -224,6 +226,17 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
     operateCodes: { default: ["assets:manage"] },
   },
   // @starter:example-assets-end
+  // @starter:agent-start
+  {
+    id: "ai-agent",
+    label: "智能助理",
+    description: "唤起右侧流式智能助理与只读分析（写操作需通过确认卡并二次校验对应模块权限）",
+    actions: ALL_ACTIONS,
+    viewCodes: { default: ["agent:use"] },
+    operateCodes: {},
+    disabledReason: "助理写操作受各业务模块维护权限独立约束",
+  },
+  // @starter:agent-end
   // @starter:permission-rows
   {
     id: "accounts",
@@ -364,15 +377,10 @@ export const systemPermissionsUpdateSchema = z
       })
       .strict()
       .refine(
-        (r) =>
-          r.member !== undefined ||
-          r.admin !== undefined ||
-          r.super_admin !== undefined,
+        (r) => r.member !== undefined || r.admin !== undefined || r.super_admin !== undefined,
         "请提交角色权限配置",
       ),
   })
   .strict();
 
-export type SystemPermissionsUpdateInput = z.infer<
-  typeof systemPermissionsUpdateSchema
->;
+export type SystemPermissionsUpdateInput = z.infer<typeof systemPermissionsUpdateSchema>;

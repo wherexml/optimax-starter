@@ -264,7 +264,7 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 | `spacing[4]` | `16px` | 默认组件间距 |
 | `spacing[6]` | `24px` | 页面边距、卡片默认内边距 |
 | `spacing[8]` | `32px` | 大区块间距 |
-| `sidebarWidth` | `240px` | Starter 浅色桌面侧栏 |
+| `sidebarWidth` | `208px` | Starter 浅色桌面侧栏 |
 | `sidebarCollapsedWidth` | `64px` | 折叠侧栏 |
 | `headerHeight` | `56px` | 顶部栏 |
 
@@ -296,13 +296,13 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 
 | 组件 | 规则 |
 | --- | --- |
-| Button | 主按钮每个区域最多一个；危险按钮必须二次确认 |
-| Input/Textarea | 高度、圆角、`0.5px` 边框与焦点态统一；标签到输入控件固定 `8px` 间距（`flex flex-col gap-2`）；复合前后缀、密码显隐/随机生成、只读复制、步进数值与多标签输入统一复用 `@optimax-starter/ui`；错误贴近字段，禁用态就近说明原因。参见[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
-| Select/Combobox | 使用贴近触发器的轻量浮层，选中项显示勾，长选项在列表中换行。大量选项使用可搜索的 `Combobox`，多选使用 `MultiSelect`，2–4 项互斥模式可用 `SegmentedControl`。参见[单选下拉](./FRONTEND.md#单选下拉)与[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
+| Button | 主按钮每个区域最多一个；危险按钮必须二次确认；对齐 `shadcn/ui v4 / COSS` 规范：表单与弹窗默认按钮 `36px`（`default` / `h-9`），页面标题右侧操作与表格工具栏紧凑按钮统一 `32px`（`sm` / `icon-sm` / `h-8`，保持 `14px` 正文字号），独立登录主按钮 `40px`（`lg` / `h-10`） |
+| Input/Textarea | 默认 `36px`（`h-9`），与默认按钮同高；圆角、`0.5px` 边框与焦点态统一；标签到输入控件固定 `8px` 间距（`flex flex-col gap-2`）；复合前后缀、密码显隐/随机生成、只读复制、步进数值与多标签输入统一复用 `@optimax-starter/ui`；错误贴近字段，禁用态就近说明原因。参见[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
+| Select/Combobox | 默认 `36px`（表格工具栏筛选行内收紧为 `32px` / `h-8`）；使用贴近触发器的轻量浮层，选中项显示勾，长选项在列表中换行。大量选项使用可搜索的 `Combobox`，多选使用 `MultiSelect`，2–4 项互斥模式可用 `SegmentedControl`。参见[单选下拉](./FRONTEND.md#单选下拉)与[表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件) |
 | Dialog/AlertDialog | 采用标准三段式（固定 Header + `0.5px` 分隔线、独立滚动 Body `px-6 py-5`、固定 Footer + 置顶未保存拦截条）；说明仅在有必要解释影响时显示，不复述标题。样板见 `/demo/forms?dialog=create` |
 | Sheet / DetailDrawer | `DetailDrawer`（`DetailSection` + `DetailField`）承载列表行右侧滑出只读详情与详情复制，不承载复杂全流程 |
 | Tabs | 用于同一对象视图切换，不用于跨业务导航 |
-| Table | 支持加载、空、错误、分页或滚动 |
+| Table | 支持加载、空、错误、分页或滚动；采用中高密度布局（表头 `40px`、数据行 `44px`、行内操作按钮 `28px`） |
 | Toast | 全局固定右下角堆叠轻反馈（桌面 24px 边距、手机 16px 双侧贴齐，Top Layer 置于弹窗之上，支持悬停展开与 F6/Esc 键盘操作），不挤占页面内容流，不承载复杂错误解释 |
 | Tooltip | 图标按钮、缩略状态、专业术语必须提供 |
 
@@ -360,7 +360,7 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 
 **样式来源（World Model，2026-11-16 核对源码）**
 
-- 侧栏不采用 World Model 样式：保留 Starter 的 240px 浅色底、灰色文字和浅蓝选中背景，折叠、底部搜索、用户菜单与手机抽屉沿用原行为。
+- 侧栏不采用 World Model 样式：保留 Starter 的 208px 浅色底、灰色文字和浅蓝选中背景，菜单项保持 14px 正文字号，底部搜索/智能助理及用户姓名为 13px，分组小标与角色副标为 12px；分组间使用 0.5px 细分隔线与弱化色阶小标，左边缘统一 8px 内边距对齐；折叠（64px）、底部搜索、用户菜单与手机抽屉沿用原行为。
 - `../optimax-worldmodel-demo/src/pages/governance/GovernanceTabs.tsx`：透明背景、2px 蓝色下划线、前景色选中文字，无胶囊或浮起白块。
 - `../optimax-worldmodel-demo/src/index.css`：World 的 `brand` 为 `#2f6fed`，仅在 `.page-tabs` 中映射为 `--tab-accent`；Starter 全局 `--primary` 保持 `#3e63dd`，不引入第二套组件库。UI SDK 继续提供键盘、ARIA 和 Agent 行为。
 - 新增页面级 Tab 不得退回圆角分段控件。World 项目保持只读，实际契约以本节和 Starter Demo 为准。
@@ -382,6 +382,7 @@ small: { fontSize: '12px', fontWeight: '400', lineHeight: '18px' }
 - 行内操作不超过 3 个，更多放菜单。
 - 批量操作必须显示选中数量和影响范围。
 - 列表默认保留分页、排序、筛选和刷新能力。
+- 表格工具栏左侧放置筛选条（`FilterBar`），筛选操作按钮采用精简动词（空态为`添加筛选项`、有条件后收起为`+`图标，配合`搜索`、`清空`）；筛选下拉字段名称必须与下方表格对应列标题一致（不使用泛化的“关键词”或额外前缀），排列顺序与表格列从左到右一致；下拉菜单始终展示全部可筛字段，其他条件行已选中的字段以置灰禁用（`disabled`）展示，不从列表中隐藏；工具栏右侧操作自左向右固定为「`刷新`图标按钮 → 业务扩展操作（如`导出`、清理等 `toolbarEnd` 动作）→ `列设置`」，不将无边框刷新图标夹在描边按钮中间。
 - 导出功能要说明导出范围、筛选条件和数据时间。
 - 长文本要截断并提供查看详情，不撑坏表格。
 - 后端不支持的筛选，前端不能假装支持。

@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { RotateCw } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
 import { DataTable, type ServerSortingConfig } from "@/components/table/DataTable";
 import { Button } from "@/components/ui/button";
@@ -35,15 +35,13 @@ export interface ResourceTableSlotProps<TData extends { id: number }> {
   error?: string | null;
   onRefresh: () => Promise<unknown>;
   refreshLabel?: string;
+  /** 工具栏右侧业务扩展操作（位于刷新按钮右侧、列设置左侧）。 */
   toolbarEnd?: ReactNode;
   pagination?: ServerPaginationConfig;
   /** 服务端排序（受控）；提供时表格使用 manualSorting。 */
   sorting?: ServerSortingConfig;
   enableRowSelection?: boolean;
-  bulkActions?: (ctx: {
-    selectedRows: TData[];
-    clearSelection: () => void;
-  }) => ReactNode;
+  bulkActions?: (ctx: { selectedRows: TData[]; clearSelection: () => void }) => ReactNode;
   onRowClick?: (row: TData) => void;
   wrapTable?: (table: ReactNode) => ReactNode;
   children?: ReactNode;
@@ -124,24 +122,10 @@ export function ResourceTableSlot<TData extends { id: number }>({
         />
       }
       toolbarEnd={
-        toolbarEnd ? (
-          <div className="flex items-center gap-1.5">
-            {toolbarEnd}
-            <Button
-              size="icon"
-              className="h-9 w-9"
-              title="刷新"
-              variant="ghost"
-              aria-label={refreshLabel ?? `刷新${title}`}
-              onClick={() => void runRefresh(onRefresh)}
-            >
-              <RotateCw size={15} />
-            </Button>
-          </div>
-        ) : (
+        <>
           <Button
-            size="icon"
-            className="h-9 w-9"
+            type="button"
+            size="icon-sm"
             title="刷新"
             variant="ghost"
             aria-label={refreshLabel ?? `刷新${title}`}
@@ -149,7 +133,8 @@ export function ResourceTableSlot<TData extends { id: number }>({
           >
             <RotateCw size={15} />
           </Button>
-        )
+          {toolbarEnd}
+        </>
       }
       columns={columns}
       data={data}

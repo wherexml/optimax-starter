@@ -1,5 +1,6 @@
+import { JOB_STATUS_LABELS, JOB_TYPE_LABELS } from "@optimax-starter/api";
+import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   Activity,
   ArrowRight,
@@ -10,6 +11,7 @@ import {
   Cpu,
   KeyRound,
   LogOut,
+  type LucideIcon,
   Pencil,
   Power,
   RotateCw,
@@ -17,15 +19,10 @@ import {
   Terminal,
   UserPlus,
   Users,
-  type LucideIcon,
 } from "lucide-react";
-import { useId, useMemo, useState, type ReactNode } from "react";
-import {
-  JOB_STATUS_LABELS,
-  JOB_TYPE_LABELS,
-} from "@optimax-starter/api";
-import { BarList } from "@/components/ui/bar-list";
+import { type ReactNode, useId, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { BarList } from "@/components/ui/bar-list";
 import { Button } from "@/components/ui/button";
 import { CategoryBar } from "@/components/ui/category-bar";
 import { DonutChart, type DonutSegment } from "@/components/ui/donut-chart";
@@ -36,11 +33,11 @@ import { Tracker } from "@/components/ui/tracker";
 import { TrendAreaChart, type TrendChartType } from "@/components/ui/trend-area-chart";
 import type { NavTarget } from "@/config/app-config";
 import {
-  request,
   type Account,
   type AuditEntry,
   type AuditPage,
   type JobPage,
+  request,
   type SystemStatusResponse,
 } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
@@ -114,10 +111,7 @@ const TREND_SERIES = [
   { key: "agent", label: "Agent 操作", tone: "success" as const },
 ];
 
-function computeSummaryMetrics(
-  points: ReturnType<typeof buildAuditDailyTrend>,
-  range: TrendRange,
-) {
+function computeSummaryMetrics(points: ReturnType<typeof buildAuditDailyTrend>, range: TrendRange) {
   let total = 0;
   let human = 0;
   let agent = 0;
@@ -171,8 +165,7 @@ export function DashboardPage() {
   const canReadAudit = hasPermission(me.data, "audit:read");
   const canReadJobs = hasPermission(me.data, "jobs:read");
   const canReadSystem =
-    hasPermission(me.data, "system:settings:read") ||
-    hasPermission(me.data, "system:ai:read");
+    hasPermission(me.data, "system:settings:read") || hasPermission(me.data, "system:ai:read");
   const isGovernanceView = canReadAudit || canReadAccounts || canReadSystem || canReadJobs;
 
   const visibleModules = useMemo(
@@ -338,7 +331,7 @@ export function DashboardPage() {
       <PageHeader
         title="工作台"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {isGovernanceView ? (
               <div className="w-auto min-w-[172px]">
                 <SegmentedControl
@@ -346,15 +339,14 @@ export function DashboardPage() {
                   value={currentView}
                   onValueChange={setDashView}
                   options={DASHBOARD_VIEW_OPTIONS}
-                  className="h-9"
+                  className="h-8"
                 />
               </div>
             ) : null}
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="h-9 w-9"
+              size="icon-sm"
               title="刷新"
               aria-label="刷新工作台"
               disabled={fetching}
@@ -511,11 +503,7 @@ export function DashboardPage() {
                 >
                   <LoadedQuery
                     query={auditPage}
-                    empty={
-                      activitySource === "all"
-                        ? "暂无操作记录"
-                        : "当前来源筛选下暂无操作记录"
-                    }
+                    empty={activitySource === "all" ? "暂无操作记录" : "当前来源筛选下暂无操作记录"}
                     isEmpty={() => !filteredActivity.length}
                   >
                     {() => <RecentActivityList items={filteredActivity} timeZone={timeZone} />}
@@ -717,7 +705,9 @@ function renderTopKpis(ctx: {
   } else {
     // `--no-example` 空白系统场景：展示完整核心治理 KPI
     if (ctx.canReadAccounts) {
-      cards.push(renderAccountsKpi(ctx.accounts, ctx.activeAccountsCount, ctx.disabledAccountsCount));
+      cards.push(
+        renderAccountsKpi(ctx.accounts, ctx.activeAccountsCount, ctx.disabledAccountsCount),
+      );
     }
     if (ctx.canReadJobs) {
       cards.push(renderJobsKpi(ctx.jobsPage, ctx.jobTracker));
@@ -776,7 +766,10 @@ function renderPrimaryModuleKpi(mod: DashboardModuleSpec, data: DashboardModuleS
       ))}
       note={
         data.completionRate !== undefined ? (
-          <div className="flex items-center gap-1.5" title={`${data.completionLabel ?? "完成率"} ${data.completionRate}%`}>
+          <div
+            className="flex items-center gap-1.5"
+            title={`${data.completionLabel ?? "完成率"} ${data.completionRate}%`}
+          >
             <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-primary transition-[width] duration-300"
@@ -979,7 +972,8 @@ function renderPlatformKpi(ctx: {
     }
     const sys = ctx.systemStatus.data;
     const ok = sys.overall === "ok";
-    const headline = ctx.canReadAccounts && ctx.accounts.data ? ctx.activeAccountsCount : ok ? "正常" : "异常";
+    const headline =
+      ctx.canReadAccounts && ctx.accounts.data ? ctx.activeAccountsCount : ok ? "正常" : "异常";
     const unit = ctx.canReadAccounts && ctx.accounts.data ? "启用账户" : undefined;
 
     return (
@@ -1088,7 +1082,11 @@ function LoadedQuery<D>({
 }) {
   if (query.isPending) {
     return (
-      <div role="status" aria-label="正在加载" className="flex min-h-[120px] flex-col justify-center gap-2.5">
+      <div
+        role="status"
+        aria-label="正在加载"
+        className="flex min-h-[120px] flex-col justify-center gap-2.5"
+      >
         <span className="h-3 w-3/4 animate-pulse rounded bg-muted" />
         <span className="h-3 w-1/2 animate-pulse rounded bg-muted" />
       </div>
@@ -1096,7 +1094,10 @@ function LoadedQuery<D>({
   }
   if (query.isError) {
     return (
-      <div role="alert" className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+      <div
+        role="alert"
+        className="flex min-h-[120px] flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground"
+      >
         <p className="m-0">{query.error.message || "加载失败"}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
           重试
@@ -1105,7 +1106,11 @@ function LoadedQuery<D>({
     );
   }
   if (isEmpty(query.data)) {
-    return <p className="m-0 grid min-h-[108px] place-items-center text-sm text-muted-foreground">{empty}</p>;
+    return (
+      <p className="m-0 grid min-h-[108px] place-items-center text-sm text-muted-foreground">
+        {empty}
+      </p>
+    );
   }
   return <>{children(query.data)}</>;
 }
@@ -1448,8 +1453,7 @@ function RecentActivityList({
       {items.slice(0, ACTIVITY_DISPLAY_SIZE).map((e) => {
         const Icon = ACTIVITY_ICONS[e.action] ?? Activity;
         const label = AUDIT_ACTION_LABELS[e.action] ?? e.action;
-        const target =
-          e.targetName && e.targetId !== e.actorId ? `（${e.targetName}）` : "";
+        const target = e.targetName && e.targetId !== e.actorId ? `（${e.targetName}）` : "";
         return (
           <li key={e.id}>
             <Link
@@ -1602,10 +1606,7 @@ function QuickAccessRow({
       <h2 id={headingId} className="m-0 mb-2.5 text-[15px] leading-6 font-semibold">
         常用任务
       </h2>
-      <div
-        className="feature-grid"
-        data-count={Math.min(shortcuts.length, 4)}
-      >
+      <div className="feature-grid" data-count={Math.min(shortcuts.length, 4)}>
         {shortcuts.slice(0, 4).map((sc) => {
           const Icon = sc.icon;
           return (
@@ -1626,7 +1627,11 @@ function QuickAccessRow({
                   </span>
                 ) : null}
               </span>
-              <ArrowRight size={15} className="flex-none text-muted-foreground" aria-hidden="true" />
+              <ArrowRight
+                size={15}
+                className="flex-none text-muted-foreground"
+                aria-hidden="true"
+              />
             </Link>
           );
         })}
@@ -1788,7 +1793,10 @@ function GovernanceView({
                             <th scope="col" className="px-3 py-2 font-medium">
                               状态
                             </th>
-                            <th scope="col" className="hidden px-3 py-2 text-right font-medium sm:table-cell">
+                            <th
+                              scope="col"
+                              className="hidden px-3 py-2 text-right font-medium sm:table-cell"
+                            >
                               进度
                             </th>
                             <th scope="col" className="px-3 py-2 text-right font-medium">

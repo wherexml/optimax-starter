@@ -1,21 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getRouteApi } from "@tanstack/react-router";
+import { ContentRefresh } from "@optimax-starter/ui/components/content-refresh";
 import { useQuery } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, RotateCw } from "lucide-react";
-
-import { request, type Asset } from "@/console-client";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DataTable } from "@/components/table/DataTable";
-import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import {
-  FieldCharCount,
-  FieldHint,
-  FieldLabelRow,
-  FieldLayout,
-} from "@/components/ui/field";
+import { FieldCharCount, FieldHint, FieldLabelRow, FieldLayout } from "@/components/ui/field";
 import { ClearableInput, CopyableInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
@@ -26,7 +19,8 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SwitchField } from "@/components/ui/switch";
 import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
-import { ContentRefresh } from "@optimax-starter/ui/components/content-refresh";
+import { type Asset, request } from "@/console-client";
+import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 import {
   CONNECTOR_MODES,
   ComplexFormDialog,
@@ -99,9 +93,7 @@ export function FormsDemoPage() {
   const editTriggerRef = useRef<HTMLElement | null>(null);
 
   const [policies, setPolicies] = useState<ConnectorPolicyRecord[]>(INITIAL_POLICIES);
-  const [editingTarget, setEditingTarget] = useState<ConnectorPolicyRecord | undefined>(
-    undefined,
-  );
+  const [editingTarget, setEditingTarget] = useState<ConnectorPolicyRecord | undefined>(undefined);
 
   const assetsQuery = useQuery({
     meta: { contentRefresh: true },
@@ -143,8 +135,7 @@ export function FormsDemoPage() {
     void navigate({ search: {}, replace: true });
   };
 
-  const activeEditRecord =
-    dialog === "edit" ? (editingTarget ?? policies[0]) : undefined;
+  const activeEditRecord = dialog === "edit" ? (editingTarget ?? policies[0]) : undefined;
 
   const columns = useMemo<ColumnDef<ConnectorPolicyRecord>[]>(
     () => [
@@ -156,11 +147,7 @@ export function FormsDemoPage() {
       {
         accessorKey: "mode",
         header: "接入方式",
-        cell: (c) => (
-          <Badge variant="brand">
-            {MODE_LABELS[c.getValue() as ConnectorMode]}
-          </Badge>
-        ),
+        cell: (c) => <Badge variant="brand">{MODE_LABELS[c.getValue() as ConnectorMode]}</Badge>,
       },
       {
         accessorKey: "owner",
@@ -212,23 +199,23 @@ export function FormsDemoPage() {
       <PageHeader
         title="表单弹窗"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={(e) => openEdit(policies[0]!, e.currentTarget)}
             >
               预填编辑弹窗
             </Button>
-            <Button ref={createTriggerRef} type="button" onClick={openCreate}>
-              <Plus size={16} />
+            <Button ref={createTriggerRef} type="button" size="sm" onClick={openCreate}>
+              <Plus size={15} />
               新建接入策略
             </Button>
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="h-9 w-9"
+              size="icon-sm"
               title="刷新"
               aria-label="刷新表单示例"
               disabled={assetsQuery.isFetching}
@@ -248,10 +235,7 @@ export function FormsDemoPage() {
           error={assetsQuery.error?.message}
         />
 
-        <StandaloneControlsShowcase
-          domainOptions={domainOptions}
-          ownerOptions={ownerOptions}
-        />
+        <StandaloneControlsShowcase domainOptions={domainOptions} ownerOptions={ownerOptions} />
 
         <GlobalNotificationShowcase />
 
@@ -264,19 +248,13 @@ export function FormsDemoPage() {
           existingNames={policies.map((p) => p.name)}
           domainOptions={domainOptions}
           ownerOptions={ownerOptions}
-          trigger={
-            dialog === "edit"
-              ? editTriggerRef.current
-              : createTriggerRef.current
-          }
+          trigger={dialog === "edit" ? editTriggerRef.current : createTriggerRef.current}
           onSave={(values: ConnectorPolicyValues) => {
             const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
             if (dialog === "edit" && activeEditRecord) {
               setPolicies((prev) =>
                 prev.map((item) =>
-                  item.id === activeEditRecord.id
-                    ? { ...item, ...values, updatedAt: stamp }
-                    : item,
+                  item.id === activeEditRecord.id ? { ...item, ...values, updatedAt: stamp } : item,
                 ),
               );
               toast.success(`已保存策略 ${values.name}`);
@@ -560,12 +538,7 @@ function GlobalNotificationShowcase() {
         >
           连发堆叠
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => toast.dismiss()}
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={() => toast.dismiss()}>
           清空通知
         </Button>
       </div>

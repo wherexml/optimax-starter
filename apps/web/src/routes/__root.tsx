@@ -1,32 +1,5 @@
-import { WorkspaceRefresh } from "@/features/refresh/WorkspaceRefresh";
-import {
-  createRootRoute,
-  Link,
-  Outlet,
-  useNavigate,
-  useRouterState,
-} from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  APP_CONFIG,
-  getFirstAccessiblePath,
-  getSidebarNodes,
-  isPathAccessible,
-  storageKey,
-  type NavLeafItem,
-} from "@/config/app-config";
-import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
-import { useSidebarGlide } from "@/features/navigation/useSidebarGlide";
-import { QuickNav } from "@/features/navigation/QuickNav";
-import { NotFoundFallback, RouteErrorFallback } from "@/components/RouteFallbacks";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { FormDialog } from "@/components/ui/FormDialog";
-import { Button } from "@/components/ui/button";
-import { Toaster, toast } from "@/components/ui/toast";
+import { createRootRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ChevronUp,
   LogOut,
@@ -40,12 +13,32 @@ import {
 } from "lucide-react";
 import {
   Fragment,
+  type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { NotFoundFallback, RouteErrorFallback } from "@/components/RouteFallbacks";
+import { Button } from "@/components/ui/button";
+import { FormDialog } from "@/components/ui/FormDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Toaster, toast } from "@/components/ui/toast";
+import {
+  APP_CONFIG,
+  getFirstAccessiblePath,
+  getSidebarNodes,
+  isPathAccessible,
+  type NavLeafItem,
+  storageKey,
+} from "@/config/app-config";
+// @starter:agent-start
+import { AssistantDock, SidebarAssistantTrigger } from "@/features/assistant/AssistantDrawer";
+import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
+import { QuickNav } from "@/features/navigation/QuickNav";
+import { useSidebarGlide } from "@/features/navigation/useSidebarGlide";
+import { WorkspaceRefresh } from "@/features/refresh/WorkspaceRefresh";
 import { request } from "../console-client";
+// @starter:agent-end
 import "../index.css";
 
 const SIDEBAR_KEY = storageKey("sidebar");
@@ -84,9 +77,7 @@ function useMedia(query: string) {
 // Arrow keys, Home and End move focus between user-menu items. Tab order is unchanged.
 function moveFocus(e: ReactKeyboardEvent<HTMLDivElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-  const items = [
-    ...e.currentTarget.querySelectorAll<HTMLElement>(".user-menu-item"),
-  ];
+  const items = [...e.currentTarget.querySelectorAll<HTMLElement>(".user-menu-item")];
   if (!items.length) return;
   e.preventDefault();
   const i = items.indexOf(document.activeElement as HTMLElement);
@@ -152,7 +143,7 @@ function SidebarLeaf({
       title={compact && groupLabel ? collapsedTitle : item.label}
       aria-label={compact && groupLabel ? collapsedTitle : undefined}
     >
-      <Icon size={groupLabel && !compact ? 16 : 17} aria-hidden="true" />
+      <Icon size={compact ? 18 : 16} aria-hidden="true" />
       {!(compact && groupLabel) && <span>{item.label}</span>}
     </Link>
   );
@@ -203,8 +194,7 @@ function Shell() {
     // 抽屉关闭时，若焦点仍在侧栏中（或已丢失），先移回打开按钮，再让侧栏变为 inert。
     if (drawerWasOpen.current && !open && mobile) {
       const active = document.activeElement;
-      if (!active || active === document.body || side?.contains(active))
-        opener.current?.focus();
+      if (!active || active === document.body || side?.contains(active)) opener.current?.focus();
     }
     drawerWasOpen.current = open;
     side?.toggleAttribute("inert", mobile && !drawer);
@@ -220,12 +210,7 @@ function Shell() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "k"
-      ) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setQuick(true);
       }
@@ -283,15 +268,17 @@ function Shell() {
 
   return (
     <div
-      className={
-        "workspace" +
-        (rail ? " compact" : "") +
-        (mobile && drawer ? " drawer-open" : "")
-      }
+      className={"workspace" + (rail ? " compact" : "") + (mobile && drawer ? " drawer-open" : "")}
     >
       <aside id="console-sidebar" ref={aside} aria-label="侧边栏">
         <header className="brand">
-          <img className="mark" src={APP_CONFIG.logoSrc} alt={`${APP_CONFIG.title} Logo`} width={32} height={32} />
+          <img
+            className="mark"
+            src={APP_CONFIG.logoSrc}
+            alt={`${APP_CONFIG.title} Logo`}
+            width={32}
+            height={32}
+          />
           <strong>{APP_CONFIG.title}</strong>
           <button
             type="button"
@@ -309,16 +296,11 @@ function Shell() {
               setCompact(!compact);
             }}
           >
-            <ToggleIcon size={18} />
+            <ToggleIcon size={16} />
           </button>
         </header>
         <nav id="console-nav" ref={nav} aria-label="主导航">
-          <span
-            ref={navPill}
-            className="nav-glide-pill"
-            aria-hidden="true"
-            hidden
-          />
+          <span ref={navPill} className="nav-glide-pill" aria-hidden="true" hidden />
           {sidebarNodes.map((node) => {
             if (node.kind === "item") {
               return <SidebarLeaf key={node.to} item={node} compact={rail} />;
@@ -365,10 +347,13 @@ function Shell() {
             aria-keyshortcuts="Meta+K Control+K"
             onClick={() => setQuick(true)}
           >
-            <Search size={17} aria-hidden="true" />
+            <Search size={15} aria-hidden="true" />
             <span>搜索</span>
             <kbd aria-hidden="true">{MAC ? "⌘K" : "Ctrl K"}</kbd>
           </button>
+          {/* @starter:agent-start */}
+          <SidebarAssistantTrigger compact={rail} />
+          {/* @starter:agent-end */}
         </div>
         {/* EASM SidebarFooter user dropdown, built on Radix Popover. */}
         <div className="identity">
@@ -386,7 +371,7 @@ function Shell() {
                   <strong>{me.data.name}</strong>
                   <small>{roleLabel}</small>
                 </span>
-                <ChevronUp size={16} className="who-chevron" aria-hidden="true" />
+                <ChevronUp size={14} className="who-chevron" aria-hidden="true" />
               </button>
             </PopoverTrigger>
             <PopoverContent
@@ -399,9 +384,7 @@ function Shell() {
               className="user-menu w-60 p-1"
               onOpenAutoFocus={(e) => {
                 e.preventDefault();
-                menuRef.current
-                  ?.querySelector<HTMLElement>(".user-menu-item")
-                  ?.focus();
+                menuRef.current?.querySelector<HTMLElement>(".user-menu-item")?.focus();
               }}
               onCloseAutoFocus={(e) => {
                 if (!skipMenuReturn.current) return;
@@ -448,11 +431,7 @@ function Shell() {
         </div>
       </aside>
       {mobile && drawer && (
-        <div
-          className="scrim"
-          aria-hidden="true"
-          onClick={() => setDrawer(false)}
-        />
+        <div className="scrim" aria-hidden="true" onClick={() => setDrawer(false)} />
       )}
       <main>
         <section className="content" ref={content}>
@@ -503,6 +482,9 @@ function Shell() {
       >
         {null}
       </FormDialog>
+      {/* @starter:agent-start */}
+      <AssistantDock />
+      {/* @starter:agent-end */}
     </div>
   );
 }

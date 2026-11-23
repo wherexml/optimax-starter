@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Lock, RotateCcw, RotateCw, Save, Wrench } from "lucide-react";
 import {
+  type AccountRole,
+  getModuleActionChecked,
+  getModuleActionDisabled,
+  type ModulePermissionAction,
   PERMISSION_ACTION_LABELS,
   PERMISSION_ROLES,
   ROLE_LABELS,
   SYSTEM_PERMISSION_ROWS,
-  getModuleActionChecked,
-  getModuleActionDisabled,
-  toggleModulePermissionAction,
-  type AccountRole,
-  type ModulePermissionAction,
   type SystemPermissionMatrixPayload,
   type SystemPermissionRow,
+  toggleModulePermissionAction,
 } from "@optimax-starter/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, Lock, RotateCcw, RotateCw, Save, Wrench } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "@/components/ui/toast";
@@ -29,8 +29,7 @@ const ACTION_ICONS: Record<ModulePermissionAction, typeof Eye> = {
   operate: Wrench,
 };
 
-const SUPER_ADMIN_LOCKED_REASON =
-  "超级管理员默认拥有全部查看和操作权限，不能关闭";
+const SUPER_ADMIN_LOCKED_REASON = "超级管理员默认拥有全部查看和操作权限，不能关闭";
 
 function cloneMatrix(roles: RoleMatrix): RoleMatrix {
   return {
@@ -96,11 +95,9 @@ export function PermissionsPage() {
   const cache = useQueryClient();
   const me = useAccount();
   const canRead =
-    me.data?.role === "super_admin" &&
-    hasPermission(me.data, "system:permission:read");
+    me.data?.role === "super_admin" && hasPermission(me.data, "system:permission:read");
   const canManage =
-    me.data?.role === "super_admin" &&
-    hasPermission(me.data, "system:permission:manage");
+    me.data?.role === "super_admin" && hasPermission(me.data, "system:permission:manage");
 
   const query = useQuery({
     meta: { contentRefresh: true },
@@ -145,11 +142,7 @@ export function PermissionsPage() {
 
   const reset = useMutation({
     mutationFn: () =>
-      request<SystemPermissionMatrixPayload>(
-        "/system/permissions/reset",
-        "POST",
-        {},
-      ),
+      request<SystemPermissionMatrixPayload>("/system/permissions/reset", "POST", {}),
     onSuccess: async (updated) => {
       setDraft(cloneMatrix(updated.roles));
       await syncSessionAndMatrix();
@@ -172,9 +165,7 @@ export function PermissionsPage() {
   }
 
   const busy = save.isPending || reset.isPending;
-  const hasChanges = Boolean(
-    query.data?.roles && draft && !sameMatrix(query.data.roles, draft),
-  );
+  const hasChanges = Boolean(query.data?.roles && draft && !sameMatrix(query.data.roles, draft));
 
   function toggle(
     row: SystemPermissionRow,
@@ -187,13 +178,7 @@ export function PermissionsPage() {
       if (!current) return current;
       return {
         ...current,
-        [role]: toggleModulePermissionAction(
-          row,
-          role,
-          current[role] ?? [],
-          action,
-          nextChecked,
-        ),
+        [role]: toggleModulePermissionAction(row, role, current[role] ?? [], action, nextChecked),
       };
     });
   }
@@ -213,22 +198,20 @@ export function PermissionsPage() {
       <PageHeader
         title="系统权限"
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Button
               type="button"
               variant="outline"
+              size="sm"
               disabled={!canManage || busy}
               onClick={handleResetClick}
             >
               <RotateCcw size={15} />
-              {reset.isPending
-                ? "恢复中…"
-                : resetArmed
-                  ? "确认恢复"
-                  : "恢复默认"}
+              {reset.isPending ? "恢复中…" : resetArmed ? "确认恢复" : "恢复默认"}
             </Button>
             <Button
               type="button"
+              size="sm"
               disabled={!canManage || busy || !hasChanges}
               onClick={() => {
                 if (!draft) return;
@@ -242,8 +225,7 @@ export function PermissionsPage() {
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              className="h-9 w-9"
+              size="icon-sm"
               title="刷新"
               aria-label="刷新系统权限"
               disabled={query.isFetching}
@@ -319,13 +301,11 @@ export function PermissionsPage() {
                               action,
                             );
                             const actionDisabled =
-                              !canManage ||
-                              busy ||
-                              getModuleActionDisabled(row, role, action);
+                              !canManage || busy || getModuleActionDisabled(row, role, action);
                             const reason =
                               role === "super_admin"
                                 ? SUPER_ADMIN_LOCKED_REASON
-                                : row.disabledReason ?? "该角色不支持配置此权限项";
+                                : (row.disabledReason ?? "该角色不支持配置此权限项");
                             return (
                               <PermissionActionButton
                                 key={action}
@@ -349,7 +329,8 @@ export function PermissionsPage() {
             </table>
           </div>
           <p className="m-0 text-xs leading-[18px] text-muted-foreground">
-            超级管理员固定保留全部权限不可关闭；关闭角色的模块查看权限后，对应侧栏菜单自动隐藏且接口返回 403。
+            超级管理员固定保留全部权限不可关闭；关闭角色的模块查看权限后，对应侧栏菜单自动隐藏且接口返回
+            403。
           </p>
         </div>
       ) : null}

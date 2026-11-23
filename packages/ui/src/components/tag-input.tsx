@@ -1,7 +1,6 @@
-import * as React from "react";
-import { X } from "lucide-react";
-
 import { cn } from "@optimax-starter/ui/lib/utils";
+import { X } from "lucide-react";
+import * as React from "react";
 
 export interface TagInputProps {
   id?: string;
@@ -83,7 +82,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           innerRef.current?.focus();
         }}
         className={cn(
-          "flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-md border-[0.5px] border-input bg-card px-2.5 py-1.5 text-sm transition-[border-color] duration-150 hover:border-[color:var(--foreground)]/30",
+          "flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border-[0.5px] border-input bg-card px-2.5 py-1 text-sm transition-[border-color] duration-150 hover:border-[color:var(--foreground)]/30",
           "focus-within:border-primary focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring",
           disabled && "cursor-not-allowed bg-muted/60 opacity-75 hover:border-input",
           ariaProps["aria-invalid"] && "border-destructive focus-within:outline-destructive",

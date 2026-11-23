@@ -89,6 +89,8 @@
 
 快速导航的布局与键盘验收见 [navigation](./apps/web/src/features/navigation/README.md)。
 
+可选 AI 智能助理（右侧抽屉、模型配置、写操作确认卡，`--no-agent` 可移除）见 [服务端 agent](./apps/server/src/agent/README.md) 与 [前端 assistant](./apps/web/src/features/assistant/README.md)。
+
 操作日志（区分 `human / agent` 来源并递归脱敏）、三层角色权限矩阵、系统探针与 AI 熔断配置、组合筛选、快速导航已集成，详见 [AUTH.md](./AUTH.md) 与 [REUSE.md](./REUSE.md)。管理与业务写接口必须在同一事务里写入 `console_audit`。
 
 筛选必须保留 EASM 的动态条件列表：添加、删除、切换字段、统一应用，不得退回固定输入框加标签。具体契约见 [FRONTEND.md](./FRONTEND.md)。上游选型比较见 [UPSTREAM_OPTIONS.md](./UPSTREAM_OPTIONS.md)。

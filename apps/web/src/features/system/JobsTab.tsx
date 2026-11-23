@@ -1,8 +1,8 @@
 import {
-  JOB_STATUSES,
   JOB_STATUS_LABELS,
-  JOB_TYPES,
+  JOB_STATUSES,
   JOB_TYPE_LABELS,
+  JOB_TYPES,
   type Job,
   type JobStatus,
   type JobType,
@@ -26,16 +26,16 @@ const ACTIVE_REFRESH_MS = 2_000;
 
 const JOB_FILTER_FIELDS: FilterField[] = [
   {
-    key: "status",
-    label: "任务状态",
-    type: "select",
-    options: JOB_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_LABELS[s] })),
-  },
-  {
     key: "type",
-    label: "任务类型",
+    label: "类型",
     type: "select",
     options: JOB_TYPES.map((t) => ({ value: t, label: JOB_TYPE_LABELS[t] })),
+  },
+  {
+    key: "status",
+    label: "状态",
+    type: "select",
+    options: JOB_STATUSES.map((s) => ({ value: s, label: JOB_STATUS_LABELS[s] })),
   },
 ];
 
@@ -57,7 +57,8 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0
 
 /** Short, secret-free summary of a job result (the server never returns raw CSV or tokens). */
 export function summarizeJobResult(job: Pick<Job, "type" | "status" | "result" | "error">): string {
-  if (job.status === "failed" || (job.status === "cancelled" && job.error)) return job.error?.trim() || "执行失败";
+  if (job.status === "failed" || (job.status === "cancelled" && job.error))
+    return job.error?.trim() || "执行失败";
   const r = job.result;
   if (!r) return "—";
   switch (job.type) {
@@ -72,7 +73,10 @@ export function summarizeJobResult(job: Pick<Job, "type" | "status" | "result" |
   }
 }
 
-type Pending = { kind: "cancel"; job: Job; trigger: HTMLElement | null } | { kind: "cleanup"; trigger: HTMLElement | null } | null;
+type Pending =
+  | { kind: "cancel"; job: Job; trigger: HTMLElement | null }
+  | { kind: "cleanup"; trigger: HTMLElement | null }
+  | null;
 
 export function JobsTab() {
   const me = useAccount();
@@ -86,7 +90,8 @@ export function JobsTab() {
   const [pending, setPending] = useState<Pending>(null);
 
   const status =
-    typeof filters.status === "string" && (JOB_STATUSES as readonly string[]).includes(filters.status)
+    typeof filters.status === "string" &&
+    (JOB_STATUSES as readonly string[]).includes(filters.status)
       ? (filters.status as JobStatus)
       : undefined;
   const type =
@@ -128,7 +133,9 @@ export function JobsTab() {
         header: "编号",
         enableSorting: false,
         cell: (c) => (
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">JOB-{String(c.getValue())}</span>
+          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            JOB-{String(c.getValue())}
+          </span>
         ),
       },
       {
@@ -165,9 +172,14 @@ export function JobsTab() {
                 aria-valuenow={value}
                 className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
               >
-                <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${value}%` }} />
+                <div
+                  className="h-full rounded-full bg-primary transition-[width]"
+                  style={{ width: `${value}%` }}
+                />
               </div>
-              <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{value}%</span>
+              <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                {value}%
+              </span>
             </div>
           );
         },
@@ -204,7 +216,11 @@ export function JobsTab() {
         accessorKey: "createdAt",
         header: "创建时间",
         enableSorting: false,
-        cell: (c) => <span className="whitespace-nowrap text-xs tabular-nums">{formatTime(c.row.original.createdAt)}</span>,
+        cell: (c) => (
+          <span className="whitespace-nowrap text-xs tabular-nums">
+            {formatTime(c.row.original.createdAt)}
+          </span>
+        ),
       },
       {
         id: "action",
@@ -220,7 +236,12 @@ export function JobsTab() {
             <div className="row-actions">
               {artifact && (
                 <Button asChild variant="ghost" size="sm" className="gap-1">
-                  <a href={attachmentDownloadPath(artifact)} download rel="noopener" aria-label={`下载 JOB-${job.id} 结果文件`}>
+                  <a
+                    href={attachmentDownloadPath(artifact)}
+                    download
+                    rel="noopener"
+                    aria-label={`下载 JOB-${job.id} 结果文件`}
+                  >
                     <Download size={14} aria-hidden="true" />
                     下载
                   </a>

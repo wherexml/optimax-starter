@@ -1,14 +1,14 @@
 // Example "assets" job handlers (export CSV + bulk import). Self-registered into core/jobs.ts.
 // `scripts/lib/strip-example.mjs` deletes this file together with the rest of the assets module.
-import { count, inArray } from "drizzle-orm";
+
 import {
   ASSET_IMPORT_ASYNC_MAX_ROWS,
   type AssetExportFilter,
   type AssetInput,
 } from "@optimax-starter/api";
-import { attachments } from "@optimax-starter/db/schema/console";
 import { assets } from "@optimax-starter/db/schema/assets";
-import { db } from "../services";
+import { attachments } from "@optimax-starter/db/schema/console";
+import { count, inArray } from "drizzle-orm";
 import { auditResource } from "../core/audit";
 import { CsvParseError, collectCsvNames, serializeCsv, validateAssetCsv } from "../core/csv";
 import { lockPermission } from "../core/guards";
@@ -24,6 +24,7 @@ import {
 } from "../core/jobs";
 import { getEffectivePermissions } from "../core/permissions";
 import { getStorageDriver, newStorageKey, sha256OfBytes } from "../core/storage";
+import { db } from "../services";
 import { buildAssetOrder, buildAssetWhere } from "./assets-query";
 
 /** CSV parse errors are business messages: persist them and never retry. */
@@ -44,6 +45,8 @@ export const exportAssetsCsv: JobHandler = async (job, ctx) => {
   if (!perms.includes("assets:read")) throw new JobFailure("任务创建人已无资产查看权限", true);
   const filter = (job.payload ?? {}) as AssetExportFilter;
   const where = buildAssetWhere({
+    code: filter.code || undefined,
+    codeOp: filter.codeOp,
     q: filter.q || undefined,
     qOp: filter.qOp,
     stages: filter.stage,
@@ -65,7 +68,9 @@ export const exportAssetsCsv: JobHandler = async (job, ctx) => {
     for (const a of batch) {
       rows.push([`AS-${String(a.id).padStart(3, "0")}`, a.name, a.domain, a.owner, a.stage]);
     }
-    await ctx.progress(Math.min(95, Math.round(((offset + batch.length) / Math.max(total, 1)) * 90)));
+    await ctx.progress(
+      Math.min(95, Math.round(((offset + batch.length) / Math.max(total, 1)) * 90)),
+    );
     if (batch.length < EXPORT_BATCH_SIZE) break;
   }
   const bytes = new TextEncoder().encode(serializeCsv(rows, { bom: true }));
@@ -111,7 +116,10 @@ export const bulkImportAssets: JobHandler = async (job, ctx) => {
   for (let i = 0; i < names.length; i += 1000) {
     const slice = names.slice(i, i + 1000);
     if (!slice.length) continue;
-    const found = await db.select({ name: assets.name }).from(assets).where(inArray(assets.name, slice));
+    const found = await db
+      .select({ name: assets.name })
+      .from(assets)
+      .where(inArray(assets.name, slice));
     for (const f of found) existing.add(f.name);
   }
   let validation: ReturnType<typeof validateAssetCsv>;
@@ -121,7 +129,8 @@ export const bulkImportAssets: JobHandler = async (job, ctx) => {
     if (error instanceof RangeError) throw new JobFailure(error.message, true);
     throw error;
   }
-  if (validation.headerErrors?.length) throw new JobFailure(validation.headerErrors.join("；"), true);
+  if (validation.headerErrors?.length)
+    throw new JobFailure(validation.headerErrors.join("；"), true);
   const sampleErrors = validation.rows
     .filter((r) => r.status !== "valid")
     .slice(0, 20)
@@ -138,7 +147,11 @@ export const bulkImportAssets: JobHandler = async (job, ctx) => {
     throw new JobFailure(`存在 ${validation.errorCount} 行无效数据，未导入`, true, failedResult);
   }
   if (onDuplicate === "fail" && validation.duplicateCount > 0) {
-    throw new JobFailure(`存在 ${validation.duplicateCount} 行重名资产，未导入`, true, failedResult);
+    throw new JobFailure(
+      `存在 ${validation.duplicateCount} 行重名资产，未导入`,
+      true,
+      failedResult,
+    );
   }
   await ctx.progress(10);
   const rows: AssetInput[] = validation.validRows;

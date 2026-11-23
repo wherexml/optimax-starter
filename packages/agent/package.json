@@ -1,0 +1,28 @@
+{
+  "name": "@optimax-starter/agent",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/openai-compatible": "catalog:",
+    "@ai-sdk/react": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "ai": "catalog:",
+    "jsonrepair": "catalog:",
+    "undici": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@optimax-starter/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

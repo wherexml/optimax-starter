@@ -71,6 +71,11 @@ const INTERACTIVE_ONLY_ROUTES: RegExp[] = [
   /^\/console\/me\/password$/,
   /^\/console\/me\/sessions(\/.*)?$/,
   /^\/console\/me\/tokens(\/.*)?$/,
+  // @starter:agent-start
+  // Assistant chat (approval cards) and model credentials stay browser-session only.
+  /^\/console\/agent\/chat$/,
+  /^\/console\/system\/ai\/model(\/.*)?$/,
+  // @starter:agent-end
 ];
 
 export const isInteractiveOnlyRoute = (path: string) =>

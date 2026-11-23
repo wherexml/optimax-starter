@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { getRouteApi } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCw, Save } from "lucide-react";
 import {
   DEFAULT_SYSTEM_TIMEZONE,
   type SystemSettingsResponse,
   type SystemStatusResponse,
   type SystemTab,
 } from "@optimax-starter/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
+import { RotateCw, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,8 +22,11 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
+// @starter:agent-start
+import { AiModelSettingsCard } from "@/features/assistant/AiModelSettingsCard";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
+// @starter:agent-end
 import { JobsTab } from "./JobsTab";
 import { parseSystemSearch, SYSTEM_TAB_ITEMS } from "./search";
 
@@ -34,7 +37,6 @@ const SOURCE_LABELS: Record<SystemSettingsResponse["source"], string> = {
   env: "环境变量回退",
   default: "系统默认配置",
 };
-
 
 function formatUptime(sec: number): string {
   if (sec < 60) return `${sec} 秒`;
@@ -111,8 +113,7 @@ export function SystemPage() {
     enabled: Boolean(me.data) && canReadSettings,
   });
 
-  const activeTimezone =
-    settingsQuery.data?.timezone ?? DEFAULT_SYSTEM_TIMEZONE;
+  const activeTimezone = settingsQuery.data?.timezone ?? DEFAULT_SYSTEM_TIMEZONE;
 
   if (!canReadAi && !canReadSettings && !canReadJobs) {
     return (
@@ -135,8 +136,7 @@ export function SystemPage() {
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="h-9 w-9"
+            size="icon-sm"
             title="刷新"
             aria-label="刷新系统配置"
             disabled={refreshing}
@@ -146,7 +146,10 @@ export function SystemPage() {
                   ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
                   ...(canReadSettings ? [settingsQuery.refetch()] : []),
                   ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
-                  cache.invalidateQueries({ queryKey: ["asset-agent-config"] }),
+                  // @starter:agent-start
+                  cache.invalidateQueries({ queryKey: ["agent-status"] }),
+                  cache.invalidateQueries({ queryKey: ["ai-model-settings"] }),
+                  // @starter:agent-end
                 ]),
               )
             }
@@ -167,20 +170,17 @@ export function SystemPage() {
         }}
       >
         <PageTabsPanel value="status">
-          <StatusControlPanel
-            query={statusQuery}
-            timeZone={activeTimezone}
-          />
+          <StatusControlPanel query={statusQuery} timeZone={activeTimezone} />
         </PageTabsPanel>
         <PageTabsPanel value="settings">
-          <BaseSettingsPanel
-            query={settingsQuery}
-            canManageSettings={canManageSettings}
-          />
+          <BaseSettingsPanel query={settingsQuery} canManageSettings={canManageSettings} />
+          {/* @starter:agent-start */}
+          <div className="mt-5">
+            <AiModelSettingsCard canManageSettings={canManageSettings} />
+          </div>
+          {/* @starter:agent-end */}
         </PageTabsPanel>
-        <PageTabsPanel value="jobs">
-          {canReadJobs ? <JobsTab /> : null}
-        </PageTabsPanel>
+        <PageTabsPanel value="jobs">{canReadJobs ? <JobsTab /> : null}</PageTabsPanel>
       </PageTabs>
     </>
   );
@@ -190,9 +190,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b-[0.5px] border-[var(--hairline)] py-2.5 text-sm last:border-b-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="m-0 text-right font-medium tabular-nums text-foreground">
-        {value}
-      </dd>
+      <dd className="m-0 text-right font-medium tabular-nums text-foreground">{value}</dd>
     </div>
   );
 }
@@ -206,11 +204,7 @@ function StatusControlPanel({
 }) {
   if (query.isPending) {
     return (
-      <div
-        role="status"
-        aria-label="正在加载"
-        className="panel p-6 text-sm text-muted-foreground"
-      >
+      <div role="status" aria-label="正在加载" className="panel p-6 text-sm text-muted-foreground">
         正在探测系统运行状态…
       </div>
     );
@@ -254,9 +248,7 @@ function StatusControlPanel({
     <section className="panel" aria-label="服务与数据库探针">
       <header className="panel-head">
         <h2>服务与数据库探针</h2>
-        <Badge variant={dbHealthy ? "success" : "danger"}>
-          {dbHealthy ? "健康" : "异常"}
-        </Badge>
+        <Badge variant={dbHealthy ? "success" : "danger"}>{dbHealthy ? "健康" : "异常"}</Badge>
       </header>
       <div className="mb-3 grid grid-cols-2 gap-px overflow-hidden rounded-lg border-[0.5px] border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-4">
         {summaryCells.map((cell) => (
@@ -271,15 +263,10 @@ function StatusControlPanel({
       <dl className="m-0">
         <MetricRow
           label="数据库探针 (/healthz)"
-          value={
-            dbHealthy ? `正常（${probe.dbLatencyMs ?? 0} ms）` : "连接不可达"
-          }
+          value={dbHealthy ? `正常（${probe.dbLatencyMs ?? 0} ms）` : "连接不可达"}
         />
         <MetricRow label="生效系统时区" value={timeZone} />
-        <MetricRow
-          label="最近探测时间"
-          value={formatCheckedAt(data.checkedAt, timeZone)}
-        />
+        <MetricRow label="最近探测时间" value={formatCheckedAt(data.checkedAt, timeZone)} />
       </dl>
     </section>
   );
@@ -322,11 +309,7 @@ function BaseSettingsPanel({
 
   if (query.isPending) {
     return (
-      <div
-        role="status"
-        aria-label="正在加载"
-        className="panel p-6 text-sm text-muted-foreground"
-      >
+      <div role="status" aria-label="正在加载" className="panel p-6 text-sm text-muted-foreground">
         正在读取系统配置…
       </div>
     );
@@ -344,9 +327,7 @@ function BaseSettingsPanel({
   }
 
   const settings = query.data;
-  const hasChanged = Boolean(
-    timezone && settings.timezone && timezone !== settings.timezone,
-  );
+  const hasChanged = Boolean(timezone && settings.timezone && timezone !== settings.timezone);
 
   return (
     <section className="panel" aria-label="时间与区域设置">
@@ -380,15 +361,11 @@ function BaseSettingsPanel({
         <div className="grid gap-3 rounded-md border-[0.5px] border-[var(--hairline)] bg-[var(--surface-subtle)] p-4 text-sm sm:grid-cols-3">
           <div>
             <p className="m-0 text-xs text-muted-foreground">当前生效时区</p>
-            <p className="m-0 mt-1 font-medium text-foreground">
-              {settings.timezoneLabel}
-            </p>
+            <p className="m-0 mt-1 font-medium text-foreground">{settings.timezoneLabel}</p>
           </div>
           <div>
             <p className="m-0 text-xs text-muted-foreground">配置来源</p>
-            <p className="m-0 mt-1 font-medium text-foreground">
-              {SOURCE_LABELS[settings.source]}
-            </p>
+            <p className="m-0 mt-1 font-medium text-foreground">{SOURCE_LABELS[settings.source]}</p>
           </div>
           <div>
             <p className="m-0 text-xs text-muted-foreground">维护权限</p>

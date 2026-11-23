@@ -2,11 +2,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  getPrimaryField,
-  parseFieldsSpec,
-  toSnakeCase,
-} from "./lib/gen-module-fields.mjs";
+import { getPrimaryField, parseFieldsSpec, toSnakeCase } from "./lib/gen-module-fields.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RESERVED = new Set([
@@ -22,6 +18,8 @@ const RESERVED = new Set([
   "console",
   "healthz",
   "contracts",
+  "agent",
+  "assistant",
 ]);
 
 function usage() {
@@ -93,9 +91,8 @@ const primaryEnum = enumFields[0] ?? null;
 const searchField =
   primaryField.type === "string" || primaryField.type === "text"
     ? primaryField
-    : fields.find((f) => f.type === "string" || f.type === "text") ?? null;
-const categoryField =
-  fields.find((f) => f.name === "category" || f.name === "domain") ?? null;
+    : (fields.find((f) => f.type === "string" || f.type === "text") ?? null);
+const categoryField = fields.find((f) => f.name === "category" || f.name === "domain") ?? null;
 const ownerField =
   fields.find((f) => f.name === "owner" || f.name === "assignee" || f.name === "manager") ?? null;
 const booleanField = fields.find((f) => f.type === "boolean") ?? null;
@@ -401,9 +398,7 @@ function buildServerModuleContent() {
     querySchemaLines.push('  qOp: z.enum(["contains", "equals"]).optional(),');
   }
   for (const f of singleEnumFields) {
-    querySchemaLines.push(
-      `  ${f.name}: z.enum(${enumConstName(f)}).optional(),`,
-    );
+    querySchemaLines.push(`  ${f.name}: z.enum(${enumConstName(f)}).optional(),`);
   }
   for (const f of dateFields) {
     querySchemaLines.push(`  ${f.name}From: dayParam.optional(),`);
@@ -429,9 +424,7 @@ function buildServerModuleContent() {
         : undefined,`);
   }
   for (const f of singleEnumFields) {
-    whereParts.push(
-      `      ${f.name} ? eq(${camel}Table.${f.name}, ${f.name}) : undefined,`,
-    );
+    whereParts.push(`      ${f.name} ? eq(${camel}Table.${f.name}, ${f.name}) : undefined,`);
   }
   for (const f of multiEnumFields) {
     whereParts.push(
@@ -442,9 +435,7 @@ function buildServerModuleContent() {
     whereParts.push(
       `      ${f.name}From ? gte(${camel}Table.${f.name}, ${f.name}From) : undefined,`,
     );
-    whereParts.push(
-      `      ${f.name}To ? lte(${camel}Table.${f.name}, ${f.name}To) : undefined,`,
-    );
+    whereParts.push(`      ${f.name}To ? lte(${camel}Table.${f.name}, ${f.name}To) : undefined,`);
   }
 
   const extraHelpers = [];
@@ -502,8 +493,8 @@ function normalizeListValues(values: string[] | undefined): string[] {
     )
     .join("\n");
   const rawQueryFilter = multiEnumFields.length
-    ? "Object.entries(c.req.query()).filter(([k, v]) => !MULTI_ENUM_KEYS.has(k) && v.trim() !== \"\")"
-    : "Object.entries(c.req.query()).filter(([, v]) => v.trim() !== \"\")";
+    ? 'Object.entries(c.req.query()).filter(([k, v]) => !MULTI_ENUM_KEYS.has(k) && v.trim() !== "")'
+    : 'Object.entries(c.req.query()).filter(([, v]) => v.trim() !== "")';
 
   const normalizeHelper = optionalTextFields.length
     ? `const OPTIONAL_TEXT_KEYS = ${JSON.stringify(optionalTextFields.map((f) => f.name))} as const;
@@ -721,10 +712,7 @@ function buildFormDialogContent() {
   if (hasSwitch) uiImports.push('import { SwitchField } from "@/components/ui/switch";');
   if (hasText) uiImports.push('import { Textarea } from "@/components/ui/textarea";');
 
-  const apiValueImports = [
-    ...enumFields.map((f) => enumConstName(f)),
-    `${camel}InputSchema`,
-  ];
+  const apiValueImports = [...enumFields.map((f) => enumConstName(f)), `${camel}InputSchema`];
 
   const defaultLines = fields
     .map((f) => {
@@ -930,7 +918,9 @@ function buildFormDialogContent() {
     })
     .join("\n");
 
-  const keepEditingFocus = focusField ? `\n                form.setFocus("${focusField.name}");` : "";
+  const keepEditingFocus = focusField
+    ? `\n                form.setFocus("${focusField.name}");`
+    : "";
 
   return `import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1051,51 +1041,44 @@ function buildWebPageContent() {
 
   const hasBadge = fields.some((f) => f.type === "enum" || f.type === "boolean");
   const filterFields = [];
-  if (searchField) {
-    filterFields.push(`  {
+  const filterStateLines = [];
+  for (const f of fields) {
+    if (f === searchField) {
+      filterFields.push(`  {
     key: "q",
-    label: "关键词",
+    label: "${f.label}",
     type: "text",
-    ariaLabel: "搜索${label}",
-    placeholder: "搜索${searchField.label}",
+    ariaLabel: "搜索${f.label}",
+    placeholder: "搜索${f.label}",
     operatorKey: "qOp",
   }`);
-  }
-  for (const f of enumFields) {
-    const multiLine = f.options.length >= 3 ? "\n    multi: true," : "";
-    filterFields.push(`  {
+      filterStateLines.push("    q: params.q,");
+      filterStateLines.push("    qOp: params.qOp,");
+    } else if (f.type === "enum") {
+      const multiLine = f.options.length >= 3 ? "\n    multi: true," : "";
+      filterFields.push(`  {
     key: "${f.name}",
     label: "${f.label}",
     type: "select",${multiLine}
     options: ${enumConstName(f)}.map((v) => ({ value: v, label: v })),
   }`);
-  }
-  for (const f of dateFields) {
-    filterFields.push(`  {
+      filterStateLines.push(`    ${f.name}: params.${f.name},`);
+    } else if (f.type === "date") {
+      filterFields.push(`  {
     key: "${f.name}From",
     label: "${f.label}起",
     type: "date",
     notAfter: "${f.name}To",
   }`);
-    filterFields.push(`  {
+      filterFields.push(`  {
     key: "${f.name}To",
     label: "${f.label}止",
     type: "date",
     notBefore: "${f.name}From",
   }`);
-  }
-
-  const filterStateLines = [];
-  if (searchField) {
-    filterStateLines.push("    q: params.q,");
-    filterStateLines.push("    qOp: params.qOp,");
-  }
-  for (const f of enumFields) {
-    filterStateLines.push(`    ${f.name}: params.${f.name},`);
-  }
-  for (const f of dateFields) {
-    filterStateLines.push(`    ${f.name}From: params.${f.name}From,`);
-    filterStateLines.push(`    ${f.name}To: params.${f.name}To,`);
+      filterStateLines.push(`    ${f.name}From: params.${f.name}From,`);
+      filterStateLines.push(`    ${f.name}To: params.${f.name}To,`);
+    }
   }
 
   const columnBlocks = fields.map((f) => {
@@ -1387,12 +1370,13 @@ ${columnBlocks.join(",\n")},
         canManage ? (
           <Button
             ref={createTrigger}
+            size="sm"
             onClick={() => {
               returnFocus.current = createTrigger.current;
               setPending({ kind: "create" });
             }}
           >
-            <Plus size={16} />
+            <Plus size={15} />
             新增${label}
           </Button>
         ) : undefined
@@ -1695,7 +1679,9 @@ function replaceOrThrow(content, target, replacement, fileLabel, markerLabel) {
     );
   }
   if (content.indexOf(target, first + target.length) !== -1) {
-    throw new Error(`${fileLabel} 中锚点 ${markerLabel} 出现多次，已停止生成（未修改任何中心文件）。`);
+    throw new Error(
+      `${fileLabel} 中锚点 ${markerLabel} 出现多次，已停止生成（未修改任何中心文件）。`,
+    );
   }
   return content.slice(0, first) + replacement + content.slice(first + target.length);
 }

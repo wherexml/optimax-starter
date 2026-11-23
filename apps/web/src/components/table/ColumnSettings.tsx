@@ -1,13 +1,11 @@
-import { Settings2, GripVertical } from "lucide-react";
-import { useId } from "react";
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -16,14 +14,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Settings2 } from "lucide-react";
+import { useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isLockedColumn, reorderColumns } from "./column-settings-utils";
+
 type ColumnConfig = { visible: boolean; width: number };
 
 interface SortableColumnItemProps {
@@ -33,21 +30,9 @@ interface SortableColumnItemProps {
   onToggle: () => void;
 }
 
-function SortableColumnItem({
-  columnKey,
-  visible,
-  label,
-  onToggle,
-}: SortableColumnItemProps) {
+function SortableColumnItem({ columnKey, visible, label, onToggle }: SortableColumnItemProps) {
   const checkboxId = useId();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnKey,
   });
 
@@ -67,11 +52,7 @@ function SortableColumnItem({
       <div {...listeners} className="cursor-move touch-none">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
-      <Checkbox
-        id={checkboxId}
-        checked={visible}
-        onCheckedChange={onToggle}
-      />
+      <Checkbox id={checkboxId} checked={visible} onCheckedChange={onToggle} />
       <label htmlFor={checkboxId} className="text-sm flex-1 cursor-pointer">
         {label}
       </label>
@@ -83,10 +64,7 @@ interface ColumnSettingsProps {
   columns: Record<string, ColumnConfig>;
   columnOrder: string[];
   columnLabels: Record<string, string>;
-  onColumnsChange: (
-    columns: Record<string, ColumnConfig>,
-    order: string[],
-  ) => void;
+  onColumnsChange: (columns: Record<string, ColumnConfig>, order: string[]) => void;
   translations?: {
     columnSettings?: string;
     dragToReorder?: string;
@@ -141,10 +119,10 @@ export function ColumnSettings({
           type="button"
           variant="outline"
           size="sm"
-          className="gap-1"
+          className="gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <Settings2 className="h-4 w-4" />
+          <Settings2 className="size-3.5" />
           {translations.columnSettings || "Column Settings"}
         </Button>
       </PopoverTrigger>
@@ -158,10 +136,7 @@ export function ColumnSettings({
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext
-              items={sortableColumns}
-              strategy={verticalListSortingStrategy}
-            >
+            <SortableContext items={sortableColumns} strategy={verticalListSortingStrategy}>
               {sortableColumns.map((columnKey) => (
                 <SortableColumnItem
                   key={columnKey}

@@ -1,23 +1,22 @@
-import { getRouteApi } from "@tanstack/react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { CloudDownload, Download, FileUp, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { AssetSortField } from "@optimax-starter/api";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ChevronDown, CloudDownload, Download, FileUp, Plus } from "lucide-react";
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentPanel } from "@/components/attachments/AttachmentPanel";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DetailDrawer,
-  DetailField,
-  DetailSection,
-} from "@/components/ui/detail-drawer";
+import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/toast";
 import { storageKey } from "@/config/app-config";
 import {
+  type Asset,
+  type AssetSearch,
   api,
   assetsApi,
   downloadFrom,
@@ -25,9 +24,9 @@ import {
   jobsApi,
   request,
   unwrapRpc,
-  type Asset,
-  type AssetSearch,
 } from "@/console-client";
+// @starter:agent-start
+import { AskAssistant } from "@/features/assistant/AssistantDrawer";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import {
   ASSET_PAGE_SIZES,
@@ -35,18 +34,21 @@ import {
   asList,
   parseAssetSearch,
 } from "@/features/filters/search";
-import { usePersistedFilters, type Filters } from "@/hooks/usePersistedFilters";
+import { type Filters, usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { downloadCsv } from "@/lib/csv";
-import { AssetAgent, toAgentFilters, type FilterDraft } from "./AssetAgent";
 import { AssetFormDialog } from "./AssetFormDialog";
 import { AssetImportDialog } from "./AssetImportDialog";
 import { assetColumns } from "./columns";
 
-const PERSIST = ["q", "qOp", "stage", "domain", "owner"] as const;
+// @starter:agent-end
+
+const PERSIST = ["code", "codeOp", "q", "qOp", "domain", "owner", "stage"] as const;
 const route = getRouteApi("/assets");
 
 /** Filter-only view of the URL search (no sort/paging), used by FilterBar and saved-filter restore. */
 const filterValues = (s: AssetSearch): Filters => ({
+  ...(s.code ? { code: s.code } : {}),
+  ...(s.codeOp ? { codeOp: s.codeOp } : {}),
   ...(s.q ? { q: s.q } : {}),
   ...(s.qOp ? { qOp: s.qOp } : {}),
   ...(s.stage ? { stage: s.stage } : {}),
@@ -73,14 +75,7 @@ type PendingAction =
   | null;
 
 export function AssetsPage() {
-  const [draft, setDraft] = useState<FilterDraft>({ dirty: false, signature: "" });
-  const onDraftChange = useCallback((dirty: boolean, signature: string) => {
-    setDraft((previous) =>
-      previous.dirty === dirty && previous.signature === signature
-        ? previous
-        : { dirty, signature },
-    );
-  }, []);
+  const [exportOpen, setExportOpen] = useState(false);
   const me = useAccount();
   const cache = useQueryClient();
   const canRead = hasPermission(me.data, "assets:read");
@@ -148,22 +143,20 @@ export function AssetsPage() {
 
   const fields: FilterField[] = [
     {
+      key: "code",
+      label: "编号",
+      type: "text",
+      ariaLabel: "搜索编号",
+      placeholder: "搜索资产编号（如 AS-001）",
+      operatorKey: "codeOp",
+    },
+    {
       key: "q",
-      label: "关键词",
+      label: "资产名称",
       type: "text",
       ariaLabel: "搜索资产",
       placeholder: "搜索资产名称",
       operatorKey: "qOp",
-    },
-    {
-      key: "stage",
-      label: "登记状态",
-      type: "select",
-      multi: true,
-      options: [
-        { value: "已登记", label: "已登记" },
-        { value: "待复核", label: "待复核" },
-      ],
     },
     {
       key: "domain",
@@ -179,6 +172,16 @@ export function AssetsPage() {
       multi: true,
       options: owners.map((o) => ({ value: o, label: o })),
     },
+    {
+      key: "stage",
+      label: "登记状态",
+      type: "select",
+      multi: true,
+      options: [
+        { value: "已登记", label: "已登记" },
+        { value: "待复核", label: "待复核" },
+      ],
+    },
   ];
 
   // Async full export: enqueue assets.export_csv, poll until succeeded, then download the artifact.
@@ -192,6 +195,8 @@ export function AssetsPage() {
       const job = await jobsApi.create({
         type: "assets.export_csv",
         payload: {
+          ...(params.code ? { code: params.code } : {}),
+          ...(params.code && params.codeOp ? { codeOp: params.codeOp } : {}),
           ...(params.q ? { q: params.q } : {}),
           ...(params.q && params.qOp ? { qOp: params.qOp } : {}),
           ...(params.stage ? { stage: asList(params.stage) } : {}),
@@ -221,11 +226,7 @@ export function AssetsPage() {
   });
 
   const openRowAction = useCallback(
-    (
-      kind: "detail" | "edit" | "delete",
-      row: Asset,
-      e?: MouseEvent<HTMLElement>,
-    ) => {
+    (kind: "detail" | "edit" | "delete", row: Asset, e?: MouseEvent<HTMLElement>) => {
       returnFocus.current = e?.currentTarget ?? null;
       setPending({ kind, row });
     },
@@ -282,42 +283,55 @@ export function AssetsPage() {
     ];
   }, [canManage, openRowAction]);
 
+  function renderHeaderActions() {
+    // @starter:agent-start
+    if (!canManage) {
+      return (
+        <AskAssistant scope={{ kind: "assets", label: "资产台账", route: "/assets", filters }} />
+      );
+    }
+    // @starter:agent-end
+    return canManage ? (
+      <div className="flex items-center gap-1.5">
+        {/* @starter:agent-start */}
+        <AskAssistant scope={{ kind: "assets", label: "资产台账", route: "/assets", filters }} />
+        {/* @starter:agent-end */}
+        <Button
+          ref={importTrigger}
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            returnFocus.current = importTrigger.current;
+            setPending({ kind: "import" });
+          }}
+        >
+          <FileUp size={15} />
+          批量导入
+        </Button>
+        <Button
+          ref={createTrigger}
+          size="sm"
+          onClick={() => {
+            returnFocus.current = createTrigger.current;
+            setPending({ kind: "create" });
+          }}
+        >
+          <Plus size={15} />
+          新增资产
+        </Button>
+      </div>
+    ) : undefined;
+  }
+
   return (
     <ResourceTableSlot
       title="资产台账"
       allowed={canRead}
       deniedMessage="无权查看资产台账"
-      actions={
-        canManage ? (
-          <div className="flex items-center gap-2">
-            <Button
-              ref={importTrigger}
-              variant="outline"
-              onClick={() => {
-                returnFocus.current = importTrigger.current;
-                setPending({ kind: "import" });
-              }}
-            >
-              <FileUp size={16} />
-              批量导入
-            </Button>
-            <Button
-              ref={createTrigger}
-              onClick={() => {
-                returnFocus.current = createTrigger.current;
-                setPending({ kind: "create" });
-              }}
-            >
-              <Plus size={16} />
-              新增资产
-            </Button>
-          </div>
-        ) : undefined
-      }
+      actions={renderHeaderActions()}
       fields={fields}
       filters={filters}
       onApplyFilters={update}
-      onDraftChange={onDraftChange}
       draftStorageKey={
         me.data ? `${storageKey("filter-drafts.v1")}:${me.data.id}:assets` : undefined
       }
@@ -410,55 +424,58 @@ export function AssetsPage() {
           : undefined
       }
       toolbarEnd={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={!rows.length}
-            onClick={() => {
-              const count = downloadCsv("资产台账.csv", rows, [
-                {
-                  header: "编号",
-                  value: (r) => `AS-${String(r.id).padStart(3, "0")}`,
-                },
-                { header: "资产名称", value: (r) => r.name },
-                { header: "业务域", value: (r) => r.domain },
-                { header: "责任团队", value: (r) => r.owner },
-                { header: "登记状态", value: (r) => r.stage },
-              ]);
-              toast.success(`已导出当前页 ${count} 条资产记录`);
-            }}
-          >
-            <Download size={14} aria-hidden="true" />
-            <span>导出当前页 CSV</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={!total || exportAll.isPending}
-            onClick={() => exportAll.mutate()}
-          >
-            <CloudDownload size={14} aria-hidden="true" />
-            <span>{exportAll.isPending ? "正在导出…" : "异步导出全部"}</span>
-          </Button>
-        </>
+        <Popover open={exportOpen} onOpenChange={setExportOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!rows.length && !total}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>{exportAll.isPending ? "正在导出…" : "导出"}</span>
+              <ChevronDown size={14} aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-44 p-1">
+            <button
+              type="button"
+              className="user-menu-item"
+              disabled={!rows.length}
+              onClick={() => {
+                setExportOpen(false);
+                const count = downloadCsv("资产台账.csv", rows, [
+                  {
+                    header: "编号",
+                    value: (r) => `AS-${String(r.id).padStart(3, "0")}`,
+                  },
+                  { header: "资产名称", value: (r) => r.name },
+                  { header: "业务域", value: (r) => r.domain },
+                  { header: "责任团队", value: (r) => r.owner },
+                  { header: "登记状态", value: (r) => r.stage },
+                ]);
+                toast.success(`已导出当前页 ${count} 条资产记录`);
+              }}
+            >
+              <Download size={14} aria-hidden="true" />
+              <span>导出当前页 CSV</span>
+            </button>
+            <button
+              type="button"
+              className="user-menu-item"
+              disabled={!total || exportAll.isPending}
+              onClick={() => {
+                setExportOpen(false);
+                exportAll.mutate();
+              }}
+            >
+              <CloudDownload size={14} aria-hidden="true" />
+              <span>{exportAll.isPending ? "正在导出…" : "异步导出全部"}</span>
+            </button>
+          </PopoverContent>
+        </Popover>
       }
-      wrapTable={(table) => (
-        <AssetAgent
-          filters={toAgentFilters(params)}
-          domains={domains}
-          matched={total}
-          ready={!query.isFetching && !query.isError && facets.isSuccess && Boolean(me.data)}
-          draft={draft}
-          apply={(next) => update(toAgentFilters(next) as Filters)}
-        >
-          {table}
-        </AssetAgent>
-      )}
     >
       {pending?.kind === "detail" && (
         <DetailDrawer
@@ -481,12 +498,7 @@ export function AssetsPage() {
           }}
           footer={
             canManage ? (
-              <Button
-                type="button"
-                onClick={() =>
-                  setPending({ kind: "edit", row: pending.row })
-                }
-              >
+              <Button type="button" onClick={() => setPending({ kind: "edit", row: pending.row })}>
                 编辑资产
               </Button>
             ) : undefined

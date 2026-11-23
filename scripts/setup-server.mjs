@@ -39,6 +39,8 @@ export const GEN_MODULE_RESERVED = new Set([
   "console",
   "healthz",
   "contracts",
+  "agent",
+  "assistant",
 ]);
 
 const SECRET_KEY_RE =
@@ -100,6 +102,7 @@ function bootstrapArgs(params, { dryRun }) {
     "webPort",
     "noDemos",
     "noExample",
+    "noAgent",
     "starterSha",
     "starterRepo",
     "force",
@@ -121,6 +124,7 @@ function bootstrapArgs(params, { dryRun }) {
   }
   if (optBool(params, "noDemos")) args.push("--no-demos");
   if (optBool(params, "noExample")) args.push("--no-example");
+  if (optBool(params, "noAgent")) args.push("--no-agent");
   const sha = optString(params, "starterSha", {
     re: /^[0-9a-f]{7,40}$/,
     max: 40,
@@ -146,7 +150,11 @@ function genModuleArgs(params, { dryRun }) {
     message: "模块 slug 必须以小写字母开头，仅含 a-z、0-9 和连字符（2-29 位）",
   });
   if (GEN_MODULE_RESERVED.has(slug)) throw new ActionError(`${slug} 是保留标识`);
-  const label = reqString(params, "label", { re: TEXT_RE, max: 40, message: "请填写合法的中文模块名" });
+  const label = reqString(params, "label", {
+    re: TEXT_RE,
+    max: 40,
+    message: "请填写合法的中文模块名",
+  });
   const args = ["scripts/gen-module.mjs", slug, "--label", label];
   const singular = optString(params, "singular", {
     re: /^[a-z][a-z0-9_]{1,28}$/,

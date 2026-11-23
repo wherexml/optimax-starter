@@ -1,5 +1,5 @@
-import * as React from "react";
 import { cn } from "@optimax-starter/ui/lib/utils";
+import * as React from "react";
 
 export interface SegmentedOption<T extends string = string> {
   value: T;
@@ -58,7 +58,7 @@ export function SegmentedControl<T extends string = string>({
         }
       }}
       className={cn(
-        "inline-grid h-10 w-full auto-cols-fr grid-flow-col items-center gap-1 rounded-md border-[0.5px] border-input bg-[var(--surface-subtle)] p-1",
+        "inline-grid h-9 w-full auto-cols-fr grid-flow-col items-center gap-1 rounded-md border-[0.5px] border-input bg-[var(--surface-subtle)] p-1",
         disabled && "opacity-60",
         className,
       )}

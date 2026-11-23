@@ -1,12 +1,7 @@
-import * as React from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
-
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@optimax-starter/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@optimax-starter/ui/components/popover";
 import { cn } from "@optimax-starter/ui/lib/utils";
+import { Check, ChevronDown, Search, X } from "lucide-react";
+import * as React from "react";
 
 export interface ComboboxOption {
   value: string;
@@ -104,7 +99,7 @@ const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
             aria-label={label}
             disabled={disabled}
             className={cn(
-              "flex h-10 w-full min-w-0 items-center justify-between gap-1.5 rounded-md border-[0.5px] border-input bg-card px-3 py-2 text-left text-sm leading-5 text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30 data-[state=open]:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-75",
+              "flex h-9 w-full min-w-0 items-center justify-between gap-1.5 rounded-md border-[0.5px] border-input bg-card px-3 py-1.5 text-left text-sm leading-5 text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30 data-[state=open]:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-75",
               ariaProps["aria-invalid"] && "border-destructive",
               className,
             )}

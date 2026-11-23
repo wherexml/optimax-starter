@@ -1,5 +1,3 @@
-import { hc, type ClientResponse } from "hono/client";
-import type { ConsoleApiType } from "server/rpc";
 import type {
   ApiToken,
   ApiTokenCreated,
@@ -17,40 +15,42 @@ import type {
   JobStatus,
   JobType,
 } from "@optimax-starter/api";
+import { type ClientResponse, hc } from "hono/client";
+import type { ConsoleApiType } from "server/rpc";
 
 export type {
   Account,
+  AccountInviteLink,
   AccountRole,
   AccountSearch,
   AccountSession,
   ActorSource,
-  Asset,
-  AssetPage,
-  AssetSearch,
-  AssetStage,
-  AuditDetail,
-  AuditEntry,
-  AuditPage,
-  AuditSearch,
-  AccountInviteLink,
   ApiToken,
   ApiTokenCreated,
   ApiTokenCreateInput,
+  Asset,
   AssetExportFilter,
   AssetFacetResponse,
   AssetImportCommitResult,
   AssetImportDuplicateMode,
   AssetImportPreview,
   AssetImportRow,
+  AssetPage,
+  AssetSearch,
   AssetSortField,
+  AssetStage,
   Attachment,
+  AuditDetail,
+  AuditEntry,
+  AuditPage,
+  AuditSearch,
   AuthProviderInfo,
+  InvitePreview,
   Job,
   JobCreateInput,
   JobPage,
   JobStatus,
   JobType,
-  InvitePreview,
   ModulePermissionAction,
   PaginatedResult,
   SystemPermissionMatrixPayload,
@@ -70,13 +70,8 @@ const bounded = (s: string) => {
   return t.length > MAX_MESSAGE ? `${t.slice(0, MAX_MESSAGE)}…` : t;
 };
 
-async function consoleFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const method = (
-    init?.method ?? (input instanceof Request ? input.method : "GET")
-  ).toUpperCase();
+async function consoleFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined),
   );
@@ -100,15 +95,14 @@ async function consoleFetch(
 
 export const api = hc<ConsoleApiType>("/console", { fetch: consoleFetch });
 
-export type RpcSuccessData<R> = R extends ClientResponse<infer T, infer S, string>
-  ? S extends 200 | 201 | 202 | 203 | 206
-    ? T
-    : never
-  : never;
+export type RpcSuccessData<R> =
+  R extends ClientResponse<infer T, infer S, string>
+    ? S extends 200 | 201 | 202 | 203 | 206
+      ? T
+      : never
+    : never;
 
-export async function unwrapRpc<
-  R extends ClientResponse<unknown, number, string>,
->(
+export async function unwrapRpc<R extends ClientResponse<unknown, number, string>>(
   call: Promise<R>,
   options?: { allow401?: boolean },
 ): Promise<RpcSuccessData<R>> {
@@ -208,12 +202,15 @@ export async function request<T>(
   return body as T;
 }
 
-
 /**
  * Multipart POST. The browser sets Content-Type with the boundary; cookies and the same-origin
  * Origin header are sent automatically, so the server-side CSRF check still applies.
  */
-export async function upload<T>(path: string, form: FormData, options?: { signal?: AbortSignal }): Promise<T> {
+export async function upload<T>(
+  path: string,
+  form: FormData,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`/console${path}`, { method: "POST", body: form, signal: options?.signal });
@@ -235,7 +232,10 @@ export async function upload<T>(path: string, form: FormData, options?: { signal
     body = undefined;
   }
   if (!res.ok) {
-    const error = body && typeof body === "object" && "error" in body ? (body as { error?: unknown }).error : undefined;
+    const error =
+      body && typeof body === "object" && "error" in body
+        ? (body as { error?: unknown }).error
+        : undefined;
     if (typeof error === "string" && error.trim()) throw new Error(bounded(error));
     if (res.status === 413) throw new Error("文件过大");
     throw new Error(`请求失败（${res.status}）`);
@@ -261,11 +261,14 @@ export const attachmentDownloadPath = (id: number) => `/console/attachments/${id
 // Assets: server pagination, facets and CSV import
 // ---------------------------------------------------------------------------
 const listParams = (params: URLSearchParams, key: string, value: string | string[] | undefined) => {
-  for (const v of value === undefined ? [] : Array.isArray(value) ? value : [value]) params.append(key, v);
+  for (const v of value === undefined ? [] : Array.isArray(value) ? value : [value])
+    params.append(key, v);
 };
 
 export function assetPageQuery(search: AssetSearch): string {
   const params = new URLSearchParams();
+  if (search.code) params.set("code", search.code);
+  if (search.code && search.codeOp === "equals") params.set("codeOp", "equals");
   if (search.q) params.set("q", search.q);
   if (search.q && search.qOp === "equals") params.set("qOp", "equals");
   listParams(params, "stage", search.stage);
@@ -292,7 +295,10 @@ export const assetsApi = {
   importPreview: (file: File, onDuplicate: AssetImportDuplicateMode) =>
     upload<AssetImportPreview>("/assets/import/preview", assetsApi.importForm(file, onDuplicate)),
   importCommit: (file: File, onDuplicate: AssetImportDuplicateMode) =>
-    upload<AssetImportCommitResult>("/assets/import/commit", assetsApi.importForm(file, onDuplicate)),
+    upload<AssetImportCommitResult>(
+      "/assets/import/commit",
+      assetsApi.importForm(file, onDuplicate),
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -314,7 +320,13 @@ export const attachmentsApi = {
 // ---------------------------------------------------------------------------
 // Background jobs
 // ---------------------------------------------------------------------------
-export type JobListQuery = { status?: JobStatus; type?: JobType; mine?: boolean; page?: number; size?: number };
+export type JobListQuery = {
+  status?: JobStatus;
+  type?: JobType;
+  mine?: boolean;
+  page?: number;
+  size?: number;
+};
 
 export const ACTIVE_JOB_STATUSES: readonly JobStatus[] = ["pending", "running"];
 export const isActiveJob = (job: Pick<Job, "status">) => ACTIVE_JOB_STATUSES.includes(job.status);
@@ -329,12 +341,16 @@ export const jobsApi = {
     params.set("size", String(query.size ?? 20));
     return request<JobPage>(`/jobs?${params}`);
   },
-  get: (id: number, signal?: AbortSignal) => request<Job>(`/jobs/${id}`, "GET", undefined, { signal }),
+  get: (id: number, signal?: AbortSignal) =>
+    request<Job>(`/jobs/${id}`, "GET", undefined, { signal }),
   create: (input: JobCreateInput) => request<Job>("/jobs", "POST", input),
   retry: (id: number) => request<Job>(`/jobs/${id}/retry`, "POST", {}),
   cancel: (id: number) => request<Job>(`/jobs/${id}/cancel`, "POST", {}),
   /** Polls until the job leaves pending/running; rejects on failed/cancelled or abort. */
-  async waitFor(id: number, options: { intervalMs?: number; signal?: AbortSignal; onProgress?: (job: Job) => void } = {}) {
+  async waitFor(
+    id: number,
+    options: { intervalMs?: number; signal?: AbortSignal; onProgress?: (job: Job) => void } = {},
+  ) {
     const interval = options.intervalMs ?? 1500;
     for (;;) {
       const job = await jobsApi.get(id, options.signal);

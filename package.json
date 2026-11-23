@@ -17,7 +17,14 @@
       "drizzle-orm": "1.0.0-rc.5",
       "@types/pg": "^8.23.1",
       "hono": "^4.13.7",
-      "recharts": "^3.11.0"
+      "recharts": "^3.11.0",
+      "ai": "7.0.173",
+      "@ai-sdk/openai-compatible": "3.0.92",
+      "@ai-sdk/anthropic": "4.0.105",
+      "@ai-sdk/react": "4.0.177",
+      "jsonrepair": "3.15.0",
+      "@opentelemetry/api": "1.10.0",
+      "undici": "8.12.4"
     }
   },
   "type": "module",

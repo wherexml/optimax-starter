@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { ROLE_LABELS, ROLE_VALUES, type AccountRole } from "./permissions";
+import { type AccountRole, ROLE_LABELS, ROLE_VALUES } from "./permissions";
 import type { ActorSource } from "./system";
 
-export { ROLE_LABELS, ROLE_VALUES, type AccountRole };
+export { type AccountRole, ROLE_LABELS, ROLE_VALUES };
 
 export const ASSET_STAGES = ["已登记", "待复核"] as const;
 export type AssetStage = (typeof ASSET_STAGES)[number];
@@ -43,6 +43,10 @@ export const AUDIT_ACTIONS = [
   "job.cancel",
   "token.create",
   "token.revoke",
+  // @starter:agent-start
+  "agent.chat",
+  "system.ai_model",
+  // @starter:agent-end
   // @starter:audit-actions
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -83,6 +87,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "job.cancel": "取消后台任务",
   "token.create": "创建 API 密钥",
   "token.revoke": "撤销 API 密钥",
+  // @starter:agent-start
+  "agent.chat": "智能助理对话",
+  "system.ai_model": "更新 AI 模型配置",
+  // @starter:agent-end
   // @starter:audit-action-labels
 };
 
@@ -156,6 +164,20 @@ export type AuditDetail = {
   prefix?: string;
   actorSource?: ActorSource;
   scopes?: string[];
+  // @starter:agent-start
+  /** Assistant run metadata only (never prompts, message texts or model keys). */
+  stepCount?: number;
+  roundLimit?: number;
+  stepLimitReached?: boolean;
+  toolCalls?: string[];
+  finishReason?: string;
+  skillVersion?: string;
+  skillSha256?: string;
+  elapsedMs?: number;
+  /** AI model settings revision and whether a new key was supplied (never the key). */
+  revision?: string;
+  keyChanged?: boolean;
+  // @starter:agent-end
 };
 
 export interface AuditEntry {
@@ -181,6 +203,8 @@ export type AssetSortField = (typeof ASSET_SORT_FIELDS)[number];
 export type SortDir = "asc" | "desc";
 
 export type AssetSearch = {
+  code?: string;
+  codeOp?: "contains" | "equals";
   q?: string;
   qOp?: "contains" | "equals";
   stage?: AssetStage | AssetStage[];
@@ -239,7 +263,10 @@ export interface AssetImportCommitResult {
 
 export const assetImportJsonSchema = z
   .object({
-    csv: z.string().min(1, "CSV 内容为空").max(2 * 1024 * 1024, "CSV 内容过大"),
+    csv: z
+      .string()
+      .min(1, "CSV 内容为空")
+      .max(2 * 1024 * 1024, "CSV 内容过大"),
     filename: z.string().trim().max(180).optional(),
     onDuplicate: z.enum(ASSET_IMPORT_DUPLICATE_MODES).optional(),
   })
@@ -280,7 +307,11 @@ export interface Attachment {
 // ---------------------------------------------------------------------------
 // Background jobs
 // ---------------------------------------------------------------------------
-export const JOB_TYPES = ["assets.export_csv", "assets.bulk_import", "system.cleanup_expired"] as const;
+export const JOB_TYPES = [
+  "assets.export_csv",
+  "assets.bulk_import",
+  "system.cleanup_expired",
+] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
   "assets.export_csv": "资产导出 CSV",
@@ -320,6 +351,8 @@ export type JobPage = PaginatedResult<Job>;
 
 const assetExportFilterSchema = z
   .object({
+    code: z.string().trim().max(40).optional(),
+    codeOp: z.enum(["contains", "equals"]).optional(),
     q: z.string().trim().max(200).optional(),
     qOp: z.enum(["contains", "equals"]).optional(),
     stage: z.array(z.enum(ASSET_STAGES)).max(20).optional(),
@@ -343,7 +376,10 @@ export const jobCreateSchema = z.discriminatedUnion("type", [
       type: z.literal("assets.bulk_import"),
       payload: z
         .object({
-          csv: z.string().min(1, "CSV 内容为空").max(2 * 1024 * 1024 - 4096, "CSV 内容过大"),
+          csv: z
+            .string()
+            .min(1, "CSV 内容为空")
+            .max(2 * 1024 * 1024 - 4096, "CSV 内容过大"),
           filename: z.string().trim().max(180).optional(),
           onDuplicate: z.enum(ASSET_IMPORT_DUPLICATE_MODES).default("skip"),
         })
@@ -392,19 +428,14 @@ export const apiTokenCreateSchema = z
       .min(1, "请至少选择一项权限")
       .max(50, "最多选择 50 项权限"),
     actorSource: z.enum(API_TOKEN_ACTOR_SOURCES),
-    ttlDays: z.union([
-      z.literal(1),
-      z.literal(7),
-      z.literal(30),
-      z.literal(90),
-      z.literal(365),
-    ]),
+    ttlDays: z.union([z.literal(1), z.literal(7), z.literal(30), z.literal(90), z.literal(365)]),
   })
   .strict();
 export type ApiTokenCreateInput = z.infer<typeof apiTokenCreateSchema>;
 
 export type AccountSearch = {
   q?: string;
+  username?: string;
   status?: "active" | "disabled";
   role?: AccountRole;
 };

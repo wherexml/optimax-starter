@@ -17,6 +17,7 @@ usage() {
   --title "项目名称"      侧栏与登录页标题（默认由 slug 生成）
   --web-port <port>      Web 端口（API 为其 +1）；省略时从 38150 起自动扫描空闲相邻端口
   --no-demos             关闭 Demo 菜单（写入 VITE_ENABLE_DEMOS=false）
+  --no-agent             移除 AI 智能助理（packages/agent、服务端 agent 模块与右侧助理面板），无需迁移
   --no-example           移除示例 assets 业务模块，并生成 remove_example_assets 迁移
   --starter-sha <sha>    写入 .starter-version 的上游基线提交（默认当前 HEAD）
   --starter-repo <url>   上游模板仓库（默认 STARTER_REPO 环境变量或
@@ -32,7 +33,7 @@ usage() {
   1. 修改 package.json 的 name 与 compose.yaml 的项目名/镜像名（确保 Docker 数据卷独立隔离）
   2. 自动探测本机空闲的相邻五位端口（默认从 38150/38151 起扫描）
   3. 写入 .starter-version 记录上游基线，并生成隔离的 .env（独立 SESSION_COOKIE_NAME、随机数据库密码、端口与品牌配置）
-  4. 可选 --no-example 移除示例 assets 模块并生成对应迁移
+  4. 可选 --no-example 移除示例 assets 模块并生成对应迁移；可选 --no-agent 移除 AI 智能助理
   5. 自动更新 bun.lock（优先使用本机 bun，未安装时调用 oven/bun:1.3.14 容器）
 
 建议在 GitHub Template 生成的首个提交上运行；先加 --dry-run 预览计划。
@@ -49,6 +50,7 @@ FORCE="false"
 DRY_RUN="false"
 LOCAL_ENV="false"
 NO_EXAMPLE="false"
+NO_AGENT="false"
 
 if [[ $# -eq 0 ]]; then
   usage
@@ -75,6 +77,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-example)
       NO_EXAMPLE="true"
+      shift
+      ;;
+    --no-agent)
+      NO_AGENT="true"
       shift
       ;;
     --starter-sha)
@@ -266,6 +272,11 @@ EOF
     run_js scripts/lib/strip-example.mjs --dry-run
     echo "  + packages/db/src/migrations/<timestamp>_remove_example_assets（drizzle-kit generate）"
   fi
+  if [[ "$NO_AGENT" == "true" ]]; then
+    echo ""
+    echo "--no-agent 计划（助理不建表，无需迁移）:"
+    run_js scripts/lib/strip-agent.mjs --dry-run
+  fi
   exit 0
 fi
 
@@ -322,6 +333,13 @@ STARTER_DB_PASSWORD=${DB_PW}
 EOF
 )
 
+AGENT_NOTE="保留 AI 智能助理"
+if [[ "$NO_AGENT" == "true" ]]; then
+  # No tables are owned by the assistant, so no migration is generated.
+  run_js scripts/lib/strip-agent.mjs
+  AGENT_NOTE="已移除 AI 智能助理（无需数据库迁移）"
+fi
+
 EXAMPLE_NOTE="保留示例 assets 模块"
 if [[ "$NO_EXAMPLE" == "true" ]]; then
   run_js scripts/lib/strip-example.mjs
@@ -371,6 +389,7 @@ cat <<EOF
   API 入口: http://127.0.0.1:${API_PORT}/healthz
   Cookie  : ${COOKIE_NAME}
   示例模块: ${EXAMPLE_NOTE}
+  智能助理: ${AGENT_NOTE}
 
 下一步:
   bun run doctor

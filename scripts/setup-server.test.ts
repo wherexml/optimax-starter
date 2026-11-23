@@ -34,6 +34,7 @@ describe("buildActionCommand", () => {
       webPort: 38160,
       noDemos: true,
       noExample: true,
+      noAgent: true,
       starterSha: "abc1234",
     });
     expect(cmd.bin).toBe("bash");
@@ -45,6 +46,7 @@ describe("buildActionCommand", () => {
       "38160",
       "--no-demos",
       "--no-example",
+      "--no-agent",
       "--starter-sha",
       "abc1234",
     ]);
@@ -52,6 +54,12 @@ describe("buildActionCommand", () => {
     const dry = buildActionCommand("bootstrap_dry_run", { slug: "vendor-portal" });
     expect(dry.args.at(-1)).toBe("--dry-run");
     expect(dry.mutates).toBe(false);
+    const dryNoAgent = buildActionCommand("bootstrap_dry_run", {
+      slug: "vendor-portal",
+      noAgent: true,
+    });
+    expect(dryNoAgent.args.slice(1)).toEqual(["vendor-portal", "--no-agent", "--dry-run"]);
+    expect(dryNoAgent.mutates).toBe(false);
     expect(buildActionCommand("local_env", {}).args.slice(1)).toEqual(["--local-env"]);
   });
 
@@ -69,6 +77,7 @@ describe("buildActionCommand", () => {
     rejects("bootstrap", { slug: "vendor", starterSha: "HEAD" });
     rejects("bootstrap", { slug: "vendor", starterRepo: "file:///etc/passwd" });
     rejects("bootstrap", { slug: "vendor", noDemos: "yes" });
+    rejects("bootstrap", { slug: "vendor", noAgent: "yes" });
     rejects("bootstrap", { slug: "vendor", extra: 1 });
     rejects("local_env", { slug: "vendor" });
     rejects("doctor", { verbose: true });

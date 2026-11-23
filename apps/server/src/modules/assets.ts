@@ -1,39 +1,44 @@
-import { and, count, eq, inArray, ne } from "drizzle-orm";
-import { Hono, type Context } from "hono";
-import { z } from "zod";
 import {
   ASSET_IMPORT_SYNC_MAX_ROWS,
   ASSET_SORT_FIELDS,
   ASSET_STAGES,
+  type AssetFacetResponse,
+  type AssetImportDuplicateMode,
+  type AssetImportPreview,
+  type AuditDetail,
   assetBulkDeleteSchema,
   assetBulkStageSchema,
   assetImportJsonSchema,
   assetInputSchema,
   assetPatchSchema,
-  type AssetFacetResponse,
-  type AssetImportDuplicateMode,
-  type AssetImportPreview,
-  type AuditDetail,
 } from "@optimax-starter/api";
-import { attachments } from "@optimax-starter/db/schema/console";
 import { assets } from "@optimax-starter/db/schema/assets";
+import { attachments } from "@optimax-starter/db/schema/console";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { type Context, Hono } from "hono";
+import { z } from "zod";
 import { assetAgentApi } from "../asset-agent";
-import { db } from "../services";
 import { registerAttachmentEntity } from "../core/attachment-registry";
 import { AUDIT_MAX_PAGE, auditResource } from "../core/audit";
-import { ASSET_IMPORT_TEMPLATE, CsvParseError, collectCsvNames, validateAssetCsv } from "../core/csv";
 import {
-  Refusal,
+  ASSET_IMPORT_TEMPLATE,
+  CsvParseError,
+  collectCsvNames,
+  validateAssetCsv,
+} from "../core/csv";
+import {
+  type Env,
   guarded,
   jsonBody,
   lockPermission,
   parsePositiveId,
+  Refusal,
   requirePermission,
-  type Env,
   type Tx,
 } from "../core/guards";
 import { registerDemoSeeder } from "../core/seed";
 import { deleteStoredObjects } from "../core/storage";
+import { db } from "../services";
 import "./assets-jobs";
 import "./assets-policy";
 import { buildAssetOrder, buildAssetWhere } from "./assets-query";
@@ -117,6 +122,8 @@ export function normalizeListParam(values: string[] | undefined, maxLen = 80): s
 }
 
 const assetPageQuerySchema = z.object({
+  code: z.string().trim().min(1).max(40).optional(),
+  codeOp: z.enum(["contains", "equals"]).optional(),
   q: z.string().trim().min(1).max(200).optional(),
   qOp: z.enum(["contains", "equals"]).optional(),
   sortBy: z.enum(ASSET_SORT_FIELDS).default("id"),
@@ -153,7 +160,10 @@ async function existingAssetNames(reader: Tx | typeof db, names: string[]): Prom
   for (let i = 0; i < names.length; i += 1000) {
     const slice = names.slice(i, i + 1000);
     if (!slice.length) continue;
-    const rows = await reader.select({ name: assets.name }).from(assets).where(inArray(assets.name, slice));
+    const rows = await reader
+      .select({ name: assets.name })
+      .from(assets)
+      .where(inArray(assets.name, slice));
     for (const r of rows) out.add(r.name);
   }
   return out;
@@ -173,7 +183,8 @@ async function readImportInput(c: Context<Env>): Promise<ImportInput | Refusal> 
     }
     const file = form.file;
     if (!(file instanceof File)) return new Refusal(400, "请选择 CSV 文件");
-    if (!/\.csv$/i.test(file.name)) return new Refusal(415, "仅支持 .csv 文件", "FILE_TYPE_BLOCKED");
+    if (!/\.csv$/i.test(file.name))
+      return new Refusal(415, "仅支持 .csv 文件", "FILE_TYPE_BLOCKED");
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.includes(0)) return new Refusal(415, "CSV 文件包含二进制内容", "FILE_TYPE_MISMATCH");
     const mode = typeof form.onDuplicate === "string" ? form.onDuplicate : undefined;
@@ -191,7 +202,11 @@ async function readImportInput(c: Context<Env>): Promise<ImportInput | Refusal> 
   }
   const parsed = assetImportJsonSchema.safeParse(raw);
   if (!parsed.success) return new Refusal(400, parsed.error.issues[0]?.message ?? "请求内容无效");
-  return { csv: parsed.data.csv, filename: parsed.data.filename, onDuplicate: parsed.data.onDuplicate ?? "fail" };
+  return {
+    csv: parsed.data.csv,
+    filename: parsed.data.filename,
+    onDuplicate: parsed.data.onDuplicate ?? "fail",
+  };
 }
 
 function validateOrRefuse(csv: string, existing: ReadonlySet<string>) {
@@ -232,9 +247,9 @@ export const assetsRoutes = new Hono<Env>()
     }
     const domains = normalizeListParam(c.req.queries("domain"), 80);
     const owners = normalizeListParam(c.req.queries("owner"), 60);
-    const { q, qOp, sortBy, sortDir, page, size } = parsed.data;
+    const { code, codeOp, q, qOp, sortBy, sortDir, page, size } = parsed.data;
 
-    const where = buildAssetWhere({ q, qOp, stages, domains, owners });
+    const where = buildAssetWhere({ code, codeOp, q, qOp, stages, domains, owners });
 
     const [items, totals] = await Promise.all([
       db
@@ -275,11 +290,16 @@ export const assetsRoutes = new Hono<Env>()
       try {
         names = collectCsvNames(input.csv);
       } catch (error) {
-        if (error instanceof CsvParseError) throw new Refusal(422, `CSV 格式错误：${error.message}`);
+        if (error instanceof CsvParseError)
+          throw new Refusal(422, `CSV 格式错误：${error.message}`);
         throw error;
       }
       const existing = await existingAssetNames(db, names);
-      const { validRows: _v, duplicateRows: _d, ...preview } = validateOrRefuse(input.csv, existing);
+      const {
+        validRows: _v,
+        duplicateRows: _d,
+        ...preview
+      } = validateOrRefuse(input.csv, existing);
       const body: AssetImportPreview = { ...preview, filename: input.filename };
       return c.json(body);
     }),
@@ -295,7 +315,8 @@ export const assetsRoutes = new Hono<Env>()
         try {
           names = collectCsvNames(input.csv);
         } catch (error) {
-          if (error instanceof CsvParseError) throw new Refusal(422, `CSV 格式错误：${error.message}`);
+          if (error instanceof CsvParseError)
+            throw new Refusal(422, `CSV 格式错误：${error.message}`);
           throw error;
         }
         const existing = await existingAssetNames(tx, names);
@@ -306,7 +327,11 @@ export const assetsRoutes = new Hono<Env>()
           throw new Refusal(422, `存在 ${v.errorCount} 行无效数据，请修正后重新导入`);
         }
         if (input.onDuplicate === "fail" && v.duplicateCount > 0) {
-          throw new Refusal(422, `存在 ${v.duplicateCount} 行重名资产，请修正或选择跳过重名`, "DATA_CONFLICT");
+          throw new Refusal(
+            422,
+            `存在 ${v.duplicateCount} 行重名资产，请修正或选择跳过重名`,
+            "DATA_CONFLICT",
+          );
         }
         let imported = 0;
         for (let i = 0; i < v.validRows.length; i += 250) {
@@ -340,11 +365,7 @@ export const assetsRoutes = new Hono<Env>()
       return guarded(c, async () => {
         const created = await db.transaction(async (tx) => {
           const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
-          const [row] = await tx
-            .insert(assets)
-            .values(data)
-            .onConflictDoNothing()
-            .returning();
+          const [row] = await tx.insert(assets).values(data).onConflictDoNothing().returning();
           if (!row) throw new Refusal(409, "资产名称已存在");
           await auditResource(
             tx,
@@ -405,7 +426,10 @@ export const assetsRoutes = new Hono<Env>()
             .where(inArray(assets.id, uniqueIds))
             .returning({ id: assets.id });
           if (!removed.length) throw new Refusal(404, "所选资产不存在或已被删除");
-          const keys = await deleteAssetAttachments(tx, removed.map((r) => r.id));
+          const keys = await deleteAssetAttachments(
+            tx,
+            removed.map((r) => r.id),
+          );
           await auditResource(
             tx,
             "asset.bulk_delete",
@@ -432,15 +456,12 @@ export const assetsRoutes = new Hono<Env>()
       return guarded(c, async () => {
         const updated = await db.transaction(async (tx) => {
           const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
-          const [before] = await tx
-            .select()
-            .from(assets)
-            .where(eq(assets.id, id))
-            .for("update");
+          const [before] = await tx.select().from(assets).where(eq(assets.id, id)).for("update");
           if (!before) throw new Refusal(404, "资产不存在");
           const set: Partial<typeof change> = {};
           if (change.name !== undefined && change.name !== before.name) set.name = change.name;
-          if (change.domain !== undefined && change.domain !== before.domain) set.domain = change.domain;
+          if (change.domain !== undefined && change.domain !== before.domain)
+            set.domain = change.domain;
           if (change.owner !== undefined && change.owner !== before.owner) set.owner = change.owner;
           if (change.stage !== undefined && change.stage !== before.stage) set.stage = change.stage;
           const fields = Object.keys(set);
@@ -452,11 +473,7 @@ export const assetsRoutes = new Hono<Env>()
               .where(and(eq(assets.name, set.name), ne(assets.id, id)));
             if (dup) throw new Refusal(409, "资产名称已存在");
           }
-          const [after] = await tx
-            .update(assets)
-            .set(set)
-            .where(eq(assets.id, id))
-            .returning();
+          const [after] = await tx.update(assets).set(set).where(eq(assets.id, id)).returning();
           const detail: AuditDetail = { fields };
           if (set.stage !== undefined) {
             detail.from = before.stage;
@@ -485,10 +502,7 @@ export const assetsRoutes = new Hono<Env>()
     return guarded(c, async () => {
       const keys = await db.transaction(async (tx) => {
         const self = await lockPermission(tx, c.get("actor").id, "assets:manage");
-        const [removed] = await tx
-          .delete(assets)
-          .where(eq(assets.id, id))
-          .returning();
+        const [removed] = await tx.delete(assets).where(eq(assets.id, id)).returning();
         if (!removed) throw new Refusal(404, "资产不存在");
         const keys = await deleteAssetAttachments(tx, [removed.id]);
         await auditResource(

@@ -1,36 +1,28 @@
-import { useMemo, useRef, useState } from "react";
-import { getRouteApi } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, Download } from "lucide-react";
 import {
-  ACTOR_SOURCES,
   ACTOR_SOURCE_LABELS,
+  ACTOR_SOURCES,
+  type AccountRole,
+  type ActorSource,
+  type AuditAction,
   DEFAULT_SYSTEM_TIMEZONE,
   JOB_TYPE_LABELS,
   PERMISSION_CATALOG,
   ROLE_LABELS,
-  type AccountRole,
-  type ActorSource,
-  type AuditAction,
 } from "@optimax-starter/api";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Copy, Download } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DetailDrawer,
-  DetailField,
-  DetailSection,
-} from "@/components/ui/detail-drawer";
+import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
-import { api, unwrapRpc, type AuditEntry } from "@/console-client";
+import { type AuditEntry, api, unwrapRpc } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
-import {
-  AUDIT_ACTIONS,
-  AUDIT_ACTION_LABELS,
-  parseAuditSearch,
-} from "@/features/filters/search";
+import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, parseAuditSearch } from "@/features/filters/search";
 import type { Filters } from "@/hooks/usePersistedFilters";
 import { downloadCsv } from "@/lib/csv";
 
@@ -51,7 +43,11 @@ const PERMISSION_LABELS = new Map(PERMISSION_CATALOG.map((p) => [p.code, p.label
 
 /** Badge variant per actor source: Agent uses the brand tint, system integrations the outline style. */
 const sourceVariant = (src: string | undefined) =>
-  src === "agent" ? ("brand" as const) : src === "system" ? ("outline" as const) : ("neutral" as const);
+  src === "agent"
+    ? ("brand" as const)
+    : src === "system"
+      ? ("outline" as const)
+      : ("neutral" as const);
 
 const JOB_STATUS_ZH: Record<string, string> = {
   pending: "排队中",
@@ -82,7 +78,8 @@ function describeResource(row: AuditEntry): string | null {
     case "attachment.delete":
       if (typeof d.filename === "string") parts.push(`文件：${d.filename}`);
       if (typeof d.sizeBytes === "number") parts.push(formatBytes(d.sizeBytes));
-      if (typeof d.entityId === "number") parts.push(`资产 AS-${String(d.entityId).padStart(3, "0")}`);
+      if (typeof d.entityId === "number")
+        parts.push(`资产 AS-${String(d.entityId).padStart(3, "0")}`);
       break;
     case "job.create":
     case "job.retry":
@@ -101,7 +98,9 @@ function describeResource(row: AuditEntry): string | null {
       }
       if (Array.isArray(d.scopes)) {
         const labels = d.scopes.map((s) => PERMISSION_LABELS.get(String(s)) ?? String(s));
-        parts.push(`权限 ${labels.length} 项：${labels.slice(0, 4).join("、")}${labels.length > 4 ? " 等" : ""}`);
+        parts.push(
+          `权限 ${labels.length} 项：${labels.slice(0, 4).join("、")}${labels.length > 4 ? " 等" : ""}`,
+        );
       }
       if (typeof d.expiresAt === "string") parts.push(`有效期至 ${formatAuditTime(d.expiresAt)}`);
       break;
@@ -188,7 +187,7 @@ function describe(row: AuditEntry) {
   if (row.action === "permission.update") {
     const beforeLen = Array.isArray(d.beforePermissions) ? d.beforePermissions.length : 0;
     const afterLen = Array.isArray(d.afterPermissions) ? d.afterPermissions.length : 0;
-    const targetRole = typeof d.targetRole === "string" ? ROLE[d.targetRole] ?? d.targetRole : "";
+    const targetRole = typeof d.targetRole === "string" ? (ROLE[d.targetRole] ?? d.targetRole) : "";
     return `${targetRole ? `角色：${targetRole}；` : ""}权限项 ${beforeLen} → ${afterLen}`;
   }
   if (row.action === "agent.asset_filter") {
@@ -210,9 +209,7 @@ function describe(row: AuditEntry) {
   if (typeof d.matched === "number") parts.push(`共 ${d.matched} 项`);
   if (typeof d.sessions === "number") parts.push(`撤销会话 ${d.sessions} 个`);
   if (Array.isArray(d.fields)) {
-    parts.push(
-      `字段：${d.fields.map((f) => FIELD_LABELS[String(f)] ?? String(f)).join("、")}`,
-    );
+    parts.push(`字段：${d.fields.map((f) => FIELD_LABELS[String(f)] ?? String(f)).join("、")}`);
   }
   return parts.join("；") || "—";
 }
@@ -222,9 +219,7 @@ function Who({ name, username }: { name: string | null; username: string | null 
   return (
     <span className="flex flex-col">
       <span className="font-medium">{name}</span>
-      {username && (
-        <span className="font-mono text-xs text-muted-foreground">{username}</span>
-      )}
+      {username && <span className="font-mono text-xs text-muted-foreground">{username}</span>}
     </span>
   );
 }
@@ -264,15 +259,9 @@ export function AuditPage() {
           query: {
             ...(actionParam ? { action: actionParam } : {}),
             ...(sourceParam ? { source: sourceParam } : {}),
-            ...(typeof filters.actor === "string" && filters.actor
-              ? { actor: filters.actor }
-              : {}),
-            ...(typeof filters.start === "string" && filters.start
-              ? { start: filters.start }
-              : {}),
-            ...(typeof filters.end === "string" && filters.end
-              ? { end: filters.end }
-              : {}),
+            ...(typeof filters.actor === "string" && filters.actor ? { actor: filters.actor } : {}),
+            ...(typeof filters.start === "string" && filters.start ? { start: filters.start } : {}),
+            ...(typeof filters.end === "string" && filters.end ? { end: filters.end } : {}),
             page: String(page),
             size: String(size),
           },
@@ -315,11 +304,7 @@ export function AuditPage() {
         enableSorting: false,
         cell: (c) => {
           const src = (c.getValue() as ActorSource | undefined) ?? "human";
-          return (
-            <Badge variant={sourceVariant(src)}>
-              {ACTOR_SOURCE_LABELS[src] ?? "人工"}
-            </Badge>
-          );
+          return <Badge variant={sourceVariant(src)}>{ACTOR_SOURCE_LABELS[src] ?? "人工"}</Badge>;
         },
       },
       {
@@ -376,9 +361,17 @@ export function AuditPage() {
       replace: true,
     });
   const fields: FilterField[] = [
+    { key: "start", label: "时间起", type: "date", notAfter: "end" },
+    { key: "end", label: "时间止", type: "date", notBefore: "start" },
+    {
+      key: "action",
+      label: "操作",
+      type: "select",
+      options: AUDIT_ACTIONS.map((a) => ({ value: a, label: ACTION_LABELS[a]! })),
+    },
     {
       key: "source",
-      label: "操作来源",
+      label: "来源",
       type: "select",
       options: [
         { value: "human", label: "人工" },
@@ -393,19 +386,9 @@ export function AuditPage() {
       ariaLabel: "搜索操作人",
       placeholder: "搜索操作人姓名或账户",
     },
-    {
-      key: "action",
-      label: "操作类型",
-      type: "select",
-      options: AUDIT_ACTIONS.map((a) => ({ value: a, label: ACTION_LABELS[a]! })),
-    },
-    { key: "start", label: "开始日期", type: "date", notAfter: "end" },
-    { key: "end", label: "结束日期", type: "date", notBefore: "start" },
   ];
   const currentItems = query.data?.items ?? [];
-  const formattedDetailJson = detailEntry
-    ? JSON.stringify(detailEntry.detail ?? {}, null, 2)
-    : "";
+  const formattedDetailJson = detailEntry ? JSON.stringify(detailEntry.detail ?? {}, null, 2) : "";
   return (
     <ResourceTableSlot
       title="操作日志"
@@ -440,8 +423,7 @@ export function AuditPage() {
               {
                 header: "来源",
                 value: (r) =>
-                  ACTOR_SOURCE_LABELS[(r.actorSource as ActorSource) ?? "human"] ??
-                  "人工",
+                  ACTOR_SOURCE_LABELS[(r.actorSource as ActorSource) ?? "human"] ?? "人工",
               },
               { header: "操作人", value: (r) => r.actorName },
               { header: "操作人账户", value: (r) => r.actorUsername },
@@ -481,12 +463,8 @@ export function AuditPage() {
           title={ACTION_LABELS[detailEntry.action] ?? detailEntry.action}
           description={`记录编号 #${detailEntry.id}，系统时区 ${activeTimezone}`}
           badge={
-            <Badge
-              variant={sourceVariant(detailEntry.actorSource)}
-            >
-              {ACTOR_SOURCE_LABELS[
-                (detailEntry.actorSource as ActorSource) ?? "human"
-              ] ?? "人工"}
+            <Badge variant={sourceVariant(detailEntry.actorSource)}>
+              {ACTOR_SOURCE_LABELS[(detailEntry.actorSource as ActorSource) ?? "human"] ?? "人工"}
             </Badge>
           }
           onCloseAutoFocus={(e) => {
@@ -498,14 +476,10 @@ export function AuditPage() {
         >
           <DetailSection title="审计概览">
             <DetailField label="操作时间">
-              <span className="tabular-nums">
-                {formatter.format(new Date(detailEntry.at))}
-              </span>
+              <span className="tabular-nums">{formatter.format(new Date(detailEntry.at))}</span>
             </DetailField>
             <DetailField label="操作编码">
-              <span className="font-mono text-xs text-muted-foreground">
-                {detailEntry.action}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{detailEntry.action}</span>
             </DetailField>
             <DetailField label="操作人">
               <span>{detailEntry.actorName}</span>

@@ -1,17 +1,16 @@
-import * as React from "react";
-import { Check, Copy, X } from "lucide-react";
-import { cva, type VariantProps } from "class-variance-authority";
-
 import { Button } from "@optimax-starter/ui/components/button";
 import { toast } from "@optimax-starter/ui/components/toast";
 import { cn } from "@optimax-starter/ui/lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Check, Copy, X } from "lucide-react";
+import * as React from "react";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="input-group"
       className={cn(
-        "group/input-group relative flex min-h-10 w-full min-w-0 items-stretch overflow-hidden rounded-md border-[0.5px] border-input bg-card text-sm text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30",
+        "group/input-group relative flex min-h-9 w-full min-w-0 items-stretch overflow-hidden rounded-md border-[0.5px] border-input bg-card text-sm text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30",
         "focus-within:border-primary focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring",
         "has-[[data-slot=input-group-control]:read-only]:bg-[var(--surface-subtle)] has-[[data-slot=input-group-control]:read-only]:hover:border-input",
         "has-[[data-slot=input-group-control]:disabled]:cursor-not-allowed has-[[data-slot=input-group-control]:disabled]:bg-muted/60 has-[[data-slot=input-group-control]:disabled]:opacity-75 has-[[data-slot=input-group-control]:disabled]:hover:border-input",
@@ -79,37 +78,35 @@ function InputGroupAddon({
   );
 }
 
-const InputGroupInput = React.forwardRef<
-  HTMLInputElement,
-  React.ComponentProps<"input">
->(({ className, type = "text", ...props }, ref) => (
-  <input
-    ref={ref}
-    type={type}
-    data-slot="input-group-control"
-    className={cn(
-      "h-10 min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none read-only:text-muted-foreground disabled:cursor-not-allowed disabled:text-muted-foreground",
-      className,
-    )}
-    {...props}
-  />
-));
+const InputGroupInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  ({ className, type = "text", ...props }, ref) => (
+    <input
+      ref={ref}
+      type={type}
+      data-slot="input-group-control"
+      className={cn(
+        "h-9 min-w-0 flex-1 border-0 bg-transparent px-3 py-1.5 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none read-only:text-muted-foreground disabled:cursor-not-allowed disabled:text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 InputGroupInput.displayName = "InputGroupInput";
 
-const InputGroupTextarea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.ComponentProps<"textarea">
->(({ className, ...props }, ref) => (
-  <textarea
-    ref={ref}
-    data-slot="input-group-control"
-    className={cn(
-      "min-h-[84px] min-w-0 flex-1 resize-y border-0 bg-transparent px-3 py-2.5 text-sm leading-[22px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed",
-      className,
-    )}
-    {...props}
-  />
-));
+const InputGroupTextarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<"textarea">>(
+  ({ className, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      data-slot="input-group-control"
+      className={cn(
+        "min-h-[84px] min-w-0 flex-1 resize-y border-0 bg-transparent px-3 py-2.5 text-sm leading-[22px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 InputGroupTextarea.displayName = "InputGroupTextarea";
 
 function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
@@ -304,11 +301,7 @@ const CopyableInput = React.forwardRef<HTMLInputElement, CopyableInputProps>(
             disabled={disabled || !text}
             onClick={() => void copy()}
           >
-            {copied ? (
-              <Check className="size-3.5 text-primary" />
-            ) : (
-              <Copy className="size-3.5" />
-            )}
+            {copied ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
           </InputGroupButton>
         </InputGroupAddon>
       </InputGroup>
@@ -318,12 +311,12 @@ const CopyableInput = React.forwardRef<HTMLInputElement, CopyableInputProps>(
 CopyableInput.displayName = "CopyableInput";
 
 export {
+  ClearableInput,
+  CopyableInput,
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
-  InputGroupText,
   InputGroupInput,
+  InputGroupText,
   InputGroupTextarea,
-  ClearableInput,
-  CopyableInput,
 };

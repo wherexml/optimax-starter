@@ -105,6 +105,7 @@ jobs:
           node --check scripts/doctor.mjs
           node --check scripts/setup-server.mjs
           node --check scripts/lib/strip-example.mjs
+          node --check scripts/lib/strip-agent.mjs
           python3 -m py_compile scripts/verify-*.py
       - name: CI scope regression E2E
         env:

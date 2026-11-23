@@ -123,6 +123,7 @@ apps/
   server/src/core/       config · guards（咨询锁与 RBAC）· permissions · system-settings · audit · ai · seed
   server/src/modules/    auth · accounts · system · audit · assets（含服务端分页与 CRUD 示例）
 packages/
+  agent/src/             可选 AI 智能助理运行时（模型网关、队列、流式对话），--no-agent 可整体移除
   api/src/               contracts.ts · permissions.ts · system.ts · asset-agent.ts（前后端共享 Zod 契约与权限矩阵）
   db/src/schema/         console.ts：账户、会话、资产、角色权限矩阵、系统配置、操作日志
 scripts/                 setup-server.mjs（本地向导）、bootstrap-project.sh、init-local.sh、gen-module.mjs、check-migrations.mjs、doctor.mjs、lib/strip-example.mjs、ci-scope.mjs、deploy-production.sh、verify-*.py
@@ -177,6 +178,7 @@ git remote get-url origin   # 应输出新仓库的地址，而不是 optimax-st
 ./scripts/bootstrap-project.sh my-console --title "我的运营台" --dry-run   # 先预览计划，不改任何文件
 ./scripts/bootstrap-project.sh my-console --title "我的运营台"
 # 正式业务项目可附加 --no-example 移除示例资产台账（同时生成 remove_example_assets 迁移）
+# 不需要右侧 AI 智能助理时可附加 --no-agent（移除 packages/agent、服务端 agent 模块与助理面板，无需迁移）
 # 如需正式业务项目默认隐藏 /demo/* 演示分组，可附加 --no-demos；如需指定端口可附加 --web-port 38160
 # 初始化会同步写入 .starter-version 记录上游模板基线提交；后续对照升级见 docs/UPGRADE.md
 ```

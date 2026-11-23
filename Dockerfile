@@ -11,6 +11,9 @@ COPY packages/api/package.json packages/api/
 COPY packages/config/package.json packages/config/tsconfig.base.json packages/config/
 COPY packages/db/package.json packages/db/.env.schema packages/db/
 COPY packages/ui/package.json packages/ui/
+# @starter:agent-start
+COPY packages/agent/package.json packages/agent/
+# @starter:agent-end
 RUN bun install --frozen-lockfile
 
 # 源码层：复制源码并确保生成 varlock 类型文件

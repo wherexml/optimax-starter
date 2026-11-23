@@ -20,6 +20,8 @@ export const EXAMPLE_PATHS = [
   "apps/server/src/modules/assets-query.ts",
   "apps/web/src/routes/assets.tsx",
   "apps/web/src/features/assets/",
+  // Optional: absent when --no-agent already removed apps/server/src/agent/.
+  "apps/server/src/agent/example-assets-tools.ts",
 ];
 
 export const MARKED_FILES = [
@@ -29,6 +31,15 @@ export const MARKED_FILES = [
   "apps/server/src/console.ts",
   "apps/web/src/config/app-config.ts",
   "apps/web/src/features/dashboard/registry.ts",
+];
+
+/** Stripped only when present (the assistant module may already be removed by --no-agent). */
+export const OPTIONAL_MARKED_FILES = [
+  "apps/server/src/agent/registry.ts",
+  "apps/server/src/agent/routes.ts",
+  "apps/web/src/features/assistant/ToolSteps.tsx",
+  "apps/web/src/features/assistant/Composer.tsx",
+  "apps/web/src/features/assistant/Conversation.tsx",
 ];
 
 const NAV_DEMO = "apps/web/src/features/navigation-demo/NavigationDemoPage.tsx";
@@ -94,9 +105,17 @@ export function stripExample({ root = DEFAULT_ROOT, dryRun = false, log = consol
     const { content, blocks } = removeExampleBlocks(readFileSync(abs(rel), "utf-8"), rel);
     plannedEdits.push({ rel, content, note: `移除 ${blocks} 个示例块` });
   }
+  for (const rel of OPTIONAL_MARKED_FILES) {
+    if (!existsSync(abs(rel))) continue;
+    const raw = readFileSync(abs(rel), "utf-8");
+    if (!raw.includes("@starter:example-assets-")) continue;
+    const { content, blocks } = removeExampleBlocks(raw, rel);
+    plannedEdits.push({ rel, content, note: `移除 ${blocks} 个示例块` });
+  }
   if (existsSync(abs(NAV_DEMO))) {
     const next = rewriteNavigationDemo(readFileSync(abs(NAV_DEMO), "utf-8"));
-    if (next) plannedEdits.push({ rel: NAV_DEMO, content: next, note: "/assets 查询改为本地示例数据" });
+    if (next)
+      plannedEdits.push({ rel: NAV_DEMO, content: next, note: "/assets 查询改为本地示例数据" });
   }
 
   const deleted = EXAMPLE_PATHS.filter((rel) => existsSync(abs(rel)));
@@ -119,7 +138,9 @@ if (isMain) {
   const args = process.argv.slice(2);
   const unknown = args.filter((a) => a !== "--dry-run");
   if (unknown.length) {
-    console.error(`未知参数: ${unknown.join(" ")}\n用法: node scripts/lib/strip-example.mjs [--dry-run]`);
+    console.error(
+      `未知参数: ${unknown.join(" ")}\n用法: node scripts/lib/strip-example.mjs [--dry-run]`,
+    );
     process.exit(1);
   }
   try {

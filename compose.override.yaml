@@ -6,6 +6,9 @@ services:
       - ./apps/server/src:/app/apps/server/src
       - ./packages/api/src:/app/packages/api/src
       - ./packages/db/src:/app/packages/db/src
+      # @starter:agent-start
+      - ./packages/agent/src:/app/packages/agent/src
+      # @starter:agent-end
     command:
       - sh
       - -ec
@@ -23,6 +26,9 @@ services:
       - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
       - ./packages/api/src:/app/packages/api/src
       - ./packages/ui/src:/app/packages/ui/src
+      # @starter:agent-start
+      - ./packages/agent/src:/app/packages/agent/src
+      # @starter:agent-end
     command:
       - sh
       - -ec

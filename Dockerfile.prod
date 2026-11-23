@@ -13,6 +13,9 @@ COPY packages/api/package.json packages/api/
 COPY packages/config/package.json packages/config/tsconfig.base.json packages/config/
 COPY packages/db/package.json packages/db/.env.schema packages/db/
 COPY packages/ui/package.json packages/ui/
+# @starter:agent-start
+COPY packages/agent/package.json packages/agent/
+# @starter:agent-end
 RUN bun install --frozen-lockfile
 
 # Stage 2: Type generation and production bundle compilation
@@ -48,6 +51,10 @@ COPY --from=builder --chown=node:node /app/apps/web/dist ./apps/web/dist
 COPY --from=builder --chown=node:node /app/apps/server/package.json /app/apps/server/.env.schema ./apps/server/
 COPY --from=builder --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=builder --chown=node:node /app/apps/server/dist ./apps/server/dist
+# @starter:agent-start
+# Assistant skills are read at runtime (cwd apps/server -> src/agent/skills).
+COPY --from=builder --chown=node:node /app/apps/server/src/agent/skills ./apps/server/src/agent/skills
+# @starter:agent-end
 COPY --from=builder --chown=node:node /app/packages/config ./packages/config
 COPY --from=builder --chown=node:node /app/packages/db ./packages/db
 # Third-party notices for ported code (Magpie MIT) ship inside the image.

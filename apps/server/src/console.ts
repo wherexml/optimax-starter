@@ -33,6 +33,9 @@ import { tokensRoutes } from "./modules/tokens";
 // @starter:example-assets-start
 import { assetsRoutes } from "./modules/assets";
 // @starter:example-assets-end
+// @starter:agent-start
+import { agentRoutes } from "./agent/routes";
+// @starter:agent-end
 // @starter:module-imports
 
 export { initializeConsole } from "./core/seed";
@@ -70,6 +73,20 @@ export const REQUEST_POLICIES: RequestPolicy[] = [
     contentTypes: ["application/json", "multipart/form-data"],
   },
   // @starter:example-assets-end
+  // @starter:agent-start
+  {
+    method: "POST",
+    path: /^\/console\/agent\/chat$/,
+    maxBytes: 256 * 1024,
+    contentTypes: ["application/json"],
+  },
+  {
+    method: "POST",
+    path: /^\/console\/system\/ai\/model(\/test)?$/,
+    maxBytes: 16 * 1024,
+    contentTypes: ["application/json"],
+  },
+  // @starter:agent-end
   {
     method: "POST",
     path: /^\/console\/attachments$/,
@@ -86,9 +103,8 @@ export const REQUEST_POLICIES: RequestPolicy[] = [
 
 export function requestPolicyFor(method: string, path: string) {
   return (
-    REQUEST_POLICIES.find(
-      (p) => (!p.method || p.method === method) && p.path.test(path),
-    ) ?? DEFAULT_REQUEST_POLICY
+    REQUEST_POLICIES.find((p) => (!p.method || p.method === method) && p.path.test(path)) ??
+    DEFAULT_REQUEST_POLICY
   );
 }
 
@@ -170,7 +186,11 @@ consoleApi.use("*", async (c, next) => {
     }
     const { tokenId, scopes, tokenActorSource, lastUsedAt, lastUsedIp, ...actor } = row;
     const ip = getClientIp(c);
-    if (!lastUsedAt || now.getTime() - lastUsedAt.getTime() > TOKEN_LAST_USED_THROTTLE_MS || lastUsedIp !== ip) {
+    if (
+      !lastUsedAt ||
+      now.getTime() - lastUsedAt.getTime() > TOKEN_LAST_USED_THROTTLE_MS ||
+      lastUsedIp !== ip
+    ) {
       void db
         .update(apiTokens)
         .set({ lastUsedAt: now, lastUsedIp: ip })
@@ -206,11 +226,7 @@ consoleApi.use("*", async (c, next) => {
         .from(accounts)
         .innerJoin(sessions, eq(accounts.id, sessions.account))
         .where(
-          and(
-            eq(sessions.key, key),
-            gt(sessions.expires, new Date()),
-            eq(accounts.active, true),
-          ),
+          and(eq(sessions.key, key), gt(sessions.expires, new Date()), eq(accounts.active, true)),
         )
     : [];
   if (!row || !key) return errorJson(c, 401, "请登录", "AUTH_REQUIRED");
@@ -239,6 +255,9 @@ export const consoleRoutes = consoleApi
   .route("/", systemRoutes)
   .route("/", attachmentsRoutes)
   .route("/", jobsRoutes)
+  // @starter:agent-start
+  .route("/", agentRoutes)
+  // @starter:agent-end
   // @starter:module-routes
   .route("/", tokensRoutes);
 

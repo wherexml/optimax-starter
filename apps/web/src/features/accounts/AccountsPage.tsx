@@ -1,20 +1,16 @@
-import { getRouteApi } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ColumnDef } from "@tanstack/react-table";
+import { getRouteApi } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Download, Plus } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, type MouseEvent } from "react";
+import { type MouseEvent, useCallback, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
-import { type FilterField } from "@/components/filters/FilterBar";
+import type { FilterField } from "@/components/filters/FilterBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DetailDrawer,
-  DetailField,
-  DetailSection,
-} from "@/components/ui/detail-drawer";
+import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
-import { request, type Account, type AccountInviteLink } from "@/console-client";
+import { type Account, type AccountInviteLink, request } from "@/console-client";
 import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { parseAccountSearch } from "@/features/filters/search";
 import { usePersistedFilters } from "@/hooks/usePersistedFilters";
@@ -31,19 +27,17 @@ const PERSIST = ["status", "role"] as const;
 const FIELDS: FilterField[] = [
   {
     key: "q",
-    label: "关键词",
+    label: "姓名",
     type: "text",
-    ariaLabel: "搜索账户",
-    placeholder: "搜索姓名或账户",
+    ariaLabel: "搜索姓名",
+    placeholder: "搜索姓名",
   },
   {
-    key: "status",
-    label: "账户状态",
-    type: "select",
-    options: [
-      { value: "active", label: "已启用" },
-      { value: "disabled", label: "已停用" },
-    ],
+    key: "username",
+    label: "账户名",
+    type: "text",
+    ariaLabel: "搜索账户名",
+    placeholder: "搜索账户名",
   },
   {
     key: "role",
@@ -53,6 +47,15 @@ const FIELDS: FilterField[] = [
       { value: "super_admin", label: "超级管理员" },
       { value: "admin", label: "管理员" },
       { value: "member", label: "成员" },
+    ],
+  },
+  {
+    key: "status",
+    label: "状态",
+    type: "select",
+    options: [
+      { value: "active", label: "已启用" },
+      { value: "disabled", label: "已停用" },
     ],
   },
 ];
@@ -79,6 +82,7 @@ export function AccountsPage() {
   const params = route.useSearch(),
     navigate = route.useNavigate(),
     search = params.q ?? "",
+    username = params.username ?? "",
     status = params.status ?? "",
     role = params.role ?? "";
   const update = usePersistedFilters({
@@ -87,8 +91,7 @@ export function AccountsPage() {
     values: params,
     persist: PERSIST,
     parse: parseAccountSearch,
-    apply: (next) =>
-      void navigate({ search: parseAccountSearch(next), replace: true }),
+    apply: (next) => void navigate({ search: parseAccountSearch(next), replace: true }),
   });
   const query = useQuery({
     meta: { contentRefresh: true },
@@ -98,8 +101,7 @@ export function AccountsPage() {
   });
   const refresh = () => cache.invalidateQueries({ queryKey: ["accounts"] });
   const enable = useMutation({
-    mutationFn: (row: Account) =>
-      request("/accounts/" + row.id, "PATCH", { active: true }),
+    mutationFn: (row: Account) => request("/accounts/" + row.id, "PATCH", { active: true }),
     onSuccess: async (_d, row) => {
       await refresh();
       toast.success(`已启用 ${row.name}`);
@@ -118,11 +120,17 @@ export function AccountsPage() {
     [resetEnable],
   );
   const matchesFilters = useCallback(
-    (r: Account) =>
-      [r.name, r.username].some((v) => v.includes(search.trim())) &&
-      (!status || r.active === (status === "active")) &&
-      (!role || r.role === role),
-    [search, status, role],
+    (r: Account) => {
+      const nameNeedle = search.trim().toLowerCase();
+      const userNeedle = username.trim().toLowerCase();
+      return (
+        (!nameNeedle || r.name.toLowerCase().includes(nameNeedle)) &&
+        (!userNeedle || r.username.toLowerCase().includes(userNeedle)) &&
+        (!status || r.active === (status === "active")) &&
+        (!role || r.role === role)
+      );
+    },
+    [search, username, status, role],
   );
   async function finish(message?: string, description?: string) {
     setPending(null);
@@ -131,9 +139,7 @@ export function AccountsPage() {
     toast.success(message, description ? { description } : undefined);
   }
   const activeSuperAdminCount = useMemo(
-    () =>
-      (query.data ?? []).filter((r) => r.role === "super_admin" && r.active)
-        .length,
+    () => (query.data ?? []).filter((r) => r.role === "super_admin" && r.active).length,
     [query.data],
   );
   const columns = useMemo<ColumnDef<Account>[]>(() => {
@@ -145,9 +151,7 @@ export function AccountsPage() {
           <span className="font-medium">
             {String(c.getValue())}
             {c.row.original.id === me.data?.id && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                当前账户
-              </span>
+              <span className="ml-2 text-xs font-normal text-muted-foreground">当前账户</span>
             )}
           </span>
         ),
@@ -156,9 +160,7 @@ export function AccountsPage() {
         accessorKey: "username",
         header: "账户名",
         cell: (c) => (
-          <span className="font-mono text-xs text-muted-foreground">
-            {String(c.getValue())}
-          </span>
+          <span className="font-mono text-xs text-muted-foreground">{String(c.getValue())}</span>
         ),
       },
       {
@@ -166,9 +168,7 @@ export function AccountsPage() {
         header: "角色",
         cell: (c) => {
           const val = String(c.getValue());
-          return (
-            <Badge variant={roleBadgeVariant(val)}>{getRoleLabel(val)}</Badge>
-          );
+          return <Badge variant={roleBadgeVariant(val)}>{getRoleLabel(val)}</Badge>;
         },
       },
       {
@@ -183,9 +183,7 @@ export function AccountsPage() {
       {
         accessorKey: "sessions",
         header: "在线会话",
-        cell: (c) => (
-          <span className="tabular-nums">{Number(c.getValue() ?? 0)}</span>
-        ),
+        cell: (c) => <span className="tabular-nums">{Number(c.getValue() ?? 0)}</span>,
       },
     ];
     const detailButton = (row: Account) => (
@@ -267,9 +265,7 @@ export function AccountsPage() {
                       className="text-destructive hover:text-destructive"
                       aria-label={`停用 ${row.name}`}
                       disabled={isLastSuperAdmin}
-                      title={
-                        isLastSuperAdmin ? "至少保留一名启用的超级管理员" : undefined
-                      }
+                      title={isLastSuperAdmin ? "至少保留一名启用的超级管理员" : undefined}
                       onClick={(e) => open("disable", row, e)}
                     >
                       停用
@@ -315,8 +311,8 @@ export function AccountsPage() {
       allowed={canRead}
       actions={
         canManage ? (
-          <Button ref={trigger} onClick={() => setAdding(true)}>
-            <Plus size={16} />
+          <Button ref={trigger} size="sm" onClick={() => setAdding(true)}>
+            <Plus size={15} />
             新增账户
           </Button>
         ) : undefined
@@ -371,10 +367,7 @@ export function AccountsPage() {
                 expiresAt: created.expiresAt,
               });
             }
-            setRecentIds((prev) => [
-              created.id,
-              ...prev.filter((id) => id !== created.id),
-            ]);
+            setRecentIds((prev) => [created.id, ...prev.filter((id) => id !== created.id)]);
             toast.success(
               `已创建账户 ${created.name}`,
               matchesFilters(created)
@@ -392,11 +385,7 @@ export function AccountsPage() {
           }}
           title={target.name}
           description={`账户名 ${target.username}`}
-          badge={
-            <Badge variant={roleBadgeVariant(target.role)}>
-              {getRoleLabel(target.role)}
-            </Badge>
-          }
+          badge={<Badge variant={roleBadgeVariant(target.role)}>{getRoleLabel(target.role)}</Badge>}
           onCloseAutoFocus={(e) => {
             if (returnFocus.current?.isConnected) {
               e.preventDefault();
@@ -404,12 +393,8 @@ export function AccountsPage() {
             }
           }}
           footer={
-            canManage &&
-            (target.id === me.data?.id || isSuperAdmin || target.role === "member") ? (
-              <Button
-                type="button"
-                onClick={() => setPending({ kind: "edit", row: target })}
-              >
+            canManage && (target.id === me.data?.id || isSuperAdmin || target.role === "member") ? (
+              <Button type="button" onClick={() => setPending({ kind: "edit", row: target })}>
                 编辑账户
               </Button>
             ) : undefined
@@ -418,9 +403,7 @@ export function AccountsPage() {
           <DetailSection title="身份与组织">
             <DetailField label="姓名">{target.name}</DetailField>
             <DetailField label="账户名">
-              <span className="font-mono text-xs text-muted-foreground">
-                {target.username}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{target.username}</span>
             </DetailField>
             <DetailField label="邮箱">{target.email || "未填写"}</DetailField>
             <DetailField label="公司或团队">{target.company || "未填写"}</DetailField>
@@ -435,9 +418,7 @@ export function AccountsPage() {
             <DetailField label="在线会话">
               <span className="tabular-nums">{target.sessions ?? 0}</span>
             </DetailField>
-            {target.id === me.data?.id && (
-              <DetailField label="备注">当前登录账户</DetailField>
-            )}
+            {target.id === me.data?.id && <DetailField label="备注">当前登录账户</DetailField>}
           </DetailSection>
         </DetailDrawer>
       )}
@@ -479,9 +460,7 @@ export function AccountsPage() {
           close={() => setPending(null)}
         />
       )}
-      {inviteLink && (
-        <InviteLinkDialog invite={inviteLink} close={() => setInviteLink(null)} />
-      )}
+      {inviteLink && <InviteLinkDialog invite={inviteLink} close={() => setInviteLink(null)} />}
       {pending?.kind === "revoke" && target && (
         <ConfirmDialog
           title="强制下线"
@@ -489,9 +468,7 @@ export function AccountsPage() {
           submitText="强制下线"
           trigger={returnFocus.current}
           action={() => request(`/accounts/${target.id}/revoke`, "POST", {})}
-          close={(done) =>
-            void finish(done ? `${target.name} 的会话已全部撤销` : undefined)
-          }
+          close={(done) => void finish(done ? `${target.name} 的会话已全部撤销` : undefined)}
         />
       )}
       {pending?.kind === "disable" && target && (
@@ -500,9 +477,7 @@ export function AccountsPage() {
           description={`停用后 ${target.name} 无法登录，现有会话立即失效。可随时重新启用。`}
           submitText="停用账户"
           trigger={returnFocus.current}
-          action={() =>
-            request(`/accounts/${target.id}`, "PATCH", { active: false })
-          }
+          action={() => request(`/accounts/${target.id}`, "PATCH", { active: false })}
           close={(done) =>
             void finish(
               done ? `已停用 ${target.name}` : undefined,

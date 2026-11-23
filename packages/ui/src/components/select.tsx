@@ -1,8 +1,7 @@
-import * as React from "react";
+import { cn } from "@optimax-starter/ui/lib/utils";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
-
-import { cn } from "@optimax-starter/ui/lib/utils";
+import * as React from "react";
 
 const Select = SelectPrimitive.Root;
 
@@ -18,7 +17,7 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     data-slot="select-trigger"
     className={cn(
-      "flex h-10 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border-[0.5px] border-input bg-card px-3 py-2 text-left text-sm leading-5 text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30 data-[state=open]:border-primary data-[placeholder]:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-75 aria-[invalid=true]:border-destructive [&>span]:min-w-0 [&>span]:truncate",
+      "flex h-9 w-full min-w-0 max-w-full items-center justify-between gap-1.5 rounded-md border-[0.5px] border-input bg-card px-3 py-1.5 text-left text-sm leading-5 text-foreground transition-[border-color,background-color] duration-150 hover:border-[color:var(--foreground)]/30 data-[state=open]:border-primary data-[placeholder]:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:bg-muted/60 disabled:text-muted-foreground disabled:opacity-75 aria-[invalid=true]:border-destructive [&>span]:min-w-0 [&>span]:truncate",
       className,
     )}
     {...props}
@@ -63,43 +62,38 @@ const SelectScrollDownButton = React.forwardRef<
     <ChevronDown className="h-4 w-4" />
   </SelectPrimitive.ScrollDownButton>
 ));
-SelectScrollDownButton.displayName =
-  SelectPrimitive.ScrollDownButton.displayName;
+SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({
-  className,
-  children,
-  position = "popper",
-  sideOffset = 4,
-  collisionPadding = 8,
-  ...props
-}, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      data-slot="select-content"
-      className={cn(
-        "relative z-50 flex max-h-72 flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md",
-        position === "popper" &&
-          "min-w-[min(var(--radix-select-trigger-width),var(--radix-select-content-available-width))] max-w-[min(28rem,var(--radix-select-content-available-width))] max-h-[min(18rem,var(--radix-select-content-available-height))]",
-        className,
-      )}
-      position={position}
-      sideOffset={sideOffset}
-      collisionPadding={collisionPadding}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport className="min-h-0 p-1">
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+>(
+  (
+    { className, children, position = "popper", sideOffset = 4, collisionPadding = 8, ...props },
+    ref,
+  ) => (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
+        data-slot="select-content"
+        className={cn(
+          "relative z-50 flex max-h-72 flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md",
+          position === "popper" &&
+            "min-w-[min(var(--radix-select-trigger-width),var(--radix-select-content-available-width))] max-w-[min(28rem,var(--radix-select-content-available-width))] max-h-[min(18rem,var(--radix-select-content-available-height))]",
+          className,
+        )}
+        position={position}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        {...props}
+      >
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport className="min-h-0 p-1">{children}</SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  ),
+);
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<
@@ -132,7 +126,9 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <SelectPrimitive.ItemText className="min-w-0 [overflow-wrap:anywhere]">{children}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemText className="min-w-0 [overflow-wrap:anywhere]">
+      {children}
+    </SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
@@ -175,15 +171,15 @@ function SelectControl({
 }
 
 export {
-  SelectControl,
   Select,
-  SelectGroup,
-  SelectValue,
-  SelectTrigger,
   SelectContent,
-  SelectLabel,
+  SelectControl,
+  SelectGroup,
   SelectItem,
-  SelectSeparator,
-  SelectScrollUpButton,
+  SelectLabel,
   SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
 };

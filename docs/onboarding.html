@@ -647,6 +647,10 @@
               <span class="toggle-name">Demo 页面</span>
               <label class="switch"><input type="checkbox" id="n-keep-demos" aria-label="Demo 页面"><span></span></label>
             </div>
+            <div class="sheet-row">
+              <span class="toggle-name">AI 智能助理工作台</span>
+              <label class="switch"><input type="checkbox" id="n-keep-agent" aria-label="AI 智能助理工作台" checked><span></span></label>
+            </div>
           </div>
 
           <details class="adv" id="n-adv">
@@ -891,13 +895,14 @@
 
 <script type="application/json" id="onboarding-cli-contract">
 {
-  "contractVersion": "2026-11-22.2",
+  "contractVersion": "2026-11-23.1",
   "bootstrapSlugPattern": "^[a-z][a-z0-9-]{1,39}$",
   "bootstrapFlags": [
     "--dry-run",
     "--force",
     "--help",
     "--local-env",
+    "--no-agent",
     "--no-demos",
     "--no-example",
     "--starter-repo",
@@ -910,7 +915,9 @@
   "genModuleFlags": ["--dry-run", "--fields", "--help", "--label", "--singular", "-h"],
   "genModuleReservedSlugs": [
     "accounts",
+    "agent",
     "assets",
+    "assistant",
     "audit",
     "auth",
     "console",
@@ -1422,14 +1429,34 @@
     "apps/web/src/features/dashboard/registry.ts",
     "apps/web/src/features/navigation-demo/NavigationDemoPage.tsx"
   ];
+  var AGENT_PATHS = [
+    "packages/agent/",
+    "packages/api/src/agent.ts",
+    "apps/server/src/agent/",
+    "apps/web/src/features/assistant/"
+  ];
+  var AGENT_MARKED_FILES = [
+    "packages/api/src/index.ts",
+    "packages/api/src/contracts.ts",
+    "packages/api/src/permissions.ts",
+    "apps/server/src/console.ts",
+    "apps/server/src/core/bearer.ts",
+    "apps/server/.env.schema",
+    "apps/server/package.json",
+    "apps/web/package.json",
+    "apps/web/src/routes/__root.tsx",
+    "apps/web/src/features/system/SystemPage.tsx",
+    "Dockerfile",
+    "Dockerfile.prod"
+  ];
   var slugRe = new RegExp(C.bootstrapSlugPattern);
   function isLocalEnv() { return N.preset === "localenv"; }
 
   function applyPreset(name) {
     N.preset = name;
     store("new-preset", name);
-    if (name === "blank") { $("n-keep-example").checked = false; $("n-keep-demos").checked = false; }
-    if (name === "sample") { $("n-keep-example").checked = true; $("n-keep-demos").checked = true; }
+    if (name === "blank") { $("n-keep-example").checked = false; $("n-keep-demos").checked = false; $("n-keep-agent").checked = true; }
+    if (name === "sample") { $("n-keep-example").checked = true; $("n-keep-demos").checked = true; $("n-keep-agent").checked = true; }
     renderNew();
   }
   Array.prototype.slice.call(document.querySelectorAll("#n-presets .preset-tile")).forEach(function (card) {
@@ -1445,7 +1472,8 @@
       repo: $("n-repo").value.trim(),
       force: $("n-force").checked,
       noExample: !$("n-keep-example").checked,
-      noDemos: !$("n-keep-demos").checked
+      noDemos: !$("n-keep-demos").checked,
+      noAgent: !$("n-keep-agent").checked
     };
   }
   function newErrors() {
@@ -1461,7 +1489,7 @@
   }
   function bootstrapParams() {
     var v = newValues();
-    var p = { slug: v.slug, noDemos: v.noDemos, noExample: v.noExample, force: v.force };
+    var p = { slug: v.slug, noDemos: v.noDemos, noExample: v.noExample, noAgent: v.noAgent, force: v.force };
     if (v.title) p.title = v.title;
     if (v.port) p.webPort = Number(v.port);
     if (v.sha) p.starterSha = v.sha;
@@ -1476,6 +1504,7 @@
     if (v.port) parts.push(bf("--web-port"), shq(v.port));
     if (v.noDemos) parts.push(bf("--no-demos"));
     if (v.noExample) parts.push(bf("--no-example"));
+    if (v.noAgent) parts.push(bf("--no-agent"));
     if (v.sha) parts.push(bf("--starter-sha"), shq(v.sha));
     if (v.repo) parts.push(bf("--starter-repo"), shq(v.repo));
     if (v.force) parts.push(bf("--force"));
@@ -1504,12 +1533,13 @@
   });
   $("n-slug").addEventListener("input", function () { N.slugTouched = $("n-slug").value.trim() !== ""; renderNew(); });
   ["n-port", "n-sha", "n-repo"].forEach(function (id) { $(id).addEventListener("input", renderNew); });
-  ["n-force", "n-keep-example", "n-keep-demos"].forEach(function (id) {
+  ["n-force", "n-keep-example", "n-keep-demos", "n-keep-agent"].forEach(function (id) {
     $(id).addEventListener("change", function () {
       if (id !== "n-force") {
         var ex = $("n-keep-example").checked;
         var de = $("n-keep-demos").checked;
-        N.preset = !ex && !de ? "blank" : ex && de ? "sample" : "custom";
+        var ag = $("n-keep-agent").checked;
+        N.preset = !ag ? "custom" : !ex && !de ? "blank" : ex && de ? "sample" : "custom";
       }
       renderNew();
     });
@@ -1535,6 +1565,7 @@
     var local = isLocalEnv();
     var keepExample = local ? !STATUS || STATUS.exampleAssetsPresent !== false : !v.noExample;
     var keepDemos = local ? true : !v.noDemos;
+    var keepAgent = local ? true : !v.noAgent;
     var title = local ? "OptiMax" : v.title || "OptiMax";
     var port = targetPort();
 
@@ -1550,6 +1581,7 @@
       keepDemos ? el("div", { className: "mac-grp", text: "Demo" }) : null,
       keepDemos ? el("div", { className: "mac-nav" }, [icon("flask"), "资产视图"]) : null,
       keepDemos ? el("div", { className: "mac-nav" }, [icon("flask"), "表单弹窗"]) : null,
+      keepAgent ? el("div", { className: "mac-nav" }, [icon("dash"), "智能助理"]) : null,
       el("div", { className: "mac-user" }, [el("span", { className: "avatar", text: "A" }), el("span", { text: "系统管理员" })])
     ]);
 
@@ -1606,6 +1638,12 @@
       EXAMPLE_PATHS.forEach(function (p) { entries.push({ path: p, mark: "-" }); });
       MARKED_FILES.forEach(function (p) { entries.push({ path: p, mark: "~" }); });
       entries.push({ path: "packages/db/src/migrations/<时间戳>_remove_example_assets/", mark: "+" });
+    }
+    if (v.noAgent) {
+      AGENT_PATHS.forEach(function (p) { entries.push({ path: p, mark: "-" }); });
+      AGENT_MARKED_FILES.forEach(function (p) {
+        if (!entries.some(function (e) { return e.path === p; })) entries.push({ path: p, mark: "~" });
+      });
     }
     return entries;
   }

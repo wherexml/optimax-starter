@@ -16,6 +16,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.6",
     "@node-rs/argon2": "^2.2.2",
+    "@optimax-starter/agent": "workspace:*",
     "@optimax-starter/api": "workspace:*",
     "@optimax-starter/db": "workspace:*",
     "drizzle-orm": "catalog:",

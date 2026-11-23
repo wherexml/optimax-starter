@@ -1,32 +1,25 @@
 // Adapted from skylance-easm/easm-webui/src/components/DataTable/DataTable.tsx.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { Skeleton } from "@optimax-starter/ui/components/skeleton";
 import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  flexRender,
   type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   type RowSelectionState,
   type SortingState,
+  useReactTable,
 } from "@tanstack/react-table";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./primitives";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@optimax-starter/ui/components/skeleton";
 import { useVirtualRows } from "@/hooks/useVirtualRows";
 import { useVirtualViewport } from "@/hooks/useVirtualViewport";
-
 import { ColumnSettings } from "./ColumnSettings";
-import { DataTablePagination } from "./DataTablePagination";
 import { hasVisibleDataColumn } from "./column-settings-utils";
+import { DataTablePagination } from "./DataTablePagination";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./primitives";
 
 export type SortDirection = "asc" | "desc";
 
@@ -65,10 +58,7 @@ export function DataTable<T extends { id: number }>({
     onChange: (p: { pageIndex: number; pageSize: number }) => void;
   };
   enableRowSelection?: boolean;
-  bulkActions?: (ctx: {
-    selectedRows: T[];
-    clearSelection: () => void;
-  }) => ReactNode;
+  bulkActions?: (ctx: { selectedRows: T[]; clearSelection: () => void }) => ReactNode;
   onRowClick?: (row: T) => void;
   sorting?: ServerSortingConfig;
 }) {
@@ -108,10 +98,7 @@ export function DataTable<T extends { id: number }>({
         />
       ),
       cell: ({ row }) => (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
+        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <Checkbox
             aria-label={`选择第 ${row.index + 1} 行`}
             checked={row.getIsSelected()}
@@ -125,8 +112,7 @@ export function DataTable<T extends { id: number }>({
   }, [columns, enableRowSelection]);
 
   const sortingState = useMemo<SortingState | undefined>(
-    () =>
-      sorting ? [{ id: sorting.sortBy, desc: sorting.sortDir === "desc" }] : undefined,
+    () => (sorting ? [{ id: sorting.sortBy, desc: sorting.sortDir === "desc" }] : undefined),
     [sorting?.sortBy, sorting?.sortDir],
   );
 
@@ -170,8 +156,9 @@ export function DataTable<T extends { id: number }>({
     ? table.getSelectedRowModel().flatRows.map((r) => r.original)
     : [];
   const clearSelection = () => setRowSelection({});
-  const { scrollContainerRef, handleScroll, scrollTop, viewportHeight } =
-    useVirtualViewport({ enabled: true });
+  const { scrollContainerRef, handleScroll, scrollTop, viewportHeight } = useVirtualViewport({
+    enabled: true,
+  });
   const rows = table.getRowModel().rows;
   const shouldVirtualizeRows = rows.length >= 80;
   const virtualWindow = useVirtualRows({
@@ -191,39 +178,30 @@ export function DataTable<T extends { id: number }>({
     enableColumnResize = false;
   return (
     <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border-[0.5px] border-[var(--hairline)] bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b-[0.5px] border-[var(--hairline)] px-3 py-2.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {toolbar}
-        </div>
-        <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-[0.5px] border-[var(--hairline)] px-3 py-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">{toolbar}</div>
+        <div className="flex items-center gap-1.5">
           {toolbarEnd}
           <ColumnSettings
             columnOrder={table.getAllLeafColumns().map((c) => c.id)}
             columns={Object.fromEntries(
               table
                 .getAllLeafColumns()
-                .map((c) => [
-                  c.id,
-                  { visible: c.getIsVisible(), width: c.getSize() },
-                ]),
+                .map((c) => [c.id, { visible: c.getIsVisible(), width: c.getSize() }]),
             )}
             columnLabels={Object.fromEntries(
               table
                 .getAllLeafColumns()
                 .map((c) => [
                   c.id,
-                  typeof c.columnDef.header === "string"
-                    ? c.columnDef.header
-                    : c.id,
+                  typeof c.columnDef.header === "string" ? c.columnDef.header : c.id,
                 ]),
             )}
             translations={{ columnSettings: "列设置", dragToReorder: "列顺序" }}
             onColumnsChange={(prefs, order) => {
               if (!hasVisibleDataColumn(prefs)) return;
               table.setColumnVisibility(
-                Object.fromEntries(
-                  Object.entries(prefs).map(([id, c]) => [id, c.visible]),
-                ),
+                Object.fromEntries(Object.entries(prefs).map(([id, c]) => [id, c.visible])),
               );
               setColumnOrder(order);
             }}
@@ -241,12 +219,7 @@ export function DataTable<T extends { id: number }>({
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
             {bulkActions({ selectedRows, clearSelection })}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={clearSelection}
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
               取消选择
             </Button>
           </div>
@@ -259,13 +232,7 @@ export function DataTable<T extends { id: number }>({
         data-slot="datatable-scroll"
         className="min-h-0 flex-1 overflow-auto"
       >
-        <Table
-          style={
-            enableColumnResize
-              ? { width: table.getCenterTotalSize() }
-              : undefined
-          }
-        >
+        <Table style={enableColumnResize ? { width: table.getCenterTotalSize() } : undefined}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -296,7 +263,7 @@ export function DataTable<T extends { id: number }>({
                       ) ? (
                       <button
                         type="button"
-                        className="-mx-1 inline-flex min-h-11 items-center gap-1 rounded-sm px-1 font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="-mx-1 inline-flex min-h-10 items-center gap-1 rounded-sm px-1 font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={
                           sorting
                             ? () =>
@@ -311,10 +278,7 @@ export function DataTable<T extends { id: number }>({
                             : header.column.getToggleSortingHandler()
                         }
                       >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                        {flexRender(header.column.columnDef.header, header.getContext())}
                         <span aria-hidden="true">
                           {header.column.getIsSorted() === "desc"
                             ? "↓"
@@ -324,10 +288,7 @@ export function DataTable<T extends { id: number }>({
                         </span>
                       </button>
                     ) : (
-                      flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )
+                      flexRender(header.column.columnDef.header, header.getContext())
                     )}
                     {/* Column Resize Handle */}
                     {enableColumnResize && header.column.getCanResize() && (
@@ -335,9 +296,7 @@ export function DataTable<T extends { id: number }>({
                         onMouseDown={header.getResizeHandler()}
                         onTouchStart={header.getResizeHandler()}
                         className={`absolute right-0 top-0 h-full w-1 cursor-col-resize hover:w-1.5 hover:bg-primary/50 transition-all border-r border-border group-hover:border-primary/30 ${
-                          header.column.getIsResizing()
-                            ? "bg-primary w-1.5"
-                            : ""
+                          header.column.getIsResizing() ? "bg-primary w-1.5" : ""
                         }`}
                         title="Drag to resize column"
                       />
@@ -392,9 +351,7 @@ export function DataTable<T extends { id: number }>({
                       onRowClick
                         ? (e) => {
                             if (
-                              (e.target as HTMLElement).closest(
-                                "button,a,input,[role=checkbox]",
-                              )
+                              (e.target as HTMLElement).closest("button,a,input,[role=checkbox]")
                             ) {
                               return;
                             }
@@ -418,38 +375,28 @@ export function DataTable<T extends { id: number }>({
                             : undefined
                         }
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
                   </TableRow>
                 ))}
 
-                {shouldVirtualizeRows &&
-                  virtualWindow.bottomSpacerHeight > 0 && (
-                    <TableRow
-                      aria-hidden="true"
-                      className="hover:bg-transparent"
-                    >
-                      <TableCell
-                        colSpan={bodyColSpan}
-                        style={{
-                          height: `${virtualWindow.bottomSpacerHeight}px`,
-                          padding: 0,
-                          border: 0,
-                        }}
-                      />
-                    </TableRow>
-                  )}
+                {shouldVirtualizeRows && virtualWindow.bottomSpacerHeight > 0 && (
+                  <TableRow aria-hidden="true" className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={bodyColSpan}
+                      style={{
+                        height: `${virtualWindow.bottomSpacerHeight}px`,
+                        padding: 0,
+                        border: 0,
+                      }}
+                    />
+                  </TableRow>
+                )}
               </>
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={bodyColSpan}
-                  className="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colSpan={bodyColSpan} className="h-24 text-center text-muted-foreground">
                   {emptyText}
                 </TableCell>
               </TableRow>

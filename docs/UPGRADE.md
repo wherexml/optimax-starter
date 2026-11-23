@@ -27,6 +27,8 @@
 
 示例 `assets` 模块可在初始化时用 `--no-example` 移除（会生成 `remove_example_assets` 迁移）；移除后不要再同步上游的 `assets*` 文件。
 
+可选 AI 智能助理属于模板底座，归属 `packages/agent/`（模型网关运行时）、`packages/api/src/agent.ts`（契约）、`apps/server/src/agent/`（路由、工具注册与 Skill）与 `apps/web/src/features/assistant/`（右侧助理面板）。宿主文件中的接入点用 `// @starter:agent-start` / `end`（JSX 中为 `{/* @starter:agent-start */}`，`.env.schema` 中为 `# [starter:agent-start]`）包裹，合并时保留。业务工具写在 `apps/server/src/agent/<模块>-tools.ts` 并按 `example-assets-tools.ts` 的方式注册，属于业务扩展。初始化时可用 `--no-agent` 整体移除（不建表，无需迁移），之后不要再同步上述四个目录。
+
 ## 3. 对比与同步步骤
 
 在派生项目根目录执行以下流程，查看自上次对齐以来上游底座的变化并选择性同步：

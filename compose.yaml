@@ -43,6 +43,16 @@ services:
       STARTER_AI_QUEUE_LIMIT: ${STARTER_AI_QUEUE_LIMIT:-}
       STARTER_AI_QUEUE_WAIT_MS: ${STARTER_AI_QUEUE_WAIT_MS:-}
       STARTER_AI_ACTOR_LIMIT: ${STARTER_AI_ACTOR_LIMIT:-}
+      # @starter:agent-start
+      # Assistant runtime. STARTER_AI_CONFIG_KEY_FILE (64-hex key file path) enables console-managed
+      # model settings; empty keeps the deployment credentials read-only.
+      STARTER_AI_PROTOCOL: ${STARTER_AI_PROTOCOL:-}
+      STARTER_AI_STRUCTURED_MODE: ${STARTER_AI_STRUCTURED_MODE:-}
+      STARTER_AI_CONFIG_KEY_FILE: ${STARTER_AI_CONFIG_KEY_FILE:-}
+      STARTER_AI_ALLOWED_ORIGINS: ${STARTER_AI_ALLOWED_ORIGINS:-}
+      STARTER_AI_MODEL_LABEL: ${STARTER_AI_MODEL_LABEL:-}
+      STARTER_AGENT_SKILLS_DIR: ${STARTER_AGENT_SKILLS_DIR:-}
+      # @starter:agent-end
       TRUST_PROXY: ${TRUST_PROXY:-false}
       AUTH_SSO_ENABLED: ${AUTH_SSO_ENABLED:-false}
       AUTH_SSO_LABEL: ${AUTH_SSO_LABEL:-}
