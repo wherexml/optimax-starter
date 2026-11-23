@@ -48,7 +48,7 @@ COOKIE_NAME = "optimax_aie2e"
 EVIDENCE_ROOT = ROOT / "evidence" / "ai-client-port"
 RUNTIME = EVIDENCE_ROOT / "runtime"
 COMPOSE_FILE = HERE / "compose.e2e.yaml"
-ERROR_KEYS = {"error", "code", "retryAfter", "upstreamStatus", "errorShape"}
+ERROR_KEYS = {"error", "code", "requestId", "retryAfter", "upstreamStatus", "errorShape"}
 TOOL_NAME = "apply_asset_filters"
 GROUPS = ["config", "token", "security", "errors", "queue", "trace", "leak"]
 SIMULATION = (
@@ -482,6 +482,8 @@ def expect_error(ctx, label, response, status, code, upstream_status=None, shape
     ctx.check(f"{label}: code {code}", body.get("code") == code, code, body.get("code"))
     ctx.check(f"{label}: keeps error string contract", isinstance(body.get("error"), str) and 0 < len(body["error"]) <= 200, "string", body.get("error"))
     ctx.check(f"{label}: only safe error keys", set(body) <= ERROR_KEYS, sorted(ERROR_KEYS), sorted(body))
+    if "requestId" in body:
+        ctx.check(f"{label}: requestId contract", isinstance(body["requestId"], str) and 8 <= len(body["requestId"]) <= 64, "string(8..64)", body.get("requestId"))
     ctx.check(f"{label}: never maps to app 401", response.status != 401, "!=401", response.status)
     ctx.check(f"{label}: no vendor text, key or canary", ctx.clean(response.text + json.dumps(response.headers)))
     if upstream_status is not None:
