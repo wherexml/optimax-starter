@@ -1,6 +1,6 @@
 # 团队规范采用与偏差
 
-本机基线为 optimax-team/spec 的 spec-2026.10.23-4，来源 aec8c890a244414d3f25546a202ffd1fd2c0ecff。采用 RiskOps 导航和登录布局、EASM 表格。管理 API 使用同源 Hono HTTP、数据库会话及两级角色。只提供本地 Docker 开发配置。
+本机基线为 optimax-team/spec 的 spec-2026.10.23-4，来源 aec8c890a244414d3f25546a202ffd1fd2c0ecff。管理 API 使用同源 Hono HTTP、数据库会话及三层角色权限（`super_admin` / `admin` / `member`）。只提供本地 Docker 开发配置。
 
 > 初始化、升级团队规范或核对规则冲突时读取；日常业务修改无需加载历史记录。
 

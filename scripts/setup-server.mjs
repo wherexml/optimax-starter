@@ -44,7 +44,7 @@ export const GEN_MODULE_RESERVED = new Set([
 ]);
 
 const SECRET_KEY_RE =
-  /^(STARTER_DB_PASSWORD|STARTER_ADMIN_PASSWORD|STARTER_AI_.+|AUTH_OIDC_.+|STARTER_S3_.+)$/;
+  /^(STARTER_DB_PASSWORD|STARTER_ADMIN_PASSWORD|STARTER_AI_.+|AUTH_OIDC_.+|AUTH_FEISHU_.+|STARTER_S3_.+)$/;
 // Characters that never belong in a wizard parameter, even though argv is never shell-parsed.
 const UNSAFE_CHARS_RE = /[`$;&<>\\"'\r\n\t\0]|\|\|/;
 

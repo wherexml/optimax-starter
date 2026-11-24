@@ -31,6 +31,8 @@ export const SSO_ERROR_CODES = [
   "cancelled",
   "state_invalid",
   "token_failed",
+  "tenant_forbidden",
+  "password_disabled",
   "unmatched",
   "inactive",
   "internal",
@@ -72,8 +74,12 @@ export type OidcConfig = {
   allowEmailLink: boolean;
 };
 
-function readSecret(env: NodeJS.ProcessEnv): string | null {
-  const file = env.AUTH_OIDC_CLIENT_SECRET_FILE?.trim();
+export function readSecretValue(
+  env: NodeJS.ProcessEnv,
+  fileKey: string,
+  valueKey: string,
+): string | null {
+  const file = env[fileKey]?.trim();
   if (file) {
     try {
       const value = readFileSync(file, "utf8").trim();
@@ -82,7 +88,7 @@ function readSecret(env: NodeJS.ProcessEnv): string | null {
       // Fall back to the env var; the file path and content are never logged.
     }
   }
-  return env.AUTH_OIDC_CLIENT_SECRET?.trim() || null;
+  return env[valueKey]?.trim() || null;
 }
 
 export function isSecureUrl(raw: string, production: boolean): boolean {
@@ -95,8 +101,11 @@ export function isSecureUrl(raw: string, production: boolean): boolean {
   if (url.username || url.password || url.hash) return false;
   if (url.protocol === "https:") return true;
   if (production || url.protocol !== "http:") return false;
-  // Development only: allow plain HTTP for a local IdP (e.g. Keycloak / Dex in Compose).
-  return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !url.hostname.includes(".");
+  // Development only: allow plain HTTP for a local IdP or host-mapped mock service.
+  return (
+    ["localhost", "127.0.0.1", "[::1]", "host.docker.internal"].includes(url.hostname) ||
+    !url.hostname.includes(".")
+  );
 }
 
 /** Returns null when OIDC is disabled or required fields are missing/invalid. */
@@ -118,7 +127,7 @@ export function getOidcConfig(env: NodeJS.ProcessEnv = process.env): OidcConfig 
     label,
     issuer,
     clientId,
-    clientSecret: readSecret(env),
+    clientSecret: readSecretValue(env, "AUTH_OIDC_CLIENT_SECRET_FILE", "AUTH_OIDC_CLIENT_SECRET"),
     scopes: env.AUTH_OIDC_SCOPES?.trim() || "openid profile email",
     redirectUri,
     allowEmailLink: env.AUTH_OIDC_ALLOW_EMAIL_LINK !== "false",

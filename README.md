@@ -147,7 +147,7 @@ compose.prod.yaml        生产容器编排（配合 Dockerfile.prod 多阶段�
 
 技能携带上游参考与许可证，并适配现有组件、路由、导航、URL 状态和浏览器 E2E。运行时 UI SDK 仍来自 `apps/web/package.json` 的依赖；技能不会自动替换现有控件或启用模型。
 
-创建新项目时保留整个 `.agents/skills/starter-ui-sdk/`，随 AGENTS 和工程规范一起维护。无需依赖个人全局技能目录；其他客户端可按 AGENTS 链接读取，客户端原生技能发现另按其规则配置。
+创建新项目时保留 `.agents/skills/` 下的项目技能（如 `starter-ui-sdk` 与默认关闭、按需启用飞书企业 OAuth 登录的 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md)），随 AGENTS 和工程规范一起维护。无需依赖个人全局技能目录；其他客户端可按 AGENTS 链接读取，客户端原生技能发现另按其规则配置。
 
 ## 从 GitHub Template 初始化新项目
 
@@ -222,7 +222,7 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 - **生产镜像与同源托管**：`Dockerfile.prod` 执行多阶段构建并以非 root `node` 用户运行，单容器同源托管 `apps/web/dist` 静态产物与 `/console` API；`compose.prod.yaml` 默认强制 `STARTER_SEED_DEMO=false`、`VITE_ENABLE_DEMOS=false`，并在存在 `packages/db/src/migrations/*.sql` 时优先执行版本化迁移 `db:migrate:deploy`。
 - **安全预检与部署回滚入口**：`./scripts/deploy-production.sh` 提供 `--check`（拦截弱密码、默认 Cookie 名与演示种子）、`--deploy <sha>`（在线库备份 → 镜像构建 → 激活 → `/healthz` 与 SPA 冒烟 → 写入 `accepted-sha`）与 `--rollback [<sha>]`。
 - **GitHub Actions 门禁**：`.github/workflows/ci.yml` 包含 `ci-scope` 变更分类、PR 并发取消、静态与构建检查及真实 PostgreSQL 17 容器 HTTP/事务回滚 E2E；`.github/workflows/deploy-production.yml` 默认受仓库变量 `ENABLE_PRODUCTION_CD=true` 保护（未配置自托管 `[self-hosted, deploy-prod]` runner 时自动安全跳过，不会排队卡死）。
-- **业务项目仍需按需评估**：当前内置三层 RBAC（`super_admin` / `admin` / `member`）与模块级「查看 / 操作」权限矩阵，多租户组织隔离、企业 SSO（已预留 `/console/auth/providers` 扩展位）及更严格密码策略按具体产品需求补齐。
+- **业务项目仍需按需评估**：当前内置三层 RBAC（`super_admin` / `admin` / `member`）与模块级「查看 / 操作」权限矩阵，已内置可选标准 OIDC 与飞书企业 OAuth（默认关闭，见 [AUTH.md](./AUTH.md) 与 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md)）；多租户组织隔离及更严格密码策略按具体产品需求补齐。
 
 ## 文档导航
 
@@ -231,11 +231,9 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 | [AGENTS.md](./AGENTS.md) | 协作规则、强制布局基线、按任务阅读的入口 |
 | [TESTING.md](./TESTING.md) | 验证命令与浏览器验收旅程 |
 | [DESIGN.md](./DESIGN.md) | 视觉、交互与组件规范 |
-| [FRONTEND.md](./FRONTEND.md) | 前端结构、外壳、筛选、动效与组件来源 |
+| [FRONTEND.md](./FRONTEND.md) | 前端结构、外壳、筛选、弹窗与组件约定 |
 | [AUTH.md](./AUTH.md) | 身份、Session、角色权限、操作日志契约 |
 | [FILTERS.md](./FILTERS.md) | 筛选组件与 URL 参数约定 |
-| [EASM_REUSE.md](./EASM_REUSE.md) | 工作台、用户菜单、个人设置的移植说明 |
-| [REUSE.md](./REUSE.md) | 复用来源总表 |
 | [RUNTIME.md](./RUNTIME.md) | API 运行时选择、已知限制与恢复记录 |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | 部署说明 |
 | [UPGRADE.md](./docs/UPGRADE.md) | `.starter-version` 与派生项目上游同步升级指南 |
@@ -247,9 +245,4 @@ docker volume inspect my-console-preview_data --format '{{ index .Labels "com.do
 
 ## 来源与致谢
 
-- 工程骨架基于 Better-T-Stack 生成的 monorepo。
-- 登录页移植自 OptiMax RiskOps：全屏地图、渐变遮罩、品牌 SVG 和右侧登录卡。
-- 表格、列设置、分页、FormDialog、条件筛选、多选、工作台、用户菜单和个人设置改编自 Skylance EASM。
-- 快速导航参考 OptiONE 的 search-command。
-
-各项的具体改动见 [REUSE.md](./REUSE.md) 和 [EASM_REUSE.md](./EASM_REUSE.md)。本 README 不声明许可条款，以仓库中的实际文件为准。
+- 工程骨架基于 Better-T-Stack 生成的 monorepo；仓库内集成的第三方开源代码按对应目录 LICENSE 与模块 README 保留原始许可声明。本 README 不声明许可条款，以仓库中的实际文件为准。

@@ -69,10 +69,18 @@ import {
   safeEqual,
   safeRedirectPath,
   ssoErrorRedirect,
+  toSsoErrorCode,
   verifyIdTokenWithJwks,
   type IdTokenClaims,
   type SsoErrorCode,
 } from "../core/oidc";
+import {
+  buildFeishuAuthorizeUrl,
+  getFeishuConfig,
+  verifyFeishuCode,
+  type FeishuConfig,
+  type FeishuIdentity,
+} from "../core/feishu";
 import { getEffectivePermissions } from "../core/permissions";
 
 function sanitizeUserAgent(raw: string | undefined): string | null {
@@ -194,7 +202,7 @@ const inviteFields = {
   name: accounts.name,
 };
 
-function providerList(): AuthProviderInfo[] {
+function rawProviderList(): AuthProviderInfo[] {
   const providers: AuthProviderInfo[] = [];
   const oidc = getOidcConfig();
   if (oidc) {
@@ -202,6 +210,15 @@ function providerList(): AuthProviderInfo[] {
       id: oidc.providerId,
       label: oidc.label,
       loginPath: `/console/auth/sso/${oidc.providerId}/start`,
+    });
+  }
+  const feishu = getFeishuConfig();
+  if (feishu && !providers.some((p) => p.id === feishu.providerId)) {
+    providers.push({
+      id: feishu.providerId,
+      label: feishu.label,
+      loginPath: `/console/auth/sso/${feishu.providerId}/start`,
+      icon: "feishu",
     });
   }
   if (
@@ -219,11 +236,171 @@ function providerList(): AuthProviderInfo[] {
   return providers;
 }
 
+/** Anti-lockout guard: password login stays enabled unless at least one SSO provider is active. */
+function isPasswordLoginEnabled(): boolean {
+  return !(process.env.AUTH_PASSWORD_LOGIN_ENABLED === "false" && rawProviderList().length > 0);
+}
+
+function providerList(): AuthProviderInfo[] {
+  const providers = rawProviderList();
+  if (isPasswordLoginEnabled()) return providers;
+  return providers.map((p) => ({ ...p, passwordLoginDisabled: true }));
+}
+
 const PRIVILEGED_ROLES = new Set(["admin", "super_admin"]);
 
 type SsoOutcome =
   | { ok: true; token: string; account: Party }
   | { ok: false; code: SsoErrorCode; reason: string; account?: Party };
+
+/** Picks a unique console username for JIT-provisioned Feishu member accounts. */
+async function allocateFeishuUsername(tx: Tx, identity: FeishuIdentity): Promise<string> {
+  const candidates: string[] = [];
+  const emailLower = identity.email?.toLowerCase();
+  if (emailLower && emailLower.length <= 64) {
+    candidates.push(emailLower);
+  }
+  const slug = identity.openId.toLowerCase().replace(/[^a-z0-9_-]/g, "") || "user";
+  const base = `feishu_${slug.slice(0, 24)}`;
+  candidates.push(base);
+
+  for (const candidate of candidates) {
+    const [existing] = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.username, candidate))
+      .limit(1);
+    if (!existing) return candidate;
+  }
+
+  for (let i = 2; i < 1000; i++) {
+    const suffix = `_${i}`;
+    const candidate = `${base.slice(0, 64 - suffix.length)}${suffix}`;
+    const [existing] = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.username, candidate))
+      .limit(1);
+    if (!existing) return candidate;
+  }
+
+  return `feishu_${randomBytes(8).toString("hex")}`;
+}
+
+/**
+ * Resolves a verified Feishu identity inside ADMIN_LOCK:
+ * 1) existing console_auth_identity link;
+ * 2) existing active account matched by enterprise email (if allowEmailLink);
+ * 3) optional JIT creation of a `member` account (only when autoProvision is enabled and not matched).
+ */
+async function resolveFeishuAccount(
+  c: Context<Env>,
+  config: FeishuConfig,
+  identity: FeishuIdentity,
+  ip: string,
+): Promise<SsoOutcome> {
+  const provisionHash = config.autoProvision
+    ? await hashPassword(randomBytes(32).toString("hex"))
+    : null;
+  return db.transaction(async (tx) => {
+    await tx.execute(ADMIN_LOCK);
+    const selectAccount = () =>
+      tx
+        .select({
+          id: accounts.id,
+          username: accounts.username,
+          name: accounts.name,
+          role: accounts.role,
+          active: accounts.active,
+        })
+        .from(accounts);
+
+    const [linked] = await tx
+      .select({ accountId: authIdentities.accountId })
+      .from(authIdentities)
+      .where(and(eq(authIdentities.provider, "feishu"), eq(authIdentities.subject, identity.openId)));
+
+    let account: Awaited<ReturnType<typeof selectAccount>>[number] | undefined;
+    if (linked) {
+      [account] = await selectAccount().where(eq(accounts.id, linked.accountId));
+    } else if (config.allowEmailLink && identity.email) {
+      const emailMatches = await selectAccount()
+        .where(sql`lower(${accounts.email}) = lower(${identity.email})`)
+        .limit(2);
+      if (emailMatches.length > 1) return { ok: false, code: "unmatched", reason: "ambiguous" };
+      account = emailMatches[0];
+
+      if (!account) {
+        const [byName] = await selectAccount().where(
+          sql`lower(${accounts.username}) = lower(${identity.email})`,
+        );
+        if (byName && !PRIVILEGED_ROLES.has(byName.role)) account = byName;
+      }
+
+      if (account?.active) {
+        await tx
+          .insert(authIdentities)
+          .values({
+            accountId: account.id,
+            provider: "feishu",
+            subject: identity.openId,
+            email: identity.email.slice(0, 254),
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    if (!account && config.autoProvision && provisionHash) {
+      const username = await allocateFeishuUsername(tx, identity);
+      const [created] = await tx
+        .insert(accounts)
+        .values({
+          username,
+          name: identity.name,
+          role: "member",
+          active: true,
+          hash: provisionHash,
+          email: identity.email ?? null,
+          company: null,
+        })
+        .returning({
+          id: accounts.id,
+          username: accounts.username,
+          name: accounts.name,
+          role: accounts.role,
+          active: accounts.active,
+        });
+      if (created) {
+        account = created;
+        await tx
+          .insert(authIdentities)
+          .values({
+            accountId: created.id,
+            provider: "feishu",
+            subject: identity.openId,
+            email: identity.email ?? null,
+          })
+          .onConflictDoNothing();
+        const createdParty = { id: created.id, username: created.username, name: created.name };
+        await audit(tx, "account.create", createdParty, createdParty, {
+          role: "member",
+          provider: "feishu",
+          ip,
+          ...(identity.email ? { fields: ["email"] } : {}),
+        });
+      }
+    }
+
+    if (!account) return { ok: false, code: "unmatched", reason: "unmatched" };
+    const party = { id: account.id, username: account.username, name: account.name };
+    if (!account.active) return { ok: false, code: "inactive", reason: "inactive", account: party };
+
+    const token = await createSession(c, tx, account.id, ip);
+    await clearUserGuard(tx, account.username);
+    await audit(tx, "auth.sso_login", party, party, { provider: "feishu", ip });
+    return { ok: true, token, account: party };
+  });
+}
 
 /** Resolves an OIDC identity to an existing active account. Never creates accounts. */
 async function resolveSsoAccount(
@@ -291,10 +468,35 @@ async function resolveSsoAccount(
   });
 }
 
+type SsoTarget =
+  | { kind: "oidc"; providerId: string; config: NonNullable<ReturnType<typeof getOidcConfig>> }
+  | { kind: "feishu"; providerId: "feishu"; config: FeishuConfig };
+
+function resolveSsoProvider(providerParam: string): SsoTarget | null {
+  const oidc = getOidcConfig();
+  if (oidc && oidc.providerId === providerParam) {
+    return { kind: "oidc", providerId: oidc.providerId, config: oidc };
+  }
+  const feishu = getFeishuConfig();
+  if (feishu && feishu.providerId === providerParam) {
+    return { kind: "feishu", providerId: "feishu", config: feishu };
+  }
+  return null;
+}
+
 export const authRoutes = new Hono<Env>()
-  // Enterprise SSO provider discovery: OIDC (AUTH_OIDC_*) plus legacy AUTH_SSO_* passthrough.
+  // Enterprise SSO provider discovery: OIDC (AUTH_OIDC_*), Feishu (AUTH_FEISHU_*), plus legacy AUTH_SSO_*.
   .get("/auth/providers", (c) => c.json(providerList()))
-  .post("/login", jsonBody(credentialsSchema, "请输入账户和密码"), async (c) => {
+  .post(
+    "/login",
+    async (c, next) => {
+      if (!isPasswordLoginEnabled()) {
+        return errorJson(c, 403, "密码登录已关闭，请使用企业单点登录", "AUTH_PASSWORD_DISABLED");
+      }
+      await next();
+    },
+    jsonBody(credentialsSchema, "请输入账户和密码"),
+    async (c) => {
     const input = c.req.valid("json");
     const ip = getClientIp(c);
     const [account] = await db
@@ -428,23 +630,33 @@ export const authRoutes = new Hono<Env>()
     },
   )
   // ---------------------------------------------------------------------------
-  // OIDC SSO (Authorization Code + PKCE S256). All failures redirect to a fixed sso_error enum.
+  // Enterprise SSO (OIDC & Feishu OAuth v2, Authorization Code + PKCE S256).
+  // All failures redirect to a fixed sso_error enum.
   // ---------------------------------------------------------------------------
   .get("/auth/sso/:provider/start", async (c) => {
-    const config = getOidcConfig();
-    if (!config || config.providerId !== c.req.param("provider")) {
+    const target = resolveSsoProvider(c.req.param("provider"));
+    if (!target) {
       return c.redirect(ssoErrorRedirect("provider_disabled"), 302);
     }
     try {
-      const discovery = await getDiscovery(config);
-      await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date()));
       const state = randomToken(32);
       const nonce = randomToken(32);
       const codeVerifier = createCodeVerifier();
+      const codeChallenge = codeChallengeS256(codeVerifier);
+      const authUrl =
+        target.kind === "oidc"
+          ? buildAuthorizationUrl(await getDiscovery(target.config), target.config, {
+              state,
+              nonce,
+              codeChallenge,
+            })
+          : buildFeishuAuthorizeUrl(target.config, { state, codeChallenge });
+
+      await db.delete(oidcStates).where(lt(oidcStates.expiresAt, new Date()));
       const stateHash = digest(state);
       await db.insert(oidcStates).values({
         stateHash,
-        provider: config.providerId,
+        provider: target.providerId,
         codeVerifier,
         nonce,
         redirectTo: safeRedirectPath(c.req.query("redirect")),
@@ -458,25 +670,18 @@ export const authRoutes = new Hono<Env>()
         path: OIDC_COOKIE_PATH,
         maxAge: OIDC_STATE_TTL_SECONDS,
       });
-      return c.redirect(
-        buildAuthorizationUrl(discovery, config, {
-          state,
-          nonce,
-          codeChallenge: codeChallengeS256(codeVerifier),
-        }),
-        302,
-      );
+      return c.redirect(authUrl, 302);
     } catch {
       return c.redirect(ssoErrorRedirect("internal"), 302);
     }
   })
   .get("/auth/sso/:provider/callback", async (c) => {
-    const config = getOidcConfig();
+    const target = resolveSsoProvider(c.req.param("provider"));
     const fail = (code: SsoErrorCode) => {
       deleteCookie(c, oidcStateCookie(), { path: OIDC_COOKIE_PATH });
       return c.redirect(ssoErrorRedirect(code), 302);
     };
-    if (!config || config.providerId !== c.req.param("provider")) return fail("provider_disabled");
+    if (!target) return fail("provider_disabled");
     const state = c.req.query("state") ?? "";
     const stateOk = /^[A-Za-z0-9_-]{16,128}$/.test(state);
     const stateHash = stateOk ? digest(state) : "";
@@ -505,45 +710,64 @@ export const authRoutes = new Hono<Env>()
         .where(
           and(
             eq(oidcStates.stateHash, stateHash),
-            eq(oidcStates.provider, config.providerId),
+            eq(oidcStates.provider, target.providerId),
             gt(oidcStates.expiresAt, new Date()),
           ),
         )
         .returning();
       if (!row) return fail("state_invalid");
-      const discovery = await getDiscovery(config);
-      const tokens = await exchangeCode(config, discovery, code, row.codeVerifier);
-      const claims = await verifyIdTokenWithJwks(config, discovery, tokens.id_token!, row.nonce);
-      let profile: Partial<IdTokenClaims> & { sub: string } = claims;
-      if (
-        config.allowEmailLink &&
-        !claims.email &&
-        !claims.preferred_username &&
-        tokens.access_token
-      ) {
-        const info = await fetchUserinfo(discovery, tokens.access_token, claims.sub).catch(
-          () => null,
+
+      let outcome: SsoOutcome;
+      let fallbackActorUsername = "unknown";
+
+      if (target.kind === "oidc") {
+        const discovery = await getDiscovery(target.config);
+        const tokens = await exchangeCode(target.config, discovery, code, row.codeVerifier);
+        const claims = await verifyIdTokenWithJwks(
+          target.config,
+          discovery,
+          tokens.id_token!,
+          row.nonce,
         );
-        if (info) {
-          profile = {
-            ...claims,
-            email: info.email,
-            email_verified: info.email_verified,
-            preferred_username: info.preferred_username,
-          };
+        let profile: Partial<IdTokenClaims> & { sub: string } = claims;
+        if (
+          target.config.allowEmailLink &&
+          !claims.email &&
+          !claims.preferred_username &&
+          tokens.access_token
+        ) {
+          const info = await fetchUserinfo(discovery, tokens.access_token, claims.sub).catch(
+            () => null,
+          );
+          if (info) {
+            profile = {
+              ...claims,
+              email: info.email,
+              email_verified: info.email_verified,
+              preferred_username: info.preferred_username,
+            };
+          }
         }
+        fallbackActorUsername = String(profile.preferred_username ?? "unknown").slice(0, 80);
+        outcome = await resolveSsoAccount(
+          c,
+          target.providerId,
+          profile,
+          target.config.allowEmailLink,
+          ip,
+        );
+      } else {
+        const identity = await verifyFeishuCode(target.config, code, row.codeVerifier);
+        fallbackActorUsername = (identity.email ?? identity.name).slice(0, 80) || "unknown";
+        outcome = await resolveFeishuAccount(c, target.config, identity, ip);
       }
-      const outcome = await resolveSsoAccount(c, config.providerId, profile, config.allowEmailLink, ip);
+
       if (!outcome.ok) {
         const actor = outcome.account
           ? { id: null, username: outcome.account.username, name: outcome.account.name }
-          : {
-              id: null,
-              username: String(profile.preferred_username ?? "unknown").slice(0, 80),
-              name: "未知账户",
-            };
+          : { id: null, username: fallbackActorUsername, name: "未知账户" };
         await audit(db, "auth.sso_failed", actor, outcome.account ?? null, {
-          provider: config.providerId,
+          provider: target.providerId,
           ip,
           reason: outcome.reason,
         }).catch(() => undefined);
@@ -553,7 +777,19 @@ export const authRoutes = new Hono<Env>()
       setSessionCookie(c, outcome.token);
       return c.redirect(safeRedirectPath(row.redirectTo), 302);
     } catch (error) {
-      return fail(error instanceof OidcError ? (error.code === "internal" ? "internal" : "token_failed") : "internal");
+      if (error instanceof OidcError) {
+        if (error.code === "tenant_forbidden" || error.code === "token_failed") {
+          await audit(
+            db,
+            "auth.sso_failed",
+            { id: null, username: "unknown", name: "未知账户" },
+            null,
+            { provider: target.providerId, ip, reason: error.code },
+          ).catch(() => undefined);
+        }
+        return fail(toSsoErrorCode(error.code));
+      }
+      return fail("internal");
     }
   })
   .get("/me", async (c) => {

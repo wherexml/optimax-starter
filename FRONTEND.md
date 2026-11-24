@@ -41,19 +41,6 @@
 | 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
 | AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/server/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
 
-### 移植来源：复制与适配
-
-| 本项目文件 | 来源 | 保留（复制） | 适配 |
-| --- | --- | --- | --- |
-| `features/auth/LoginPage.tsx` | `optimax-riskops/src/pages/Login.tsx` | 全屏 `login-risk-map.png`、渐变遮罩、品牌 SVG、右侧登录卡布局 | 账号字段为用户名；调用本项目 Cookie 登录 API；配色用本项目蓝色主题 Token；省略原页面不可用的重置密码入口和营销文案（原页面没有第三方登录） |
-| `packages/ui/src/components/form-dialog.tsx`（`components/ui/FormDialog.tsx` 重导出） | `skylance-easm/easm-webui/src/components/dialogs/FormDialog.tsx` | Radix Dialog 外壳、标题/可选描述/内容/底部操作结构、提交中 loading | 升级为标准三段式（固定 Header + 0.5px 分隔线、独立滚动 Body `px-6 py-5`、固定 Footer + 置顶未保存拦截条 `UnsavedChangesBanner`）；外部 `formId` 关联提交、`onCloseAutoFocus` 焦点归还 |
-| `packages/ui/src/components/{dialog,field,label,input,input-group,password-input,number-input,tag-input,textarea,select,combobox,multi-select,segmented-control,switch,checkbox,button}.tsx` | shadcn/Radix 基础控件沉淀至共享 UI 包 | Radix 焦点陷阱、Esc 关闭、键盘导航与可访问语义 | 统一 `h-10` 高度、`0.5px` 边框、同心圆角与蓝色主题焦点环；`apps/web/src/components/ui/*` 保留重导出兼容，React Hook Form 桥接在 `apps/web/src/components/ui/form.tsx` |
-| `components/table/DataTable.tsx` | `skylance-easm/easm-webui/src/components/DataTable/DataTable.tsx` | TanStack Table 渲染、`aria-sort` 排序表头、骨架加载行、空态、80 行以上虚拟滚动、列宽调整代码（默认关闭） | 工具栏由页面传入；列设置并入工具栏；客户端排序与分页（每页 8 / 20 / 100）；新增 `error` 错误态；仅可排序列渲染为按钮 |
-| `components/table/{ColumnSettings,DataTablePagination}.tsx` | EASM DataTable 配套组件 | 列显隐、列顺序、分页交互 | 中文文案；至少保留一列可见 |
-| `features/accounts/*`、`features/assets/AssetsPage.tsx` | 本项目编写 | — | 组合上述组件；新增账户使用 React Hook Form + Zod，服务端错误回显到字段或表单，成功后失效 `accounts` 缓存、把焦点还给触发按钮并在右下角全局通知提示已创建；有未保存内容时 Esc、取消或点遮罩不直接关闭，先显示“继续编辑 / 放弃更改”；查询错误进入 DataTable `error`，启停错误通过右下角错误通知提示；后端最终鉴权 |
-
-URL 状态：`/` 支持 `q`、`stage`；`/accounts` 只支持 `q`。排序、列显隐、页码与每页条数保存在 TanStack Table 状态中，列顺序为 DataTable 组件状态，刷新后均重置。
-
 ---
 
 ### 单选下拉
@@ -490,22 +477,18 @@ Store 规则：
 - 用前端隐藏按钮替代后端权限校验。
 - 让详情页依赖列表页内存，刷新后丢数据。
 
-## 工作台与外壳
+## 概览与外壳
 
-- `/` 为工作台：资产状态分布（点击进入 `/assets?stage=`）、业务域入口（`/assets?domain=`）、待复核资产队列；管理员额外看到账户概况，可直达 `/accounts?status=` 或 `?role=`。全部数据来自 `/console/assets` 与 `/console/accounts`，每个面板有加载、空和错误重试状态。
-- `/assets` 为资产台账，筛选参数 `q`、`stage`、`domain` 写入 URL。
+- `/` 为概览：由 `features/dashboard/registry.ts` 驱动「业务总览 / 治理与审计」双视图 Bento 布局，按当前账户有效权限按需请求数据，各卡片提供流光骨架加载、空态与错误重试，详见 [概览模块](./apps/web/src/features/dashboard/README.md)。
+- `/assets` 为资产台账，筛选参数 `code`、`codeOp`、`q`、`qOp`、`domain`、`owner`、`stage` 写入 URL。
 - 内容区不设顶栏。桌面端折叠按钮位于侧栏品牌栏内、紧贴品牌名右侧；折叠为 64px 图标栏时品牌栏改为纵向（标识在上、展开按钮在下），不横向裁切。折叠状态保存在 `localStorage` 的 `optimax-starter.sidebar`，存储不可用时只在当前页面内生效。
 - 720px 以下侧栏变为抽屉：抽屉关闭时内容区左上角显示打开按钮，抽屉内标识旁为关闭按钮；Esc、遮罩、关闭按钮或切换页面均可关闭。打开时内容区设为 `inert`，关闭时焦点先回到打开按钮，再将侧栏设为 `inert`。
 - 动效仅用于侧栏宽度、抽屉、页面淡入、弹窗进出场与悬停反馈，`prefers-reduced-motion` 下全部关闭。
 
 ## 组合筛选、操作日志、快速导航
 
-- 筛选：`components/filters/FilterBar.tsx` 按 EASM FilterComponent 的结构改写为条件列表，条件之间为 AND。空态通过“+ 添加筛选项”（有条件行后仅显示“+”）追加第一个未使用的字段；每行包含字段选择、取值和移除按钮；字段下拉名称与顺序同下方表格列一致，并展示全部可筛字段（其他行已选中的字段置灰禁用），切换后取值清空。改动先保存为草稿，按 Enter 或“搜索”后通过 `onApply(next)` 一次提交；有未应用的改动时，搜索按钮高亮。“清空”立即提交空条件；删除已生效的行后，需要点击“搜索”才会生效。URL 变化（导航、恢复、前进后退）会同步到草稿，普通重新渲染不会覆盖正在输入的内容；空白行在本页内保留，但不写入 URL，也不保存。多选和匹配方式需要逐字段开启：下拉字段设 `multi: true` 时改为 EASM 复选多选，同一字段内各值为“或”，不同行之间为“且”；文本字段设 `operatorKey` 时出现“包含/等于”选择，默认为包含。资产台账按列对齐为 `code/codeOp/q/qOp/domain/owner/stage`，账户管理为 `q/username/role/status`，操作日志为 `start/end/action/source/actor`，后台任务为 `type/status`。完整约定见 [FILTERS.md](./FILTERS.md)。
+- 筛选：`components/filters/FilterBar.tsx` 采用动态条件列表，条件之间为 AND。空态通过“+ 添加筛选项”（有条件行后仅显示“+”）追加第一个未使用的字段；每行包含字段选择、取值和移除按钮；字段下拉名称与顺序同下方表格列一致，并展示全部可筛字段（其他行已选中的字段置灰禁用），切换后取值清空。改动先保存为草稿，按 Enter 或“搜索”后通过 `onApply(next)` 一次提交；有未应用的改动时，搜索按钮高亮。“清空”立即提交空条件；删除已生效的行后，需要点击“搜索”才会生效。URL 变化（导航、恢复、前进后退）会同步到草稿，普通重新渲染不会覆盖正在输入的内容；空白行在本页内保留，但不写入 URL，也不保存。多选和匹配方式需要逐字段开启：下拉字段设 `multi: true` 时改为复选多选，同一字段内各值为“或”，不同行之间为“且”；文本字段设 `operatorKey` 时出现“包含/等于”选择，默认为包含。资产台账按列对齐为 `code/codeOp/q/qOp/domain/owner/stage`，账户管理为 `q/username/role/status`，操作日志为 `start/end/action/source/actor`，后台任务为 `type/status`。完整约定见 [FILTERS.md](./FILTERS.md)。
 - 筛选保存：`hooks/usePersistedFilters.ts` 把下拉筛选按“账户 ID + 页面”存入 `localStorage`，键为 `optimax-starter.filters.v1:<账户ID>:<页面>`；文本搜索 `q` 不保存。进入页面时，URL 里已有筛选就以 URL 为准并保存；没有时只恢复一次已保存的值。清空后保存 `{}`，刷新后仍为空。存储内容无效或存储不可用时忽略，只用 URL。
-- 操作日志：`/audit` 仅管理员可见，可按操作类型、操作人、开始/结束日期筛选（含结束当天，按 UTC+8）。日志由服务端分页（每页 20/50/100），表格通过 `DataTable` 的 `pagination` 参数接入。
+- 操作日志：`/audit` 仅管理员可见，可按操作类型、操作人、开始/结束日期筛选（含结束当天，按当前生效的系统时区，默认 UTC+8）。日志由服务端分页（每页 20/50/100），表格通过 `DataTable` 的 `pagination` 参数接入。
 - 快速导航：按 Cmd/Ctrl+K 或点侧栏底部、用户信息正上方的“搜索”打开（展开、折叠和移动端抽屉中位置相同）。只跳转本地页面，可用中文名或英文别名搜索；方向键选择、Enter 跳转、Esc 关闭，关闭后焦点回到打开前的位置。输入法组合输入期间不触发快捷键。成员看不到账户管理和操作日志。
 - 快速导航的布局、滚动和验收入口见 [navigation](./apps/web/src/features/navigation/README.md)。样式使用 `.quick-nav-list` / `.quick-nav-item`，不绑定 `ul/li` 等具体标签。
-
-## EASM 工作台与个人设置
-
-- EASM 工作台、用户菜单、个人设置：见 [EASM_REUSE.md](./EASM_REUSE.md)。

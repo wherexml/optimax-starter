@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { APP_CONFIG, storageKey } from "@/config/app-config";
 import { api, unwrapRpc, type AuthProviderInfo } from "@/console-client";
+import { FeishuLogo } from "./FeishuLogo";
 const schema = z.object({
   username: z.string().trim().min(1, "请输入账户名").max(64),
   password: z.string().min(1, "请输入密码").max(256),
@@ -25,6 +26,8 @@ const SSO_ERROR_MESSAGES: Record<string, string> = {
   cancelled: "已取消单点登录",
   state_invalid: "单点登录会话已失效，请重新发起登录",
   token_failed: "无法验证身份提供方返回的凭据，请稍后重试",
+  tenant_forbidden: "非本企业飞书账号，无权登录当前系统",
+  password_disabled: "密码登录已关闭，请使用企业单点登录",
   unmatched: "该企业身份未关联任何账户，请联系管理员",
   inactive: "关联账户已停用，请联系管理员",
   internal: "单点登录暂时不可用，请稍后重试",
@@ -105,6 +108,8 @@ export function LoginPage() {
     defaultValues: { username: initial, password: "" },
   });
   const { errors, isSubmitting: loading } = form.formState;
+  const passwordDisabled =
+    providers.length > 0 && providers.some((p) => p.passwordLoginDisabled === true);
   async function submit(values: z.infer<typeof schema>) {
     setError("");
     try {
@@ -196,139 +201,155 @@ export function LoginPage() {
               </div>
             )}
 
-            <form
-              noValidate
-              onSubmit={form.handleSubmit(submit)}
-              className="mt-6 flex flex-col gap-4 sm:mt-8 sm:gap-5"
-            >
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="username" className="text-sm text-neutral-700">
-                  账户名
-                </Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="输入账户名"
-                  {...form.register("username")}
-                  aria-invalid={!!errors.username}
-                  aria-describedby={
-                    errors.username ? "username-error" : undefined
-                  }
-                  autoComplete="username"
-                  className="h-11 border-neutral-200 bg-white text-neutral-950 shadow-sm"
-                />
-                {errors.username && (
-                  <p
-                    id="username-error"
-                    role="alert"
-                    className="text-sm text-destructive"
-                  >
-                    {errors.username.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password" className="text-sm text-neutral-700">
-                  密码
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="输入密码"
-                    {...form.register("password")}
-                    aria-invalid={!!errors.password}
-                    aria-describedby={
-                      errors.password ? "password-error" : undefined
-                    }
-                    autoComplete="current-password"
-                    className="h-11 border-neutral-200 bg-white pr-10 text-neutral-950 shadow-sm"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-700"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p
-                    id="password-error"
-                    role="alert"
-                    className="text-sm text-destructive"
-                  >
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="remember"
-                    checked={remember}
-                    onCheckedChange={(v) => setRemember(v === true)}
-                  />
-                  <Label
-                    htmlFor="remember"
-                    className="text-sm font-normal text-neutral-600"
-                  >
-                    记住账户名
+            {!passwordDisabled && (
+              <form
+                noValidate
+                onSubmit={form.handleSubmit(submit)}
+                className="mt-6 flex flex-col gap-4 sm:mt-8 sm:gap-5"
+              >
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="username" className="text-sm text-neutral-700">
+                    账户名
                   </Label>
-                </div>
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  aria-live="polite"
-                  className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-800"
-                >
-                  <AlertCircle
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    aria-hidden="true"
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="输入账户名"
+                    {...form.register("username")}
+                    aria-invalid={!!errors.username}
+                    aria-describedby={
+                      errors.username ? "username-error" : undefined
+                    }
+                    autoComplete="username"
+                    className="h-11 border-neutral-200 bg-white text-neutral-950 shadow-sm"
                   />
-                  <div>
-                    <p className="text-sm font-medium">{error}</p>
+                  {errors.username && (
+                    <p
+                      id="username-error"
+                      role="alert"
+                      className="text-sm text-destructive"
+                    >
+                      {errors.username.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="password" className="text-sm text-neutral-700">
+                    密码
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="输入密码"
+                      {...form.register("password")}
+                      aria-invalid={!!errors.password}
+                      aria-describedby={
+                        errors.password ? "password-error" : undefined
+                      }
+                      autoComplete="current-password"
+                      className="h-11 border-neutral-200 bg-white pr-10 text-neutral-950 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-700"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {errors.password && (
+                    <p
+                      id="password-error"
+                      role="alert"
+                      className="text-sm text-destructive"
+                    >
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={remember}
+                      onCheckedChange={(v) => setRemember(v === true)}
+                    />
+                    <Label
+                      htmlFor="remember"
+                      className="text-sm font-normal text-neutral-600"
+                    >
+                      记住账户名
+                    </Label>
                   </div>
                 </div>
-              )}
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className={cn(
-                  "h-11 w-full bg-primary text-white shadow-lg hover:bg-primary/90",
-                  "transition-colors duration-200",
+                {error && (
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-800"
+                  >
+                    <AlertCircle
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{error}</p>
+                    </div>
+                  </div>
                 )}
-              >
-                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading ? "登录中..." : "登录"}
-              </Button>
-            </form>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className={cn(
+                    "h-11 w-full bg-primary text-white shadow-lg hover:bg-primary/90",
+                    "transition-colors duration-200",
+                  )}
+                >
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {loading ? "登录中..." : "登录"}
+                </Button>
+              </form>
+            )}
 
             {providers.length > 0 && (
-              <div data-login-sso className="mt-6">
-                <div className="flex items-center gap-3 text-xs text-neutral-500">
-                  <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
-                  <span>或使用企业单点登录</span>
-                  <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
-                </div>
-                <div className="mt-4 flex flex-col gap-3">
+              <div
+                data-login-sso
+                data-login-sso-only={passwordDisabled ? "true" : undefined}
+                className="mt-6"
+              >
+                {passwordDisabled ? (
+                  <p className="mb-4 text-sm text-neutral-600">
+                    请使用企业单点登录账号进入控制台。
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-3 text-xs text-neutral-500">
+                    <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
+                    <span>或使用企业单点登录</span>
+                    <span aria-hidden="true" className="h-px flex-1 bg-neutral-200" />
+                  </div>
+                )}
+                <div className={cn("flex flex-col gap-3", !passwordDisabled && "mt-4")}>
                   {providers.map((p) => (
                     <a
                       key={p.id}
                       href={p.loginPath}
-                      className="inline-flex h-11 w-full items-center justify-center rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      data-sso-provider={p.id}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
-                      {p.label}
+                      {(p.icon === "feishu" || p.id === "feishu") && (
+                        <FeishuLogo className="h-5 w-5 shrink-0" />
+                      )}
+                      <span>{p.label}</span>
                     </a>
                   ))}
                 </div>

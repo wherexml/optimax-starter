@@ -450,10 +450,14 @@ export type AuditSearch = {
   size?: number;
 };
 
+export type AuthProviderIcon = "feishu";
+
 export interface AuthProviderInfo {
   id: string;
   label: string;
   loginPath: string;
+  icon?: AuthProviderIcon;
+  passwordLoginDisabled?: boolean;
 }
 
 export interface AccountSession {

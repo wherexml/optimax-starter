@@ -2,8 +2,8 @@
 
 ## 组件
 
-- `components/filters/FilterBar.tsx`：EASM 条件列表。新增、删除、切换字段（切换后取值和匹配方式一并重置）、草稿统一提交（Enter 或“搜索”）、“清空”即刻提交；字段下拉与下方表格列同名同序并展示全部可筛字段（其他条件行已选字段置灰禁用，不可重复选择）。
-- `components/ui/multi-select.tsx`：参照 EASM 的 MultiSelect，基于 Radix Popover 与 Checkbox。
+- `components/filters/FilterBar.tsx`：动态条件列表。新增、删除、切换字段（切换后取值和匹配方式一并重置）、草稿统一提交（Enter 或“搜索”）、“清空”即刻提交；字段下拉与下方表格列同名同序并展示全部可筛字段（其他条件行已选字段置灰禁用，不可重复选择）。
+- `components/ui/multi-select.tsx`：基于 Radix Popover 与 Checkbox 的多选下拉。
   - 按钮显示：已选不超过 2 项时列出名称，超过时显示“已选 N 项”，title 显示完整名称；不显示计数。
   - 弹层内有“全选”和“清空”；上下方向键在复选框间移动；Esc 只关闭弹层，焦点回到按钮。
   - 弹层通过 Portal 渲染、按钮为 `type=button`，在弹层内按 Enter 或勾选都不会提交筛选表单。

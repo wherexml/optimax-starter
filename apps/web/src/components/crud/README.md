@@ -1,6 +1,6 @@
 # 企业列表与 CRUD 组合槽位（`components/crud`）
 
-在保留 EASM `DataTable`、`FilterBar` 与 `FormDialog` 全部高密度、键盘无障碍与未保存拦截细节的前提下，封装管理后台标准列表页骨架，减少跨模块样板代码。
+基于 `DataTable`、`FilterBar` 与 `FormDialog` 的高密度、键盘无障碍与未保存拦截能力，封装管理后台标准列表页骨架，减少跨模块样板代码。
 
 ## 组件说明
 

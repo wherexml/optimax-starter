@@ -77,6 +77,7 @@
 - 前端交互、键盘/焦点行为、UI SDK 和 Agent 操作默认先读取项目内 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)。在 Starter 目录工作时可原生发现，自动调用已开启，也可显式使用 `$starter-ui-sdk`；父目录会话按本文件链接读取。
 - 纯布局、颜色、文案按 FRONTEND / DESIGN 处理；纯后端任务按上表进入对应规范。读取技能不代表自动迁移全部控件或启用模型。
 - 全局 `ui-sdk` 与项目技能可能同时存在；本项目按上述明确路径读取适配版，不依赖个人主目录。技能负责开发流程，已安装 SDK 文档负责当前 API。
+- 按需启用、配置或切换飞书企业登录时读取 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md)（默认关闭，未要求时不主动开启）。
 
 ## 继续深入的规则
 
@@ -85,19 +86,19 @@
 - 同一事实只维护一处正文，其他文件链接引用；不在 AGENTS.md 复制部署命令、变量表或详细工程规范。
 - 项目内更具体的规范在其范围内适用；与团队约束冲突时按 SPEC_ADOPTION.md 记录，不能静默删除安全与验收底线。
 
-## 已集成的复用模块
+## 已集成核心模块
+
+概览双视图与模块注册表见 [dashboard](./apps/web/src/features/dashboard/README.md)。
 
 快速导航的布局与键盘验收见 [navigation](./apps/web/src/features/navigation/README.md)。
 
 可选 AI 智能助理（右侧抽屉、模型配置、写操作确认卡，`--no-agent` 可移除）见 [服务端 agent](./apps/server/src/agent/README.md) 与 [前端 assistant](./apps/web/src/features/assistant/README.md)。
 
-操作日志（区分 `human / agent` 来源并递归脱敏）、三层角色权限矩阵、系统探针与可搜索时区配置、组合筛选、快速导航已集成，详见 [AUTH.md](./AUTH.md) 与 [REUSE.md](./REUSE.md)。管理与业务写接口必须在同一事务里写入 `console_audit`。
+可选飞书企业 OAuth 登录（零依赖、官方三色矢量 Logo、默认关闭不展示）按需通过 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md) 开启，契约见 [AUTH.md](./AUTH.md)。
 
-筛选必须保留 EASM 的动态条件列表：添加、删除、切换字段、统一应用，不得退回固定输入框加标签。具体契约见 [FRONTEND.md](./FRONTEND.md)。上游选型比较见 [UPSTREAM_OPTIONS.md](./UPSTREAM_OPTIONS.md)。
+操作日志（区分 `human / agent` 来源并递归脱敏）、三层角色权限矩阵、系统探针与可搜索时区配置、组合筛选、快速导航已集成，详见 [AUTH.md](./AUTH.md)。管理与业务写接口必须在同一事务里写入 `console_audit`。
 
-## EASM 复用
-
-- EASM 工作台、用户菜单、个人设置：见 [EASM_REUSE.md](./EASM_REUSE.md)。
+筛选必须保持动态条件列表（添加、删除、切换字段、统一应用），不得退回固定输入框加标签。具体契约见 [FRONTEND.md](./FRONTEND.md) 与 [FILTERS.md](./FILTERS.md)。上游选型比较见 [UPSTREAM_OPTIONS.md](./UPSTREAM_OPTIONS.md)。
 
 ## 选择与筛选
 

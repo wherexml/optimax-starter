@@ -23,12 +23,12 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；可选标准 OIDC 企业单点登录（授权码 + PKCE S256，`AUTH_OIDC_*`，默认关闭），见 [§5](#5-oauth--sso) |
+| 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；可选标准 OIDC 企业单点登录（`AUTH_OIDC_*`）与飞书企业 OAuth v2 + PKCE S256 登录（`AUTH_FEISHU_*`，默认关闭、按需通过 `feishu-auth` 开启），均支持保留口令并存或纯单点登录模式（`AUTH_PASSWORD_LOGIN_ENABLED=false`），见 [§5](#5-oauth--sso) |
 | Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要；记录登录 `ip_address`，`last_seen_at` 由会话中间件每 60 秒最多刷新一次） |
 | Token 传递 | 浏览器：HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`）；Agent / 集成：`Authorization: Bearer optx_…` 个人 API 密钥（`console_api_token`，见 [§12](#12-cookiebearer-与本地存储)） |
 | Session 有效期 | 8 小时（`28800` 秒） |
 | 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
-| OAuth Provider | 默认无；`AUTH_OIDC_*` 配置标准 OIDC（仅关联已有启用账户，绝不自动建号）；旧 `AUTH_SSO_*` 自定义入口仍兼容 |
+| OAuth Provider | 默认无；`AUTH_OIDC_*` 配置标准 OIDC（仅关联已有启用账户）；`AUTH_FEISHU_*` 配置飞书企业自建应用（强校验 `tenant_key`，可选 `AUTH_FEISHU_AUTO_PROVISION=true` 仅自动创建 `member`）；旧 `AUTH_SSO_*` 自定义入口仍兼容 |
 | 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户（设置初始密码或生成 72 小时一次性激活链接）；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
 | 登录限流 | 应用层 PostgreSQL `console_login_guard`：账户 `user:<小写账户名>` 30 分钟内失败 5 次锁 30 分钟；来源 `ip:<客户端 IP>` 15 分钟内失败 20 次锁 30 分钟；锁定期返回 `429` + `Retry-After` + `AUTH_LOCKED`，见 [§4](#4-密码登录) |
 | 客户端 IP | 默认取 TCP 对端地址；仅 `TRUST_PROXY=true` 时信任 `X-Forwarded-For` 首跳 / `X-Real-IP`（必须是合法 IPv4/IPv6） |
@@ -119,8 +119,15 @@ Starter 实现（`apps/server/src/core/oidc.ts`，2026-11-21，零第三方 OAut
 | id_token | 支持 `RS256/384/512`、`PS256/384/512`、`ES256/384/512`、`EdDSA`，以及 IdP 声明时的 `HS256`（client secret）；拒绝 `alg=none`，校验 `iss`、`aud`（多受众时 `azp`）、`exp`/`nbf`/`iat`（60 秒偏差）与 `nonce` |
 | 账户关联 | 先查 `console_auth_identity (provider, subject)`；未关联且 `AUTH_OIDC_ALLOW_EMAIL_LINK` 不为 `false` 时，按 `email_verified=true` 的邮箱（大小写不敏感，多账户命中视为未匹配）或 `preferred_username` 精确匹配已有启用账户并写入关联；`preferred_username` 不会自动关联 `admin` / `super_admin`；绝不自动建号 |
 | 成功 | 创建 Session（含 IP / `last_seen_at`）、`SameSite=Strict` Cookie、清理账户锁定桶、写 `auth.sso_login`（`provider`、`ip`），302 回站内相对路径 |
-| 失败 | 只重定向到 `/login?sso_error=` 固定枚举：`provider_disabled`、`cancelled`、`state_invalid`、`token_failed`、`unmatched`、`inactive`、`internal`；`unmatched` / `inactive` 写 `auth.sso_failed`；不回显上游错误文本 |
-| 密钥 | 优先 `AUTH_OIDC_CLIENT_SECRET_FILE`（私有文件），回退 `AUTH_OIDC_CLIENT_SECRET`；不进日志、审计或响应 |
+| 失败 | 只重定向到 `/login?sso_error=` 固定枚举：`provider_disabled`、`cancelled`、`state_invalid`、`token_failed`、`tenant_forbidden`、`password_disabled`、`unmatched`、`inactive`、`internal`；`unmatched` / `inactive` / `tenant_forbidden` / `token_failed` 写 `auth.sso_failed`；不回显上游错误文本 |
+| 密钥 | 优先 `AUTH_OIDC_CLIENT_SECRET_FILE` / `AUTH_FEISHU_APP_SECRET_FILE`（私有文件），回退对应环境变量；不进日志、审计或响应 |
+
+Starter 飞书企业登录实现（`apps/server/src/core/feishu.ts`，2026-11-24，零第三方 OAuth 依赖，默认关闭，按需通过 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md) 开启）：
+
+- **协议与接口**：复用 `console_oidc_state` 与 `console_auth_identity`（不改库表），通过 `accounts.feishu.cn/open-apis/authen/v1/authorize`（PKCE S256）、`POST /open-apis/authen/v2/oauth/token` 与 `GET /open-apis/authen/v1/user_info` 完成身份核验，会话签发后立即丢弃飞书 `access_token`。
+- **租户强校验**：必须配置 `AUTH_FEISHU_TENANT_KEY`；若上游返回的 `data.tenant_key` 不一致，立即拒绝并写 `auth.sso_failed`（`tenant_forbidden`）。
+- **双映射模式**：默认 `AUTH_FEISHU_AUTO_PROVISION=false` 仅匹配已绑定 `open_id` 或匹配企业邮箱的已有启用账户；设为 `true` 时，在验证企业租户通过后为首次登录成员自动创建 `role="member"` 账户（写 `account.create` 与 `auth.sso_login` 审计）；已有账户若已被停用（`active=false`）始终返回 `inactive`，绝不绕过停用状态重建。
+- **防锁死双登录形态**：`AUTH_PASSWORD_LOGIN_ENABLED=false` 仅在至少有一个可用 SSO 提供方时生效；生效时 `GET /console/auth/providers` 附加 `passwordLoginDisabled: true` 供登录页隐藏口令表单，同时 `POST /console/login` 服务端返回 `403 AUTH_PASSWORD_DISABLED`。
 
 OAuth 必须包含：
 
@@ -326,4 +333,7 @@ localStorage：
 
 ## 本人资料与密码
 
-- `PATCH /console/me`、`POST /console/me/password` 的契约见 [EASM_REUSE.md](./EASM_REUSE.md)。
+- `GET /console/me`：返回当前登录账户基础资料（`id`、`username`、`name`、`role`、`active`、`email`、`company`）及实时生效权限 `permissions`（Bearer 密钥调用返回 `role ∩ scopes` 交集）、`authType` 与 `actorSource`。
+- `PATCH /console/me`：严格模式接受 `{ name?, email?, company? }`（至少一项，空字符串清空邮箱或公司，`role`、`active`、`username`、`id` 一律拒绝）；在行锁事务内更新并写 `profile.update` 审计（修改 `name` 记录 `from`/`to`，修改邮箱或公司仅在 `fields` 中记录字段名，不记录具体内容）。
+- `POST /console/me/password`：要求浏览器 Cookie 会话（`requireCookieSession`，拒绝 Bearer 调用），严格模式接受 `{ current, password }`（新密码 `10–256` 位且不能与当前密码相同）；在 `ADMIN_LOCK` 事务内复核启用状态、有效会话与当前密码（当前密码错误返回 `400 AUTH_PASSWORD_MISMATCH` 且不写审计），写入新哈希后删除该账户全部会话、吊销全部有效个人 API 密钥、写 `profile.password_change` 审计并清除 Cookie。
+- `GET /console/me/sessions`、`POST /console/me/sessions/revoke-others`、`DELETE /console/me/sessions/:id` 与 `/console/me/tokens*` 均要求浏览器 Cookie 会话。

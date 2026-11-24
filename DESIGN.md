@@ -16,7 +16,7 @@
 | 信息密度 | 中高；表格按列对齐，筛选与显示列共用工具栏 |
 | 视觉关键词 | 留白、清晰的文字层级、单一品牌强调色 |
 | 品牌色 | 主按钮蓝 #3E63DD，选中底色 #EDF2FE，键盘焦点 #8DA4EF，页面暖砂灰 #FDFDFC。主题变量统一在 `apps/web/src/index.css` |
-| 组件库 | shadcn 风格 Radix 控件（Dialog、Select）、EASM FormDialog、EASM DataTable + ColumnSettings + 分页、TanStack Table；不使用原生 HTML dialog |
+| 组件库 | 共享 `@optimax-starter/ui`（COSS / Radix / Base UI 基础控件、FormDialog、DetailDrawer）、DataTable + ColumnSettings + 分页、TanStack Table；不使用原生 HTML dialog |
 | 图标库 | Lucide |
 | 图表/地图库 | `@optimax-starter/ui` 可视化原语（Recharts + Tremor Raw / shadcn v4 风格：`KpiCard`、`SparkChart`、`TrendAreaChart`、`CategoryBar`、`BarList`、`Tracker`）；登录页使用 imagegen 新绘背景与渐变遮罩，品牌素材及实际像素尺寸见 [登录模块](./apps/web/src/features/auth/README.md) |
 | 设计红线 | 主题色和界面文案遵循 AGENTS.md「设计原则」 |

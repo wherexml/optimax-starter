@@ -17,7 +17,7 @@
 | 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；顶层页签 `PageTabs`、工作台图表原语、共享弹窗、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与工作台模块分别注册在 `apps/web/src/config/app-config.ts` 与 `apps/web/src/features/dashboard/registry.ts`，列表页使用 `ResourceTableSlot`；支持 `bun run gen:module` 生成全栈业务模块（含 `Combobox` / `MultiSelect` / 日期区间映射与工作台注册） |
 | AI 智能助理（可选） | 运行时 `packages/agent`，服务端 [apps/server/src/agent](./apps/server/src/agent/README.md)，右侧面板 [features/assistant](./apps/web/src/features/assistant/README.md)；权限 `agent:use`；可选环境变量 `STARTER_AI_PROTOCOL`、`STARTER_AI_STRUCTURED_MODE`、`STARTER_AI_CONFIG_KEY_FILE`（启用网页端维护模型）、`STARTER_AI_ALLOWED_ORIGINS`、`STARTER_AGENT_SKILLS_DIR`；`--no-agent` 整体移除，不建表 |
 | 角色 | `super_admin`、`admin`、`member`（搭配 `console_role_permission` 模块级「查看 / 操作」权限矩阵） |
-| 项目技能 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，前端交互与 Agent 操作由 AGENTS 默认路由；随模板复制 |
+| 项目技能 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)（前端交互与 Agent 操作由 AGENTS 默认路由）与 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md)（飞书企业登录按需开启，默认关闭）；随模板复制 |
 | CI/CD | GitHub Actions：`.github/workflows/ci.yml`（`ci-scope` 变更分类 + 静态/构建检查 + 真实容器 HTTP/RBAC/权限矩阵/熔断/事务回滚 E2E + 隔离模型客户端 `ai-client-e2e`）与 `.github/workflows/deploy-production.yml`（调用 `scripts/deploy-production.sh`） |
 
 ## 模块
@@ -35,7 +35,7 @@
 
 ## 数据表
 
-`console_account`（含可为空的 `email`、`company`）、`console_session`、`console_asset`、`console_role_permission`（角色有效权限矩阵）、`console_setting`（全局时区与 AI 熔断开关）、`console_audit`（只追加，含 `actor_source` 与敏感键递归脱敏）、`console_login_guard`、`console_account_invite`、`console_oidc_state`、`console_attachment`（附件元数据，字节在存储驱动中）、`console_job`（PostgreSQL 后台任务队列）、`console_api_token`（个人 Bearer 密钥，仅存 SHA-256 摘要）。
+`console_account`（含可为空的 `email`、`company`）、`console_session`、`console_asset`、`console_role_permission`（角色有效权限矩阵）、`console_setting`（全局时区与 AI 熔断开关）、`console_audit`（只追加，含 `actor_source` 与敏感键递归脱敏）、`console_login_guard`、`console_account_invite`、`console_auth_identity`、`console_oidc_state`、`console_attachment`（附件元数据，字节在存储驱动中）、`console_job`（PostgreSQL 后台任务队列）、`console_api_token`（个人 Bearer 密钥，仅存 SHA-256 摘要）。
 
 ## 后端能力（Package 2）
 

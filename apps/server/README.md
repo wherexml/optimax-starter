@@ -13,6 +13,7 @@
   - `guards.ts`：再导出 `http.ts`，提供 `requirePermission` / `requireAnyPermission` / `requireSuperAdmin` 路由守卫与事务级咨询锁：`lockPermission(tx, actorId, permission, { exclusive? })` 默认取共享锁 `PERMISSION_SHARED_LOCK`（业务写入并行），`exclusive: true` 与 `lockSuperAdmin` / `lockAdmin` 取独占 `ADMIN_LOCK`（账户、权限、系统设置等安全状态写入串行，并等待在途业务写入结束）。
   - `login-guard.ts`：PostgreSQL `console_login_guard` 登录限流与锁定（账户 5 次/30 分钟、IP 20 次/15 分钟，锁 30 分钟，原子 upsert 计数）。
   - `oidc.ts`：标准 OIDC（发现、JWKS、PKCE S256、`state` / `nonce`、`id_token` 验签与声明校验、固定 `sso_error` 枚举），零第三方 OAuth 依赖。
+  - `feishu.ts`：可选飞书企业自建应用 OAuth 2.0 + PKCE S256 登录（默认关闭，`AUTH_FEISHU_*`），强校验企业 `tenant_key`，支持密钥文件优先与本地 HTTP 模拟调试地址覆写，零第三方依赖。
   - `permissions.ts`：`console_role_permission` 角色权限矩阵读取缓存、输入校验、`super_admin` 全量权限强制保底及同事务修改/重置审计。
   - `system-settings.ts`：`console_setting` 全局系统时区（环境变量与默认值回退）与 `ai.enabled` 全局熔断开关持久化。
   - `bearer.ts`：纯函数（无 DB，`tokens.test.ts` 覆盖）——`parseAuthorization`（任何 Bearer 方案头都视为权威，缺失/畸形凭证不回退 Cookie）、`API_TOKEN_RE`（`optx_` + 32 位 base64url）、`resolveTokenPermissions`（实时角色权限 ∩ scopes）、`originAllowed`（GET/HEAD/OPTIONS 与 Bearer 豁免，其余要求 `Origin === CORS_ORIGIN`）、`requireCookieSession`。
@@ -24,7 +25,7 @@
   - `audit.ts`：支持 `actorSource`（`human` | `agent` | `system`）、敏感键递归 `[REDACTED]` 脱敏与动态时区自然日计算的 `audit()` / `auditResource()`。
   - `seed.ts`：受 `STARTER_SEED_DEMO` 控制的幂等引导超级管理员校准与示例资产初始化。
 - `src/modules/`（按业务域拆分的子路由）：
-  - `auth.ts`：`/login`（限流锁定 + `auth.login` / `auth.login_failed` 审计）、`/logout`（`auth.logout`）、`/me`（附带当前有效 `permissions`）、`/me/password`、`/me/sessions`（含 `ipAddress` / `lastSeenAt`；`DELETE /me/sessions/:id` 单条下线、`POST /me/sessions/revoke-others` 一键下线其他设备）、`/auth/providers`、公开激活链接 `/auth/invites/:token`（`GET` 预览、`POST …/accept` 设置密码并启用）及 OIDC `/auth/sso/:provider/{start,callback}`。
+  - `auth.ts`：`/login`（限流锁定 + `auth.login` / `auth.login_failed` 审计；含防锁死 `AUTH_PASSWORD_LOGIN_ENABLED=false` `403 AUTH_PASSWORD_DISABLED` 拦截）、`/logout`（`auth.logout`）、`/me`（附带当前有效 `permissions`）、`/me/password`、`/me/sessions`（含 `ipAddress` / `lastSeenAt`；`DELETE /me/sessions/:id` 单条下线、`POST /me/sessions/revoke-others` 一键下线其他设备）、`/auth/providers`（合并 OIDC / 飞书 / 兼容 SSO，附 `icon` 与 `passwordLoginDisabled`）、公开激活链接 `/auth/invites/:token`（`GET` 预览、`POST …/accept` 设置密码并启用）及统一 `/auth/sso/:provider/{start,callback}`（OIDC 与飞书双分支，后者支持 `AUTH_FEISHU_AUTO_PROVISION=true` 自动创建 `member` 账户）。
   - `accounts.ts`：账户管理及三层角色提权防线（普通 `admin` 仅可维护 `member`，核心超管与最后一名启用超管受保护）；`inviteOnly` 创建与 `POST /accounts/:id/invite` 一次性 72 小时激活链接（仅存令牌摘要）。所有账户写入取独占锁。
   - `system.ts`：`/system/permissions`（权限矩阵读取/保存/重置）、`/system/status`（数据库延迟探针、活跃会话数、AI 队列水位与熔断状态）、`/system/ai-circuit`（超管一键熔断开关）与 `/system/settings`（系统时区读写）。
   - `audit.ts`：`/audit` 服务端分页与按来源（`human` / `agent`）、动作、操作人及当前系统时区自然日区间筛选。
@@ -42,4 +43,4 @@
 
 ## 单元测试
 
-`src/core/*.test.ts` 只覆盖无 DB 依赖的纯函数（`http`、`bearer`、`job-policy`、`storage`、`csv`、`oidc`、`login-guard`、`audit` 脱敏）；涉及数据库、事务与 HTTP 全链路的行为以 E2E 为准（见 [TESTING.md](../../TESTING.md)）。
+`src/core/*.test.ts` 只覆盖无 DB 依赖的纯函数（`http`、`bearer`、`job-policy`、`storage`、`csv`、`oidc`、`feishu`、`login-guard`、`audit` 脱敏）；涉及数据库、事务与 HTTP 全链路的行为以 E2E 为准（见 [TESTING.md](../../TESTING.md)）。

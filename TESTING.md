@@ -89,7 +89,7 @@
 - 用户明确要求不运行测试或验证时照做，记录 NOT_RUN（用户要求不运行），交付说明写明「未验收」，不得写成已验证。
 - 部分场景通过不等于整条旅程通过；按场景分别报告。
 
-## EASM 工作台与个人设置（2026-11-05）
+## 个人设置与资料会话（2026-11-05）
 
 本轮 Docker、HTTP E2E、浏览器与截图证据见 [验收记录](./evidence/easm-dashboard/acceptance.md)。脚本：`scripts/verify-easm-settings.py`、`scripts/verify-easm-rollback.py`。测试账户用完后必须执行 cleanup。
 

@@ -13,6 +13,7 @@ export default defineConfig({
       "apps/**/*.test.ts",
       "packages/**/*.test.ts",
       "scripts/**/*.test.ts",
+      ".agents/skills/**/*.test.ts",
     ],
   },
 });
