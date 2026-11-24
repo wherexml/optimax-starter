@@ -27,7 +27,7 @@ export interface PermissionCatalogEntry {
 }
 
 export const PERMISSION_CATALOG: readonly PermissionCatalogEntry[] = [
-  { code: "workbench:read", label: "查看工作台", module: "工作台", kind: "view" },
+  { code: "workbench:read", label: "查看概览", module: "概览", kind: "view" },
   // @starter:example-assets-start
   { code: "assets:read", label: "查看资产台账", module: "资产台账", kind: "view" },
   { code: "assets:manage", label: "维护资产台账", module: "资产台账", kind: "operate" },
@@ -202,6 +202,7 @@ export interface SystemPermissionRow {
   operateCodes: CodesByRole;
   disabledActions?: Partial<Record<AccountRole, readonly ModulePermissionAction[]>>;
   disabledReason?: string;
+  readonlyReason?: string;
 }
 
 const ALL_ACTIONS: readonly ModulePermissionAction[] = ["view", "operate"];
@@ -209,18 +210,18 @@ const ALL_ACTIONS: readonly ModulePermissionAction[] = ["view", "operate"];
 export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
   {
     id: "workbench",
-    label: "工作台",
-    description: "全局指标汇总、待复核队列与快捷入口",
+    label: "概览",
+    description: "全局指标与待处理概览，仅含只读视图",
     actions: ALL_ACTIONS,
     viewCodes: { default: ["workbench:read"] },
     operateCodes: {},
-    disabledReason: "工作台为汇总只读视图，无独立写入项",
+    readonlyReason: "概览为汇总只读视图，无独立写入项",
   },
   // @starter:example-assets-start
   {
     id: "assets",
     label: "资产台账",
-    description: "资产列表查询、自然语言筛选与台账增删改",
+    description: "控制资产查询导出，以及新增、编辑、导入与删除",
     actions: ALL_ACTIONS,
     viewCodes: { default: ["assets:read"] },
     operateCodes: { default: ["assets:manage"] },
@@ -230,48 +231,39 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
   {
     id: "ai-agent",
     label: "智能助理",
-    description: "唤起右侧流式智能助理与只读分析（写操作需通过确认卡并二次校验对应模块权限）",
+    description: "控制助理对话入口；对话内写操作仍受对应业务模块权限约束",
     actions: ALL_ACTIONS,
     viewCodes: { default: ["agent:use"] },
     operateCodes: {},
-    disabledReason: "助理写操作受各业务模块维护权限独立约束",
+    readonlyReason: "助理写操作受各业务模块维护权限独立约束",
   },
   // @starter:agent-end
   // @starter:permission-rows
   {
     id: "accounts",
     label: "账户管理",
-    description: "账户列表查看与成员账户维护（管理员提权仅限超级管理员）",
+    description: "控制成员账户与会话维护；管理员角色分配仅限超级管理员",
     actions: ALL_ACTIONS,
     viewCodes: { admin: ["accounts:read"], super_admin: ["accounts:read"] },
     operateCodes: { admin: ["accounts:manage"], super_admin: ["accounts:manage"] },
-    disabledReason: "账户与会话管理不向普通成员开放",
+    disabledReason: "账户与会话管理为后台治理能力，不向普通成员开放",
   },
   {
     id: "system-settings",
     label: "系统配置",
-    description: "系统全局基础参数与时区查看及维护",
+    description: "控制系统全局基础参数与时区读写",
     actions: ALL_ACTIONS,
     viewCodes: { admin: ["system:settings:read"], super_admin: ["system:settings:read"] },
     operateCodes: {
       admin: ["system:settings:manage"],
       super_admin: ["system:settings:manage"],
     },
-    disabledReason: "系统基础配置不向普通成员开放",
-  },
-  {
-    id: "ai-control",
-    label: "AI 运行控制",
-    description: "数据库与模型队列探针查看，以及 AI 全局一键熔断开关",
-    actions: ALL_ACTIONS,
-    viewCodes: { admin: ["system:ai:read"], super_admin: ["system:ai:read"] },
-    operateCodes: { super_admin: ["system:ai:manage"] },
-    disabledReason: "AI 全局熔断开关仅允许超级管理员操作",
+    disabledReason: "系统基础配置为后台治理能力，不向普通成员开放",
   },
   {
     id: "jobs",
     label: "后台任务",
-    description: "异步导出、批量导入与过期数据清理等后台任务查看、重试与取消",
+    description: "位于「系统配置 - 后台任务」，控制全局任务查看、重试、取消与清理",
     actions: ALL_ACTIONS,
     viewCodes: { admin: ["jobs:read"], super_admin: ["jobs:read"] },
     operateCodes: { admin: ["jobs:manage"], super_admin: ["jobs:manage"] },
@@ -280,16 +272,17 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
   {
     id: "audit",
     label: "操作日志",
-    description: "人工与 Agent 操作记录分页检索",
+    description: "控制系统审计日志查阅；日志为只读追加账本",
     actions: ALL_ACTIONS,
     viewCodes: { admin: ["audit:read"], super_admin: ["audit:read"] },
     operateCodes: {},
-    disabledReason: "操作日志为只读追加账本，不支持人工增删改",
+    disabledReason: "操作日志不向普通成员开放",
+    readonlyReason: "操作日志为只读追加账本，不支持人工增删改",
   },
   {
     id: "system-permission",
     label: "系统权限",
-    description: "角色权限矩阵查看、保存与恢复默认，仅超级管理员保留",
+    description: "角色权限矩阵固定由超级管理员独占维护",
     actions: ALL_ACTIONS,
     viewCodes: { super_admin: ["system:permission:read"] },
     operateCodes: { super_admin: ["system:permission:manage", "system:manage"] },
@@ -298,9 +291,16 @@ export const SYSTEM_PERMISSION_ROWS: readonly SystemPermissionRow[] = [
       admin: ALL_ACTIONS,
       super_admin: ALL_ACTIONS,
     },
-    disabledReason: "系统权限中心只允许超级管理员保留，不能关闭或分配给其他角色",
+    disabledReason: "系统权限矩阵仅限超级管理员查看与维护",
   },
 ];
+
+export function hasModuleOperateAction(row: SystemPermissionRow): boolean {
+  return (
+    Boolean(row.operateCodes.default?.length) ||
+    PERMISSION_ROLES.some((role) => Boolean(row.operateCodes[role]?.length))
+  );
+}
 
 export function getModuleActionCodes(
   row: SystemPermissionRow,

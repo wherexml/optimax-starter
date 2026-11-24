@@ -9,7 +9,7 @@
 | 项 | 当前事实 |
 | --- | --- |
 | 静态检查命令 | `bun run check-types`、`bun run build`、`git diff --check`、`node scripts/e2e/ci-scope-e2e.mjs`（CI `quality` job 同步执行） |
-| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-system-governance.py`、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md)（含 `system-admin.mjs`、`notifications.mjs`、`forms-dialog.mjs`、`navigation-demo.mjs`、`page-layout.mjs`、`filter-state.mjs`） |
+| E2E 命令 | 接口与数据库事务：`python3 scripts/verify-console.py`、`python3 scripts/verify-foundation.py`（后跟 `--cleanup`）、`python3 scripts/verify-easm-settings.py` + `verify-easm-rollback.py`（后跟 `--cleanup`）、`python3 scripts/verify-system-governance.py`、`python3 scripts/verify-runtime-load.py`；真实浏览器：见 [scripts/e2e/README.md](./scripts/e2e/README.md)（含 `system-admin.mjs`、`notifications.mjs`、`forms-dialog.mjs`、`page-layout.mjs`、`filter-state.mjs`） |
 | 测试环境及安全数据 | 本地 Docker Compose 独立预览库（`http://127.0.0.1:38140` / `:38141`），仅使用本地演示账号与脚本自动清理的随机 `qa_*` 临时夹具 |
 | 证据目录 | 本地 git 忽略的 `evidence/<task>/`；CI 运行产物上传至 GitHub Actions Artifacts（保留 7 天） |
 | 隔离测试 | 默认仅用真实进程/HTTP/浏览器 E2E；新增 `scripts/e2e/ci-scope-e2e.mjs` 在编写 `ci-scope.mjs` 前先运行失败断言再实现通过 |

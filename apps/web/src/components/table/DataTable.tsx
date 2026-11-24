@@ -30,6 +30,8 @@ export interface ServerSortingConfig {
   onChange: (next: { sortBy: string; sortDir: SortDirection }) => void;
 }
 
+const DEFAULT_CLIENT_PAGE_SIZES = [8, 20, 100];
+
 export function DataTable<T extends { id: number }>({
   data,
   columns,
@@ -38,6 +40,8 @@ export function DataTable<T extends { id: number }>({
   toolbar,
   toolbarEnd,
   pagination,
+  defaultPageSize = 8,
+  pageSizes = DEFAULT_CLIENT_PAGE_SIZES,
   enableRowSelection = false,
   bulkActions,
   onRowClick,
@@ -57,6 +61,9 @@ export function DataTable<T extends { id: number }>({
     sizes: number[];
     onChange: (p: { pageIndex: number; pageSize: number }) => void;
   };
+  /** 客户端分页默认每页条数与可选条数。 */
+  defaultPageSize?: number;
+  pageSizes?: number[];
   enableRowSelection?: boolean;
   bulkActions?: (ctx: { selectedRows: T[]; clearSelection: () => void }) => ReactNode;
   onRowClick?: (row: T) => void;
@@ -146,7 +153,7 @@ export function DataTable<T extends { id: number }>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageIndex: 0, pageSize: 8 } },
+    initialState: { pagination: { pageIndex: 0, pageSize: defaultPageSize } },
     manualPagination: Boolean(pagination),
     pageCount: pagination
       ? Math.max(1, Math.ceil(pagination.total / pagination.pageSize))
@@ -421,13 +428,13 @@ export function DataTable<T extends { id: number }>({
               />
             </div>
           )
-        : data.length > 8 && (
+        : data.length > Math.min(...pageSizes) && (
             <div className="border-t-[0.5px] border-[var(--hairline)] py-1.5">
               <DataTablePagination
                 table={table}
                 pagination={{ ...table.getState().pagination, total: data.length }}
                 onPaginationChange={(p) => table.setPagination(p)}
-                pageSizeOptions={[8, 20, 100]}
+                pageSizeOptions={pageSizes}
                 showSelectionInfo={false}
               />
             </div>

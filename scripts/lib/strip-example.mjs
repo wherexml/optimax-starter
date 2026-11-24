@@ -42,8 +42,6 @@ export const OPTIONAL_MARKED_FILES = [
   "apps/web/src/features/assistant/Conversation.tsx",
 ];
 
-const NAV_DEMO = "apps/web/src/features/navigation-demo/NavigationDemoPage.tsx";
-
 const BLOCK_RE = new RegExp(
   [
     "^[ \\t]*// @starter:example-assets-start[ \\t]*\\r?\\n",
@@ -66,31 +64,6 @@ export function removeExampleBlocks(content, fileLabel) {
   return { content: next, blocks: matches.length };
 }
 
-const NAV_DEMO_FETCH = '      const assets = await request<Asset[]>("/assets");';
-const NAV_DEMO_IMPORT = 'import { request, type Asset } from "@/console-client";';
-const NAV_DEMO_ANCHOR = "function AssetViewTable(";
-const NAV_DEMO_SAMPLE = `// Local sample rows: the example assets API was removed by --no-example.
-const SAMPLE_ASSETS: Asset[] = [
-  { id: 1, name: "采购门户", domain: "采购", owner: "业务运营组", stage: "已登记" },
-  { id: 2, name: "库存服务", domain: "履约", owner: "交付组", stage: "待复核" },
-  { id: 3, name: "订单中心", domain: "运营", owner: "平台组", stage: "已登记" },
-  { id: 4, name: "供应商门户", domain: "采购", owner: "业务运营组", stage: "已登记" },
-  { id: 5, name: "合同服务", domain: "履约", owner: "交付组", stage: "待复核" },
-  { id: 6, name: "仓储平台", domain: "运营", owner: "平台组", stage: "已登记" },
-];
-
-`;
-
-function rewriteNavigationDemo(content) {
-  if (!content.includes(NAV_DEMO_FETCH)) return null;
-  let next = content.replace(NAV_DEMO_FETCH, "      const assets = SAMPLE_ASSETS;");
-  next = next.replace(NAV_DEMO_IMPORT, 'import type { Asset } from "@/console-client";');
-  if (!next.includes(NAV_DEMO_ANCHOR)) {
-    throw new Error(`${NAV_DEMO} 缺少 ${NAV_DEMO_ANCHOR}，无法写入本地示例数据`);
-  }
-  return next.replace(NAV_DEMO_ANCHOR, NAV_DEMO_SAMPLE + NAV_DEMO_ANCHOR);
-}
-
 /**
  * @param {{ root?: string, dryRun?: boolean, log?: (line: string) => void }} [options]
  * @returns {{ deleted: string[], edited: string[] }}
@@ -111,11 +84,6 @@ export function stripExample({ root = DEFAULT_ROOT, dryRun = false, log = consol
     if (!raw.includes("@starter:example-assets-")) continue;
     const { content, blocks } = removeExampleBlocks(raw, rel);
     plannedEdits.push({ rel, content, note: `移除 ${blocks} 个示例块` });
-  }
-  if (existsSync(abs(NAV_DEMO))) {
-    const next = rewriteNavigationDemo(readFileSync(abs(NAV_DEMO), "utf-8"));
-    if (next)
-      plannedEdits.push({ rel: NAV_DEMO, content: next, note: "/assets 查询改为本地示例数据" });
   }
 
   const deleted = EXAMPLE_PATHS.filter((rel) => existsSync(abs(rel)));

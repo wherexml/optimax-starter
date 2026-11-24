@@ -7,7 +7,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlugZap, Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -139,18 +138,6 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
   const status = statusQuery.data;
   const configured = status?.configured ?? settings.hasKey;
   const circuitOpen = status?.circuitOpen ?? false;
-  const stateBadge = circuitOpen ? (
-    <Badge variant="danger">已停用</Badge>
-  ) : configured ? (
-    <Badge variant="success">已配置</Badge>
-  ) : (
-    <Badge variant="neutral">未配置</Badge>
-  );
-  const modeBadge = (
-    <Badge variant={settings.editable ? "brand" : "neutral"}>
-      {settings.editable ? "在线维护" : "只读部署凭证"}
-    </Badge>
-  );
   const pending = save.isPending || test.isPending;
   const current = draft ?? toDraft(settings);
   const input = (): AgentModelInput => ({
@@ -174,10 +161,6 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
     <section className="panel" aria-label="AI 模型配置">
       <header className="panel-head">
         <h2>AI 模型配置</h2>
-        <div className="flex items-center gap-2">
-          {stateBadge}
-          {modeBadge}
-        </div>
       </header>
 
       {!settings.editable ? (
@@ -301,17 +284,6 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
               </Select>
             </div>
           </details>
-
-          <div className="grid gap-3 rounded-md border-[0.5px] border-[var(--hairline)] bg-[var(--surface-subtle)] p-4 text-sm sm:grid-cols-3">
-            <Fact label="配置来源" value={SOURCE_LABELS[settings.source]} />
-            <Fact
-              label="最近更新"
-              value={
-                settings.updatedAt ? new Date(settings.updatedAt).toLocaleString("zh-CN") : "未更新"
-              }
-            />
-            <Fact label="更新人" value={settings.updatedBy ?? "部署环境"} />
-          </div>
 
           {canManageSettings && (
             <div className="flex flex-wrap items-center justify-end gap-3">

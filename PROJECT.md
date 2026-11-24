@@ -24,14 +24,13 @@
 
 | 路由 | 模块 | 默认可见角色 |
 | --- | --- | --- |
-| `/` | [工作台](./apps/web/src/features/dashboard/README.md)（注册表驱动 Bento 双视图：业务总览 / 治理与审计，随 `--no-example` 与 `gen:module` 自动适配） | 全部（受 `workbench:read` 控制） |
-| `/assets` | 资产台账（`/console/assets/page` 服务端分页、排序与多选筛选，`/console/assets/facets` 提供业务域/责任团队选项；增删改与审计；CSV 批量导入预览/提交；详情抽屉内「相关附件」；当前页 CSV 与「异步导出全部」后台任务） | 成员只读、管理员与超管可写（受 `assets:read` / `assets:manage` 控制） |
-| `/accounts` | 账户管理（含三层角色提权防线与最后一名超管保护） | 管理员、超级管理员（受 `accounts:read` / `accounts:manage` 控制） |
-| `/permissions` | 系统权限（模块 × 角色「查看 / 操作」矩阵与恢复默认） | 仅超级管理员（`system:permission:*` 锁定） |
-| `/system` | [系统配置](./apps/web/src/features/system/README.md)（顶部 `PageTabs`：`运行状态` 含服务、数据库延迟与活跃会话探针，后端保留 `PATCH /console/system/ai-circuit` 兼容；`基础配置` 含全局系统时区；`后台任务` 含 `FilterBar` 动态筛选、重试/取消与「清理过期数据」） | 管理员只读、超级管理员可维护；`后台任务` Tab 受 `jobs:read` / `jobs:manage` 控制 |
-| `/audit` | 操作日志（服务端分页，区分 `human` / `agent` / `system` 来源，覆盖账户、权限、系统开关、资产、批量导入、附件、后台任务与 API 密钥操作，跟随系统时区） | 管理员、超级管理员（受 `audit:read` 控制） |
+| `/` | [概览](./apps/web/src/features/dashboard/README.md)（注册表驱动 Bento 双视图：业务总览 / 治理与审计，随 `--no-example` 与 `gen:module` 自动适配） | 全部（受 `workbench:read` 控制） |
+| `/assets` | 资产台账（`/console/assets/page` 服务端分页、排序与多选筛选，`/console/assets/facets` 提供业务域/责任团队选项；增删改与审计；CSV 批量导入预览/提交；详情抽屉含顶部编辑/删除、左下角上下条切换与「相关附件」；当前页 CSV 与「异步导出全部」后台任务） | 成员只读、管理员与超管可写（受 `assets:read` / `assets:manage` 控制） |
+| `/accounts` | 账户管理（含三层角色提权防线与最后一名超管保护；行内精简核心操作，全量动作与上下条切换统一在详情抽屉） | 管理员、超级管理员（受 `accounts:read` / `accounts:manage` 控制） |
+| `/permissions` | 系统权限（模块 × 角色「查看 / 操作」紧凑矩阵、只读槽位与超管只读列、锁定即时 Tooltip 与恢复默认） | 仅超级管理员（`system:permission:*` 锁定） |
+| `/system` | [系统配置](./apps/web/src/features/system/README.md)（顶部 `PageTabs`：`运行状态` 含服务、数据库延迟与活跃会话探针，后端保留 `PATCH /console/system/ai-circuit` 兼容；`基础配置` 含全量可搜索 IANA 系统时区与 AI 模型配置；`后台任务` 含 `FilterBar` 动态筛选、重试/取消与「清理过期数据」） | 管理员只读、超级管理员可维护；`后台任务` Tab 受 `jobs:read` / `jobs:manage` 控制 |
+| `/audit` | 操作日志（服务端分页，区分 `human` / `agent` / `system` 来源，覆盖账户、权限、系统开关、资产、批量导入、附件、后台任务与 API 密钥操作，跟随系统时区；详情抽屉支持上下条切换） | 管理员、超级管理员（受 `audit:read` 控制） |
 | `/settings` | 个人设置（含「API 密钥」卡片：创建/撤销个人 Bearer 密钥，仅网页会话可管理） | 全部已登录账户 |
-| `/demo/navigation` | [二级导航与顶部 Tab Demo](./apps/web/src/features/navigation-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
 | `/demo/forms` | [三段式表单弹窗、输入控件、全局通知与骨架屏刷新 Demo](./apps/web/src/features/forms-demo/README.md)（受 `VITE_ENABLE_DEMOS` 控制） | 全部 |
 
 ## 数据表

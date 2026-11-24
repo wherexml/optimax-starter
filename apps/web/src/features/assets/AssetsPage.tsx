@@ -2,16 +2,16 @@ import type { AssetSortField } from "@optimax-starter/api";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ChevronDown, CloudDownload, Download, FileUp, Plus } from "lucide-react";
+import { CloudDownload, Download, FileUp, Plus } from "lucide-react";
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentPanel } from "@/components/attachments/AttachmentPanel";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/toast";
 import { storageKey } from "@/config/app-config";
 import {
@@ -75,7 +75,6 @@ type PendingAction =
   | null;
 
 export function AssetsPage() {
-  const [exportOpen, setExportOpen] = useState(false);
   const me = useAccount();
   const cache = useQueryClient();
   const canRead = hasPermission(me.data, "assets:read");
@@ -84,6 +83,7 @@ export function AssetsPage() {
   const createTrigger = useRef<HTMLButtonElement>(null);
   const importTrigger = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  const returnToDetailRef = useRef<number | null>(null);
 
   // The router can keep raw or invalid keys (objects, nested arrays) even after validateSearch, so parse again here.
   const params = parseAssetSearch(route.useSearch() as Record<string, unknown>),
@@ -133,6 +133,11 @@ export function AssetsPage() {
   const owners = facets.data?.owners ?? [];
   const rows = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
+  const activeDetailRow = useMemo(() => {
+    if (pending?.kind !== "detail") return null;
+    return rows.find((r) => r.id === pending.row.id) ?? pending.row;
+  }, [pending, rows]);
+  const detailIndex = activeDetailRow ? rows.findIndex((r) => r.id === activeDetailRow.id) : -1;
 
   // After deletions the current page may be past the end: step back to the last page.
   useEffect(() => {
@@ -227,6 +232,7 @@ export function AssetsPage() {
 
   const openRowAction = useCallback(
     (kind: "detail" | "edit" | "delete", row: Asset, e?: MouseEvent<HTMLElement>) => {
+      returnToDetailRef.current = null;
       returnFocus.current = e?.currentTarget ?? null;
       setPending({ kind, row });
     },
@@ -424,27 +430,15 @@ export function AssetsPage() {
           : undefined
       }
       toolbarEnd={
-        <Popover open={exportOpen} onOpenChange={setExportOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              disabled={!rows.length && !total}
-            >
-              <Download size={14} aria-hidden="true" />
-              <span>{exportAll.isPending ? "正在导出…" : "导出"}</span>
-              <ChevronDown size={14} aria-hidden="true" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-44 p-1">
-            <button
-              type="button"
-              className="user-menu-item"
-              disabled={!rows.length}
-              onClick={() => {
-                setExportOpen(false);
+        <TableExportMenu
+          busy={exportAll.isPending}
+          disabled={!rows.length && !total}
+          items={[
+            {
+              label: "导出当前页 CSV",
+              icon: Download,
+              disabled: !rows.length,
+              onSelect: () => {
                 const count = downloadCsv("资产台账.csv", rows, [
                   {
                     header: "编号",
@@ -456,38 +450,29 @@ export function AssetsPage() {
                   { header: "登记状态", value: (r) => r.stage },
                 ]);
                 toast.success(`已导出当前页 ${count} 条资产记录`);
-              }}
-            >
-              <Download size={14} aria-hidden="true" />
-              <span>导出当前页 CSV</span>
-            </button>
-            <button
-              type="button"
-              className="user-menu-item"
-              disabled={!total || exportAll.isPending}
-              onClick={() => {
-                setExportOpen(false);
-                exportAll.mutate();
-              }}
-            >
-              <CloudDownload size={14} aria-hidden="true" />
-              <span>{exportAll.isPending ? "正在导出…" : "异步导出全部"}</span>
-            </button>
-          </PopoverContent>
-        </Popover>
+              },
+            },
+            {
+              label: exportAll.isPending ? "正在导出…" : "异步导出全部",
+              icon: CloudDownload,
+              disabled: !total || exportAll.isPending,
+              onSelect: () => exportAll.mutate(),
+            },
+          ]}
+        />
       }
     >
-      {pending?.kind === "detail" && (
+      {activeDetailRow && (
         <DetailDrawer
           open
           onOpenChange={(open) => {
             if (!open) setPending(null);
           }}
-          title={pending.row.name}
-          description={`资产编号 AS-${String(pending.row.id).padStart(3, "0")}`}
+          title={activeDetailRow.name}
+          description={`资产编号 AS-${String(activeDetailRow.id).padStart(3, "0")}`}
           badge={
-            <Badge variant={pending.row.stage === "已登记" ? "brand" : "warning"}>
-              {pending.row.stage}
+            <Badge variant={activeDetailRow.stage === "已登记" ? "brand" : "warning"}>
+              {activeDetailRow.stage}
             </Badge>
           }
           onCloseAutoFocus={(e) => {
@@ -496,28 +481,68 @@ export function AssetsPage() {
               returnFocus.current.focus();
             }
           }}
-          footer={
+          actions={
             canManage ? (
-              <Button type="button" onClick={() => setPending({ kind: "edit", row: pending.row })}>
-                编辑资产
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    returnToDetailRef.current = activeDetailRow.id;
+                    setPending({ kind: "edit", row: activeDetailRow });
+                  }}
+                >
+                  编辑
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    returnToDetailRef.current = activeDetailRow.id;
+                    setPending({ kind: "delete", row: activeDetailRow });
+                  }}
+                >
+                  删除
+                </Button>
+              </>
             ) : undefined
+          }
+          navigation={
+            detailIndex >= 0
+              ? {
+                  hasPrev: detailIndex > 0,
+                  hasNext: detailIndex < rows.length - 1,
+                  current: detailIndex + 1,
+                  total: rows.length,
+                  onPrev: () => {
+                    const prev = rows[detailIndex - 1];
+                    if (prev) setPending({ kind: "detail", row: prev });
+                  },
+                  onNext: () => {
+                    const next = rows[detailIndex + 1];
+                    if (next) setPending({ kind: "detail", row: next });
+                  },
+                }
+              : undefined
           }
         >
           <DetailSection title="台账信息">
             <DetailField label="资产编号">
               <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                AS-{String(pending.row.id).padStart(3, "0")}
+                AS-{String(activeDetailRow.id).padStart(3, "0")}
               </span>
             </DetailField>
-            <DetailField label="登记状态">{pending.row.stage}</DetailField>
-            <DetailField label="资产名称">{pending.row.name}</DetailField>
-            <DetailField label="业务域">{pending.row.domain}</DetailField>
+            <DetailField label="登记状态">{activeDetailRow.stage}</DetailField>
+            <DetailField label="资产名称">{activeDetailRow.name}</DetailField>
+            <DetailField label="业务域">{activeDetailRow.domain}</DetailField>
             <DetailField label="责任团队" fullWidth>
-              {pending.row.owner}
+              {activeDetailRow.owner}
             </DetailField>
           </DetailSection>
-          <AttachmentPanel entityId={pending.row.id} canManage={canManage} />
+          <AttachmentPanel entityId={activeDetailRow.id} canManage={canManage} />
         </DetailDrawer>
       )}
       {pending?.kind === "create" && (
@@ -572,8 +597,16 @@ export function AssetsPage() {
           asset={pending.row}
           trigger={returnFocus.current}
           close={(msg) => {
-            setPending(null);
+            const backId = returnToDetailRef.current;
+            returnToDetailRef.current = null;
+            const fallbackRow = pending.row;
             if (msg) toast.success(msg);
+            if (backId !== null) {
+              const latest = rows.find((r) => r.id === backId) ?? fallbackRow;
+              setPending({ kind: "detail", row: latest });
+            } else {
+              setPending(null);
+            }
           }}
         />
       )}
@@ -585,11 +618,18 @@ export function AssetsPage() {
           trigger={returnFocus.current}
           action={() => request(`/assets/${pending.row.id}`, "DELETE", {})}
           close={async (done) => {
-            const name = pending.row.name;
-            setPending(null);
+            const targetRow = pending.row;
+            const backId = returnToDetailRef.current;
+            returnToDetailRef.current = null;
             if (done) {
+              setPending(null);
               await cache.invalidateQueries({ queryKey: ["assets"] });
-              toast.success(`已删除资产 ${name}`);
+              toast.success(`已删除资产 ${targetRow.name}`);
+            } else if (backId !== null) {
+              const latest = rows.find((r) => r.id === backId) ?? targetRow;
+              setPending({ kind: "detail", row: latest });
+            } else {
+              setPending(null);
             }
           }}
         />

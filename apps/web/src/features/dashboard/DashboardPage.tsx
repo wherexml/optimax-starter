@@ -329,13 +329,13 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        title="工作台"
+        title="概览"
         actions={
           <div className="flex flex-wrap items-center gap-1.5">
             {isGovernanceView ? (
               <div className="w-auto min-w-[172px]">
                 <SegmentedControl
-                  label="工作台视图"
+                  label="概览视图"
                   value={currentView}
                   onValueChange={setDashView}
                   options={DASHBOARD_VIEW_OPTIONS}
@@ -348,7 +348,7 @@ export function DashboardPage() {
               variant="ghost"
               size="icon-sm"
               title="刷新"
-              aria-label="刷新工作台"
+              aria-label="刷新概览"
               disabled={fetching}
               onClick={handleRefresh}
             >
@@ -414,11 +414,6 @@ export function DashboardPage() {
                 ) : (
                   <TrendAreaChart
                     title="操作趋势"
-                    subtitle={
-                      (auditPage.data?.total ?? 0) > AUDIT_TREND_FETCH_SIZE
-                        ? `统计口径：${timeZone} 按日（近 ${AUDIT_TREND_FETCH_SIZE} 条）`
-                        : `统计口径：${timeZone} 按日`
-                    }
                     data={trendData}
                     series={TREND_SERIES}
                     range={trendRange}
@@ -603,7 +598,7 @@ function renderTopKpis(ctx: {
           label={sec.label}
           value={sec.value}
           unit={sec.unit}
-          icon={<Clock size={16} aria-hidden="true" />}
+          icon={<Clock className="size-4" aria-hidden="true" />}
           tone={sec.tone ?? "warning"}
           renderMain={(content) => (
             <Link
@@ -634,7 +629,7 @@ function renderTopKpis(ctx: {
           label={extra.label}
           value={extra.value}
           unit={extra.unit}
-          icon={<Boxes size={16} aria-hidden="true" />}
+          icon={<Boxes className="size-4" aria-hidden="true" />}
           tone={extra.tone ?? "brand"}
           renderMain={(content) => (
             <Link
@@ -678,7 +673,7 @@ function renderTopKpis(ctx: {
           label={sec.label}
           value={sec.value}
           unit={sec.unit}
-          icon={<Clock size={16} aria-hidden="true" />}
+          icon={<Clock className="size-4" aria-hidden="true" />}
           tone={sec.tone ?? "warning"}
           renderMain={(content) => (
             <Link
@@ -746,7 +741,7 @@ function renderPrimaryModuleKpi(mod: DashboardModuleSpec, data: DashboardModuleS
       label={data.primaryLabel}
       value={data.total}
       unit={data.unit}
-      icon={<Icon size={16} aria-hidden="true" />}
+      icon={<Icon className="size-4" aria-hidden="true" />}
       tone={data.primaryTone ?? "brand"}
       badge={data.primaryBadge ? <Badge variant="brand">{data.primaryBadge}</Badge> : undefined}
       renderMain={(content) => (
@@ -804,7 +799,7 @@ function renderAccountsKpi(
       label="启用账户"
       value={activeCount}
       unit="人"
-      icon={<Users size={16} aria-hidden="true" />}
+      icon={<Users className="size-4" aria-hidden="true" />}
       tone="brand"
       badge={<Badge variant="neutral">共 {accounts.data.length}</Badge>}
       renderMain={(content) => (
@@ -857,7 +852,7 @@ function renderAudit7dKpi(
       label="近 7 日操作"
       value={sum7}
       unit="次"
-      icon={<Activity size={16} aria-hidden="true" />}
+      icon={<Activity className="size-4" aria-hidden="true" />}
       tone="brand"
       badge={agent7 > 0 ? <Badge variant="success">Agent {agentPct}%</Badge> : undefined}
       sparkline={spark7.map((p) => ({ label: p.label, value: p.total }))}
@@ -909,7 +904,7 @@ function renderJobsKpi(
       label="后台任务"
       value={jobsPage.data.total}
       unit="个"
-      icon={<CheckCircle2 size={16} aria-hidden="true" />}
+      icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
       tone={hasFailure ? "danger" : "success"}
       badge={
         hasFailure ? (
@@ -982,7 +977,7 @@ function renderPlatformKpi(ctx: {
         label={ctx.canReadAccounts ? "系统与账户" : "系统探针"}
         value={headline}
         unit={unit}
-        icon={<Cpu size={16} aria-hidden="true" />}
+        icon={<Cpu className="size-4" aria-hidden="true" />}
         tone={ok ? "success" : "danger"}
         badge={<Badge variant={ok ? "success" : "danger"}>{ok ? "运行正常" : "服务降级"}</Badge>}
         renderMain={(content) => (
@@ -1135,7 +1130,7 @@ function ModuleOverviewPanel({
     return (
       <Panel title="业务模块">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-[0.5px] border-border bg-[var(--surface-subtle)] px-3.5 py-3 text-xs text-muted-foreground">
-          <span>尚未接入业务台账模块，运行脚手架命令后自动挂载至工作台</span>
+          <span>尚未接入业务台账模块，运行脚手架命令后自动挂载至概览</span>
           <code className="rounded border-[0.5px] border-border bg-card px-2 py-1 text-[12px] text-foreground">
             bun run gen:module &lt;slug&gt; --label &lt;名称&gt;
           </code>
@@ -1309,14 +1304,12 @@ function ModuleOverviewPanel({
                             <Link
                               to={row.pendingTo as never}
                               search={(row.pendingSearch ?? {}) as never}
-                              className="inline-flex h-6 min-w-[66px] items-center justify-center rounded-full bg-warning px-2.5 text-xs font-medium text-warning-foreground no-underline tabular-nums hover:ring-1 hover:ring-[var(--warning-foreground)]"
+                              className="inline-flex rounded-[5px] no-underline transition-opacity duration-150 hover:opacity-80"
                             >
-                              待复核 {row.pendingCount}
+                              <Badge variant="warning">待复核 {row.pendingCount}</Badge>
                             </Link>
                           ) : (
-                            <span className="inline-flex h-6 min-w-[66px] items-center justify-center rounded-full bg-muted px-2.5 text-xs text-muted-foreground tabular-nums">
-                              待复核 0
-                            </span>
+                            <Badge variant="neutral">待复核 0</Badge>
                           )
                         ) : undefined,
                     }))}
@@ -1461,8 +1454,11 @@ function RecentActivityList({
               search={{ action: e.action } as never}
               className="-mx-2 flex items-start gap-2.5 rounded-md px-2 py-2 text-inherit no-underline transition-colors hover:bg-muted/70"
             >
-              <span className="grid size-7 flex-none place-items-center rounded-md bg-accent text-accent-foreground">
-                <Icon size={14} aria-hidden="true" />
+              <span
+                aria-hidden="true"
+                className="mt-0.5 flex size-4 flex-none items-center justify-center text-muted-foreground opacity-80 [&_svg]:size-4"
+              >
+                <Icon />
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="line-clamp-2 text-[13px] leading-5 text-foreground">
@@ -1472,8 +1468,8 @@ function RecentActivityList({
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   <time dateTime={e.at}>{relativeTime(e.at, timeZone)}</time>
                   {e.actorSource === "agent" ? (
-                    <span className="inline-flex items-center gap-1 rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground">
-                      <Bot size={11} aria-hidden="true" />
+                    <span className="inline-flex h-[18px] items-center gap-1 rounded-[4px] border-[0.5px] border-border bg-[var(--surface-subtle)] px-1.5 text-[11px] font-medium text-muted-foreground">
+                      <Bot className="size-3 opacity-80" aria-hidden="true" />
                       Agent
                     </span>
                   ) : null}
@@ -1614,23 +1610,19 @@ function QuickAccessRow({
               key={sc.key}
               to={sc.to as never}
               search={(sc.search ?? {}) as never}
-              className="feature-card"
+              className="feature-card group"
             >
-              <span className="stat-icon">
-                <Icon size={17} aria-hidden="true" />
-              </span>
+              <Icon
+                aria-hidden="true"
+                className="size-4 flex-none text-muted-foreground opacity-80 transition-colors duration-150 group-hover:text-foreground"
+              />
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-sm font-medium text-foreground">{sc.title}</span>
-                {sc.count !== undefined ? (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
-                    {sc.count}
-                  </span>
-                ) : null}
+                {sc.count !== undefined ? <Badge variant="neutral">{sc.count}</Badge> : null}
               </span>
               <ArrowRight
-                size={15}
-                className="flex-none text-muted-foreground"
                 aria-hidden="true"
+                className="ml-auto size-3.5 flex-none text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-foreground"
               />
             </Link>
           );

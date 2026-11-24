@@ -6,8 +6,9 @@
 
 ## 页面与组件结构
 
-- `AssetsPage.tsx`：基于 [ResourceTableSlot](../../components/crud/README.md) 构建。成员仅可查看与筛选；管理员额外展示右上角「新增资产」「导入」按钮与行尾「编辑 / 删除」操作，`AssetFormDialog.tsx` 复用 `@optimax-starter/api` 的 `assetInputSchema` 并内置未保存离开拦截与触发按钮焦点归还。
-- 导出下拉：工具栏右侧提供统一的「导出」下拉菜单（使用 `Popover` 组合 `导出当前页 CSV` 与 `异步导出全部`）。
+- `AssetsPage.tsx`：基于 [ResourceTableSlot](../../components/crud/README.md) 构建。成员仅可查看与筛选；管理员额外展示右上角「新增资产」「批量导入」按钮与行尾「编辑 / 删除」操作；右侧 `DetailDrawer` 顶部操作栏同步提供「编辑 / 删除」，左下角支持「上一个 / 下一个」记录切换，抽屉内挂载附件上传/下载；`AssetFormDialog.tsx` 复用 `@optimax-starter/api` 的 `assetInputSchema` 并内置未保存离开拦截与触发按钮焦点归还。
+- 本地演示数据：服务端（`apps/server/src/modules/assets.ts`）幂等预置 1,000 条覆盖多业务域与责任团队的模拟资产记录（`AS-001` 至 `AS-1000`），便于服务端分页、排序与全量导出测试。
+- 导出菜单：工具栏右侧通过共享的 `TableExportMenu` 提供纯图标导出按钮（仅显示下载图标，无触发文字与箭头），点击弹出「导出当前页 CSV」与「异步导出全部」菜单项。
 - 可选助手入口：页头通过 `@starter:agent-start/end` 标记接入 `AskAssistant`，`--no-agent` 导出时自动移除。
 
 ## 服务端 AI 接口兼容

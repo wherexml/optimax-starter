@@ -40,6 +40,9 @@ export interface ResourceTableSlotProps<TData extends { id: number }> {
   pagination?: ServerPaginationConfig;
   /** 服务端排序（受控）；提供时表格使用 manualSorting。 */
   sorting?: ServerSortingConfig;
+  /** 客户端分页默认每页条数与可选条数。 */
+  defaultPageSize?: number;
+  pageSizes?: number[];
   enableRowSelection?: boolean;
   bulkActions?: (ctx: { selectedRows: TData[]; clearSelection: () => void }) => ReactNode;
   onRowClick?: (row: TData) => void;
@@ -73,6 +76,8 @@ export function ResourceTableSlot<TData extends { id: number }>({
   toolbarEnd,
   pagination,
   sorting,
+  defaultPageSize,
+  pageSizes,
   enableRowSelection,
   bulkActions,
   onRowClick,
@@ -142,6 +147,8 @@ export function ResourceTableSlot<TData extends { id: number }>({
       error={error}
       pagination={pagination}
       sorting={sorting}
+      defaultPageSize={defaultPageSize}
+      pageSizes={pageSizes}
       enableRowSelection={enableRowSelection}
       bulkActions={bulkActions}
       onRowClick={onRowClick}

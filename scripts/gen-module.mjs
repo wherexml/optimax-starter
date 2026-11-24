@@ -1219,7 +1219,7 @@ function buildWebPageContent() {
   return `import { getRouteApi } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import {
   ${apiImports.join(",\n  ")},
@@ -1227,6 +1227,7 @@ import {
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
 ${badgeImport}import { Button } from "@/components/ui/button";
 import {
   DetailDrawer,
@@ -1234,6 +1235,7 @@ import {
   DetailSection,
 } from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
+import { storageKey } from "@/config/app-config";
 import { request } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import type { Filters } from "@/hooks/usePersistedFilters";
@@ -1262,6 +1264,7 @@ export function ${pascal}Page() {
   const [detailRow, setDetailRow] = useState<${singularPascal}Record | null>(null);
   const createTrigger = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  const returnToDetailRef = useRef<number | null>(null);
 
   const filters: Filters = {
 ${filterStateLines.join("\n")}
@@ -1289,6 +1292,12 @@ ${filterStateLines.join("\n")}
   });
 
   const currentItems = query.data?.items ?? [];
+  const activeDetailRow = detailRow
+    ? (currentItems.find((r) => r.id === detailRow.id) ?? detailRow)
+    : null;
+  const detailIndex = activeDetailRow
+    ? currentItems.findIndex((r) => r.id === activeDetailRow.id)
+    : -1;
 
   const columns = useMemo<ColumnDef<${singularPascal}Record>[]>(() => {
     const base: ColumnDef<${singularPascal}Record>[] = [
@@ -1389,6 +1398,9 @@ ${columnBlocks.join(",\n")},
           replace: true,
         })
       }
+      draftStorageKey={
+        me.data ? \`\${storageKey("filter-drafts.v1")}:\${me.data.id}:${slug}\` : undefined
+      }
       columns={columns}
       data={currentItems}
       isLoading={query.isPending}
@@ -1400,27 +1412,26 @@ ${columnBlocks.join(",\n")},
         setDetailRow(row);
       }}
       toolbarEnd={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
+        <TableExportMenu
           disabled={!currentItems.length}
-          onClick={() => {
-            const count = downloadCsv(\`${label}-第\${page}页.csv\`, currentItems, [
-              {
-                header: "编号",
-                value: (r) => \`${codePrefix}-\${String(r.id).padStart(3, "0")}\`,
-              },
+          items={[
+            {
+              label: "导出当前页 CSV",
+              disabled: !currentItems.length,
+              onSelect: () => {
+                const count = downloadCsv(\`${label}-第\${page}页.csv\`, currentItems, [
+                  {
+                    header: "编号",
+                    value: (r) => \`${codePrefix}-\${String(r.id).padStart(3, "0")}\`,
+                  },
 ${csvColumns}
-              { header: "创建时间", value: (r) => r.createdAt },
-            ]);
-            toast.success(\`已导出 \${count} 条${label}记录\`);
-          }}
-        >
-          <Download size={14} aria-hidden="true" />
-          <span>导出 CSV</span>
-        </Button>
+                  { header: "创建时间", value: (r) => r.createdAt },
+                ]);
+                toast.success(\`已导出当前页 \${count} 条${label}记录\`);
+              },
+            },
+          ]}
+        />
       }
       pagination={{
         pageIndex: page - 1,
@@ -1452,8 +1463,15 @@ ${csvColumns}
           record={pending.row}
           trigger={returnFocus.current}
           close={(msg) => {
+            const backId = returnToDetailRef.current;
+            returnToDetailRef.current = null;
+            const fallbackRow = pending.row;
             setPending(null);
             if (msg) toast.success(msg);
+            if (backId !== null) {
+              const latest = currentItems.find((r) => r.id === backId) ?? fallbackRow;
+              setDetailRow(latest);
+            }
           }}
         />
       )}
@@ -1465,28 +1483,83 @@ ${csvColumns}
           trigger={returnFocus.current}
           action={() => request(\`/${slug}/\${pending.row.id}\`, "DELETE", {})}
           close={async (done) => {
-            const name = String(pending.row.${primaryField.name} ?? pending.row.id);
+            const targetRow = pending.row;
+            const backId = returnToDetailRef.current;
+            returnToDetailRef.current = null;
+            const name = String(targetRow.${primaryField.name} ?? targetRow.id);
             setPending(null);
             if (done) {
               await cache.invalidateQueries({ queryKey: ["${slug}"] });
               toast.success(\`已删除 \${name}\`);
+            } else if (backId !== null) {
+              const latest = currentItems.find((r) => r.id === backId) ?? targetRow;
+              setDetailRow(latest);
             }
           }}
         />
       )}
       <DetailDrawer
-        open={Boolean(detailRow)}
+        open={Boolean(activeDetailRow)}
         onOpenChange={(open) => {
           if (!open) setDetailRow(null);
         }}
         title={
-          detailRow
-            ? String(detailRow.${primaryField.name} ?? "${label}详情")
+          activeDetailRow
+            ? String(activeDetailRow.${primaryField.name} ?? "${label}详情")
             : "${label}详情"
         }
         description={
-          detailRow
-            ? \`${codePrefix}-\${String(detailRow.id).padStart(3, "0")}\`
+          activeDetailRow
+            ? \`${codePrefix}-\${String(activeDetailRow.id).padStart(3, "0")}\`
+            : undefined
+        }
+        actions={
+          canManage && activeDetailRow ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  returnToDetailRef.current = activeDetailRow.id;
+                  setDetailRow(null);
+                  setPending({ kind: "edit", row: activeDetailRow });
+                }}
+              >
+                编辑
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  returnToDetailRef.current = activeDetailRow.id;
+                  setDetailRow(null);
+                  setPending({ kind: "delete", row: activeDetailRow });
+                }}
+              >
+                删除
+              </Button>
+            </>
+          ) : undefined
+        }
+        navigation={
+          detailIndex >= 0
+            ? {
+                hasPrev: detailIndex > 0,
+                hasNext: detailIndex < currentItems.length - 1,
+                current: detailIndex + 1,
+                total: currentItems.length,
+                onPrev: () => {
+                  const prev = currentItems[detailIndex - 1];
+                  if (prev) setDetailRow(prev);
+                },
+                onNext: () => {
+                  const next = currentItems[detailIndex + 1];
+                  if (next) setDetailRow(next);
+                },
+              }
             : undefined
         }
         onCloseAutoFocus={(e) => {
@@ -1496,12 +1569,12 @@ ${csvColumns}
           }
         }}
       >
-        {detailRow && (
+        {activeDetailRow && (
           <DetailSection title="记录详情">
 ${detailFields}
             <DetailField label="创建时间">
               <span className="font-mono text-xs tabular-nums">
-                {detailRow.createdAt}
+                {activeDetailRow.createdAt}
               </span>
             </DetailField>
           </DetailSection>

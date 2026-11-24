@@ -10,12 +10,12 @@ export async function verifyPageLayout(
     pages = [];
   const result = { status: "RUNNING", checks, pages };
   const routes = [
-    ["dashboard", "/", "工作台"],
+    ["dashboard", "/", "概览"],
     ["assets", "/assets", "资产台账"],
     ["accounts", "/accounts", "账户管理"],
     ["audit", "/audit", "操作日志"],
     ["settings", "/settings", "个人设置"],
-    ["tabs", "/demo/navigation?tab=pending", "资产视图"],
+    ["forms", "/demo/forms", "表单弹窗"],
   ];
   const check = (name, ok) => checks.push({ name, status: ok ? "PASS" : "FAIL" });
   try {
@@ -28,7 +28,7 @@ export async function verifyPageLayout(
         mobile,
       });
       for (const [name, path, title] of routes.filter(
-        ([name]) => !mobile || ["assets", "settings", "tabs"].includes(name),
+        ([name]) => !mobile || ["assets", "settings", "forms"].includes(name),
       )) {
         await page.goto(`${baseUrl}${path}`);
         await page.waitForSelector("main h1");
@@ -133,7 +133,7 @@ export async function verifyPageLayout(
       deviceScaleFactor: 1,
       mobile: false,
     });
-    await page.goto(`${baseUrl}/demo/navigation?tab=pending`);
+    await page.goto(`${baseUrl}/demo/forms`);
     await writeFile(`${evidenceDir}/results.json`, JSON.stringify(result, null, 2));
   }
   return result;

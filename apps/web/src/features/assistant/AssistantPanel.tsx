@@ -53,13 +53,33 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ExpandButton({ wide, onExpand }: { wide: boolean; onExpand: () => void }) {
+  const label = wide ? "退出全屏" : "全屏展开";
+  return (
+    <button
+      type="button"
+      className="pi-icon pi-expand-panel"
+      aria-label={label}
+      aria-pressed={wide}
+      title={label}
+      onClick={onExpand}
+    >
+      {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+    </button>
+  );
+}
+
 function Unavailable({
   status,
   account,
+  wide,
+  onExpand,
   onClose,
 }: {
   status?: AgentStatusResponse;
   account?: Account;
+  wide: boolean;
+  onExpand: () => void;
   onClose: () => void;
 }) {
   const canOpenSettings =
@@ -75,6 +95,7 @@ function Unavailable({
             <h1>智能助理</h1>
           </div>
           <div className="pi-header-actions">
+            <ExpandButton wide={wide} onExpand={onExpand} />
             <CloseButton onClose={onClose} />
           </div>
         </header>
@@ -116,7 +137,15 @@ export default function AssistantPanel(props: PanelProps) {
   const me = useAccount();
   const { status } = useAssistantAvailability();
   if (!me.data || !status?.enabled) {
-    return <Unavailable status={status} account={me.data} onClose={props.onClose} />;
+    return (
+      <Unavailable
+        status={status}
+        account={me.data}
+        wide={props.wide}
+        onExpand={props.onExpand}
+        onClose={props.onClose}
+      />
+    );
   }
   return <Workbench key={me.data.id} account={me.data} status={status} {...props} />;
 }
@@ -293,15 +322,7 @@ function Workbench({
             >
               <Download size={16} />
             </button>
-            <button
-              type="button"
-              className="pi-icon pi-expand-panel"
-              aria-label={wide ? "恢复侧栏宽度" : "加宽侧栏"}
-              title={wide ? "恢复侧栏宽度" : "加宽侧栏"}
-              onClick={onExpand}
-            >
-              {wide ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-            </button>
+            <ExpandButton wide={wide} onExpand={onExpand} />
             <CloseButton onClose={onClose} />
           </div>
         </header>

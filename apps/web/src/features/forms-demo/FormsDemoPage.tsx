@@ -4,7 +4,9 @@ import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, RotateCw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
 import { DataTable } from "@/components/table/DataTable";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -21,6 +23,8 @@ import { TagInput } from "@/components/ui/tag-input";
 import { toast } from "@/components/ui/toast";
 import { type Asset, request } from "@/console-client";
 import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
+import type { Filters } from "@/hooks/usePersistedFilters";
+import { downloadCsv } from "@/lib/csv";
 import {
   CONNECTOR_MODES,
   ComplexFormDialog,
@@ -93,6 +97,7 @@ export function FormsDemoPage() {
   const editTriggerRef = useRef<HTMLElement | null>(null);
 
   const [policies, setPolicies] = useState<ConnectorPolicyRecord[]>(INITIAL_POLICIES);
+  const [policyFilters, setPolicyFilters] = useState<Filters>({});
   const [editingTarget, setEditingTarget] = useState<ConnectorPolicyRecord | undefined>(undefined);
 
   const assetsQuery = useQuery({
@@ -194,6 +199,52 @@ export function FormsDemoPage() {
     [policies],
   );
 
+  const policyFields = useMemo<FilterField[]>(
+    () => [
+      {
+        key: "name",
+        label: "策略名称",
+        type: "text",
+        ariaLabel: "搜索策略名称",
+        placeholder: "搜索策略名称",
+      },
+      {
+        key: "mode",
+        label: "接入方式",
+        type: "select",
+        options: CONNECTOR_MODES.map((m) => ({ value: m.value, label: m.label })),
+      },
+      {
+        key: "owner",
+        label: "责任团队",
+        type: "select",
+        options: ownerOptions.map((o) => ({ value: o.value, label: o.label })),
+      },
+      {
+        key: "domains",
+        label: "覆盖业务域",
+        type: "select",
+        options: domainOptions.map((d) => ({ value: d.value, label: d.label })),
+      },
+    ],
+    [domainOptions, ownerOptions],
+  );
+
+  const filteredPolicies = useMemo(() => {
+    const nameNeedle =
+      typeof policyFilters.name === "string" ? policyFilters.name.trim().toLowerCase() : "";
+    const modeFilter = typeof policyFilters.mode === "string" ? policyFilters.mode : "";
+    const ownerFilter = typeof policyFilters.owner === "string" ? policyFilters.owner : "";
+    const domainFilter = typeof policyFilters.domains === "string" ? policyFilters.domains : "";
+    return policies.filter((item) => {
+      if (nameNeedle && !item.name.toLowerCase().includes(nameNeedle)) return false;
+      if (modeFilter && item.mode !== modeFilter) return false;
+      if (ownerFilter && item.owner !== ownerFilter) return false;
+      if (domainFilter && !item.domains.includes(domainFilter)) return false;
+      return true;
+    });
+  }, [policies, policyFilters]);
+
   return (
     <>
       <PageHeader
@@ -212,27 +263,59 @@ export function FormsDemoPage() {
               <Plus size={15} />
               新建接入策略
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              title="刷新"
-              aria-label="刷新表单示例"
-              disabled={assetsQuery.isFetching}
-              onClick={() => void runRefresh(() => assetsQuery.refetch())}
-            >
-              <RotateCw size={15} className={assetsQuery.isFetching ? "animate-spin" : undefined} />
-            </Button>
           </div>
         }
       />
 
       <div className="flex flex-col gap-5">
         <DataTable
-          data={policies}
+          data={filteredPolicies}
           columns={columns}
           isLoading={assetsQuery.isLoading}
           error={assetsQuery.error?.message}
+          toolbar={
+            <FilterBar fields={policyFields} values={policyFilters} onApply={setPolicyFilters} />
+          }
+          toolbarEnd={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="刷新"
+                aria-label="刷新表单示例"
+                disabled={assetsQuery.isFetching}
+                onClick={() => void runRefresh(() => assetsQuery.refetch())}
+              >
+                <RotateCw size={15} className={assetsQuery.isFetching ? "animate-spin" : undefined} />
+              </Button>
+              <TableExportMenu
+                disabled={!filteredPolicies.length}
+                items={[
+                  {
+                    label: "导出策略列表 CSV",
+                    disabled: !filteredPolicies.length,
+                    onSelect: () => {
+                      // Non-secret fields only: never export credential secrets.
+                      const count = downloadCsv("接入策略列表.csv", filteredPolicies, [
+                        { header: "策略名称", value: (r) => r.name },
+                        { header: "接入方式", value: (r) => MODE_LABELS[r.mode] },
+                        { header: "责任团队", value: (r) => r.owner },
+                        { header: "覆盖业务域", value: (r) => r.domains.join("、") },
+                        { header: "并发路数", value: (r) => r.concurrency },
+                        {
+                          header: "同步周期(分钟)",
+                          value: (r) => (r.mode === "api" ? r.intervalMinutes : 0),
+                        },
+                        { header: "最近更新", value: (r) => r.updatedAt },
+                      ]);
+                      toast.success(`已导出 ${count} 条接入策略`);
+                    },
+                  },
+                ]}
+              />
+            </>
+          }
         />
 
         <StandaloneControlsShowcase domainOptions={domainOptions} ownerOptions={ownerOptions} />
@@ -599,7 +682,7 @@ function SkeletonRefreshShowcase() {
             size="sm"
             onClick={() => triggerTimedPreview("dashboard")}
           >
-            预览工作台骨架屏
+            预览概览骨架屏
           </Button>
           <Button
             type="button"

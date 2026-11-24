@@ -10,9 +10,11 @@
   - `system:permission:*`、`system:ai:manage`、`system:manage` 禁止分配给 `admin` 或 `member`（越界提交返回 `422`）；
   - 每次实际变更在同一事务内写入 `console_audit`（`permission.update` 记录 `targetRole / beforePermissions / afterPermissions`，`permission.reset` 记录恢复默认）。
 - 前端交互：[PermissionsPage.tsx](./PermissionsPage.tsx) 实现：
-  - **自动联动**：开启「操作」自动勾选「查看」；关闭「查看」自动取消「操作」。
-  - **超管列与不可配项锁定**：`super_admin` 整列及无操作项（如工作台、操作日志的「操作」）带锁置灰并通过 `title` 提示锁定原因。
-  - **二次点击恢复默认**：首次点击「恢复默认」切换为「确认恢复」并弹出右下角告警提示，再次点击才提交 `POST /console/system/permissions/reset`。
+  - **高密度单行矩阵与按需提示**：每行只保留模块名称并在旁提供 `?` 气泡提示（Tooltip）按需查看权限边界说明，不堆叠常驻副文案与底部脚注；
+  - **自动联动**：开启「操作」自动勾选「查看」；关闭「查看」自动取消「操作」；
+  - **只读槽位与超管只读标识**：只读模块（如概览、智能助理、操作日志）的「操作」槽位展示 `—` 而不渲染假按钮；`super_admin` 整列固定展示「全部权限」只读标识；页面移除前端已下线的 `AI 运行控制` 冗余行（后端 `system:ai:*` 契约保留）；
+  - **锁定项即时 Tooltip**：禁用开关使用 `aria-disabled="true"` 接入共享 `Tooltip`，悬停或键盘聚焦即显示不可配置原因或只读说明（不依赖原生 `disabled` 导致事件屏蔽）；
+  - **二次点击恢复默认**：首次点击「恢复默认」切换为「确认恢复」并弹出右下角告警提示，再次点击才提交 `POST /console/system/permissions/reset`；
   - **菜单与直达页即时同步**：保存或恢复后立即失效 `["session"]`，无查看权限的侧栏与 `Cmd/Ctrl+K` 菜单自动隐藏；用户直达无权限路由时由 `routes/__root.tsx` 按 `getFirstAccessiblePath` 自动跳回首个可访问页。
 
 ## 验收

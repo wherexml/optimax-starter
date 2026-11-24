@@ -1,6 +1,6 @@
 # OptiMax Starter
 
-OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、工作台、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的自然语言筛选](./apps/web/src/features/assets/README.md)，默认不启用；服务端可直连 OpenAI-compatible API，不依赖 Magpie 运行，移植代码的来源和许可见 [AI 模块](./apps/server/src/core/ai/README.md)。
+OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体系、概览、资产台账、操作日志和个人设置。完成本地配置初始化后，可用 Docker Compose 启动，新项目以它为起点，并继承 `AGENTS.md` 中的工程与界面规范。资产台账提供[可选的自然语言筛选](./apps/web/src/features/assets/README.md)，默认不启用；服务端可直连 OpenAI-compatible API，不依赖 Magpie 运行，移植代码的来源和许可见 [AI 模块](./apps/server/src/core/ai/README.md)。
 
 [使用此模板创建新项目](https://github.com/wherexml/optimax-starter/generate) · [新项目初始化流程](#从-github-template-初始化新项目)
 
@@ -11,7 +11,7 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | 路由 | 页面 | 可访问角色 | 说明 |
 | --- | --- | --- | --- |
 | `/login` | 登录 | 匿名 | 用户名 + 密码，服务端数据库 Session（HttpOnly、SameSite=Strict Cookie） |
-| `/` | 工作台 | 全部（`workbench:read`） | 注册表驱动的 Bento 双视图（业务总览 / 治理与审计），内置 KPI 卡、趋势面积/柱状图、来源环形图与多维排行；按权限按需请求并随 `--no-example` / `gen:module` 自动适配，见 [工作台文档](./apps/web/src/features/dashboard/README.md) |
+| `/` | 概览 | 全部（`workbench:read`） | 注册表驱动的 Bento 双视图（业务总览 / 治理与审计），内置 KPI 卡、趋势面积/柱状图、来源环形图与多维排行；按权限按需请求并随 `--no-example` / `gen:module` 自动适配，见 [概览文档](./apps/web/src/features/dashboard/README.md) |
 | `/assets` | 资产台账 | 成员只读，管理员与超管可写 | 服务端分页与排序；动态筛选（状态/业务域/责任团队多选、包含/等于）、多行批量操作、行详情抽屉（含相关附件上传/下载/删除）、CSV 批量导入（模板、预览校验、重名策略）、当前页 CSV 导出与「异步导出全部」，以及可选自然语言筛选 |
 | `/accounts` | 账户管理 | 管理员、超级管理员 | 新增、编辑资料、重置密码、强制下线、启停；管理员提权与高权限账户维护仅限超级管理员 |
 | `/permissions` | 系统权限 | 超级管理员 | 「模块 × 角色（查看 / 操作）」双按钮权限矩阵、自动联动与二次点击恢复默认 |
@@ -19,7 +19,7 @@ OptiMax Starter 是一个可直接运行的管理后台脚手架：带账户体�
 | `/audit` | 操作日志 | 管理员、超级管理员 | 按操作来源（`人工 / Agent / 系统`）、操作类型、操作人、日期筛选，服务端分页并跟随系统时区；行详情抽屉与当前页 CSV 导出 |
 | `/settings` | 个人设置 | 全部已登录账户 | 修改显示名称、邮箱、公司；切换外观主题（浅色/深色/跟随系统，防闪烁持久化）；查看与下线本人在线会话；创建/撤销个人 API 密钥（Bearer，权限为角色 ∩ 所选范围，明文仅显示一次）；修改密码撤销全部会话 |
 
-Demo 入口：[/demo/navigation?tab=pending](http://127.0.0.1:38140/demo/navigation?tab=pending)（二级侧栏与顶部 Tab，详见 [导航 Demo](./apps/web/src/features/navigation-demo/README.md)）、[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），登录账户均可访问。
+Demo 入口：[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dialog=create)（三段式复杂表单弹窗、全套共享输入控件与右下角全局通知，详见 [表单弹窗 Demo](./apps/web/src/features/forms-demo/README.md)），登录账户均可访问。
 
 系统内置超级管理员（`super_admin`）、管理员（`admin`）和成员（`member`）三层角色及持久化模块权限矩阵。所有读写与 Agent 接口均在服务端按实时有效权限裁决，前端菜单隐藏与无权限路由回跳仅用于展示体验。侧栏遵循最多二级规范，支持折叠和移动端抽屉，Cmd/Ctrl+K 打开快速导航。
 

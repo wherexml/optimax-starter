@@ -34,7 +34,6 @@ const example = exampleLib as unknown as {
 };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const NAV_DEMO = "apps/web/src/features/navigation-demo/NavigationDemoPage.tsx";
 const AGENT_PRESENT = existsSync(path.join(ROOT, "packages/agent"));
 const EXAMPLE_PRESENT = existsSync(path.join(ROOT, "apps/server/src/modules/assets.ts"));
 
@@ -47,7 +46,6 @@ const FIXTURE_PATHS = [
     ...example.EXAMPLE_PATHS,
     ...example.MARKED_FILES,
     ...example.OPTIONAL_MARKED_FILES,
-    NAV_DEMO,
   ]),
 ];
 

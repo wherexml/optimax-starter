@@ -49,6 +49,16 @@ const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
     const [query, setQuery] = React.useState("");
     const [activeIndex, setActiveIndex] = React.useState(0);
     const listId = React.useId();
+    const listRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+      if (!open) return;
+      const frame = requestAnimationFrame(() => {
+        const current = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+        current?.scrollIntoView({ block: "nearest" });
+      });
+      return () => cancelAnimationFrame(frame);
+    }, [open]);
 
     const selected = options.find((o) => o.value === value);
     const filtered = React.useMemo(() => {
@@ -164,6 +174,7 @@ const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
             />
           </div>
           <div
+            ref={listRef}
             id={listId}
             role="listbox"
             aria-label={label ?? "选项列表"}

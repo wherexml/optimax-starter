@@ -32,11 +32,11 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 前端目录 | `apps/web`；`src/config/app-config.ts` 集中维护品牌、存储前缀与侧栏/`Cmd+K` 导航注册表，`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,dashboard,assets,accounts,audit,settings,navigation,navigation-demo,forms-demo,refresh,filters}` |
+| 前端目录 | `apps/web`；`src/config/app-config.ts` 集中维护品牌、存储前缀与侧栏/`Cmd+K` 导航注册表，`src/routes` 只做路由与 URL 参数，页面在 `src/features/{auth,dashboard,assets,accounts,permissions,system,audit,settings,assistant,navigation,forms-demo,refresh,filters}` |
 | 技术栈 | React + Vite、TanStack Router / Query / Table、React Hook Form + Zod（共享契约见 [packages/api](./packages/api/README.md)） |
 | 包管理器 | Bun 1.3.14 |
 | API 代理方式 | Vite 代理同源 `/console` 到 `API_PROXY_TARGET`（生产单容器由 Hono `SERVE_WEB_DIST` 同源托管）；数据库 Session Cookie，不在前端保存 token |
-| UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
+| UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`DetailDrawer` 含顶部操作栏与左下角上下条切换、`PageTabs`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
 | 图表/地图库 | 无；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
 | 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
 | AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/server/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
@@ -212,23 +212,22 @@ AppShell
 | 路径 | 页面 | 权限 | 数据来源 | 验收入口 |
 | --- | --- | --- | --- | --- |
 | `/login` | `features/auth/LoginPage` | 公开；已有 Session 时仍可访问，不自动跳转 | `/console` 登录 API，设置 Session Cookie | `http://127.0.0.1:38140/login` |
-| `/` | `features/dashboard/DashboardPage`（工作台） | `workbench:read` | `/console/assets`、`/console/accounts`、`/console/audit`（按有效权限请求） | `http://127.0.0.1:38140/` |
+| `/` | `features/dashboard/DashboardPage`（概览） | `workbench:read` | `/console/assets`、`/console/accounts`、`/console/audit`（按有效权限请求） | `http://127.0.0.1:38140/` |
 | `/assets` | `features/assets/AssetsPage`（资产台账） | `assets:read`（写操作需 `assets:manage`） | `/console/assets`；URL 参数 `q`、`qOp`、`stage`、`domain` | `http://127.0.0.1:38140/assets` |
 | `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | `accounts:read`（写操作需 `accounts:manage`，提权仅限 `super_admin`） | `/console/accounts`；URL 参数 `q`、`status`、`role` | `http://127.0.0.1:38140/accounts` |
 | `/permissions` | `features/permissions/PermissionsPage`（系统权限） | `super_admin`（`system:permission:read`） | `/console/system/permissions` | `http://127.0.0.1:38140/permissions` |
 | `/system` | `features/system/SystemPage`（系统配置） | `system:ai:read` 或 `system:settings:read` | `/console/system/status`、`/console/system/settings`；URL 参数 `tab=status\|settings` | `http://127.0.0.1:38140/system?tab=status` |
 | `/audit` | `features/audit/AuditPage`（操作日志） | `audit:read` | `/console/audit` 服务端分页；URL 参数 `source`、`action`、`actor`、`start`、`end`、`page`、`size` | `http://127.0.0.1:38140/audit` |
 | `/settings` | `features/settings/SettingsPage`（个人设置） | 全部已登录账户 | `/console/me`、`/console/me/password` | `http://127.0.0.1:38140/settings` |
-| `/demo/navigation` | `features/navigation-demo/NavigationDemoPage` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets`；URL 参数 `tab` | `http://127.0.0.1:38140/demo/navigation?tab=pending` |
 | `/demo/forms` | `features/forms-demo/FormsDemoPage` + `ComplexFormDialog` | 登录（受 `VITE_ENABLE_DEMOS` 控制） | `/console/assets` 候选源 + 页内策略状态 + 右下角通知速查；可选参数 `dialog=create\|edit` | `http://127.0.0.1:38140/demo/forms?dialog=create` |
 
 ### 页面顶部与共享标题
 
-六个业务页面共用 `components/ui/page-header.tsx` 和 `index.css` 的 `.content` / `.page-header`；尺寸正文见 [DESIGN 页面标题区](./DESIGN.md#页面标题区)。禁止页面另加重复顶部 padding 或标题下 margin。只有右侧页内 Tab 沿用 World Model 下划线样式，侧栏及全局主题保持 Starter。
+各业务页面共用 `components/ui/page-header.tsx` 和 `index.css` 的 `.content` / `.page-header`；尺寸正文见 [DESIGN 页面标题区](./DESIGN.md#页面标题区)。禁止页面另加重复顶部 padding 或标题下 margin。只有右侧页内 Tab 沿用 World Model 下划线样式，侧栏及全局主题保持 Starter。
 
 ### 页内导航与标签行为
 
-> 本 starter 的项目规则；二级侧栏上限、顶部 Tab 位置与键盘语义见 [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签)。可操作实现见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)。
+> 本 starter 的项目规则；二级侧栏上限、顶部 Tab 位置与键盘语义见 [DESIGN.md 页内导航与标签](./DESIGN.md#页内导航与标签)。可操作实现见 [系统配置 PageTabs](./apps/web/src/features/system/SystemPage.tsx)。
 
 - **共享组件与筛选约定**：内容区顶层平级标签统一复用 `components/ui/page-tabs.tsx`（`PageTabs` / `PageTabsPanel`，支持 `hideSingleTab` 单视图自动降级与内置横向滚入可视区），禁止在业务页面重复导入 `@ui-sdk/react/tabs` 或手写 `.page-tabs-scroll` 与滚动定位 `useEffect`；卡片内 2–4 项局部切换复用 `components/ui/segmented-control.tsx`；列表与子面板条件筛选统一复用 `components/filters/FilterBar.tsx`。
 - **状态与深链**：当前标签写入 URL 搜索参数 `tab`，取稳定的英文值（例如 `/reports?tab=drafts`），不用中文显示名。路由 `validateSearch` 只接受白名单值；缺省或非法时显示默认标签，并用 `replace: true` 改正 URL。切换标签同样使用 `replace: true`，与现有搜索参数一致。

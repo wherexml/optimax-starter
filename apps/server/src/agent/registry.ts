@@ -94,7 +94,7 @@ function systemTools(actor: Actor): ToolSet {
 }
 
 function describeScope(scope?: AgentScope) {
-  if (!scope) return "全局工作台";
+  if (!scope) return "全局概览";
   return JSON.stringify({
     kind: scope.kind,
     label: scope.label,

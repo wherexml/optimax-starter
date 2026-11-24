@@ -3,6 +3,7 @@ import { systemSettings } from "@optimax-starter/db/schema/console";
 import {
   DEFAULT_SYSTEM_TIMEZONE,
   SYSTEM_TIMEZONE_OPTIONS,
+  formatSystemTimezoneOptionLabel,
   type ActorSource,
   type SystemSettingsResponse,
 } from "@optimax-starter/api";
@@ -42,18 +43,7 @@ export function normalizeTimezone(raw: unknown): string | null {
 }
 
 export function formatTimezoneLabel(timeZone: string): string {
-  const preset = SYSTEM_TIMEZONE_OPTIONS.find((opt) => opt.value === timeZone);
-  if (preset) return preset.label;
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      timeZoneName: "longOffset",
-    }).formatToParts(new Date());
-    const offset = parts.find((p) => p.type === "timeZoneName")?.value ?? "UTC";
-    return `${timeZone} ${offset.replace("GMT", "UTC")}`;
-  } catch {
-    return timeZone;
-  }
+  return formatSystemTimezoneOptionLabel(timeZone);
 }
 
 async function loadSettings(reader: DbReader = db) {

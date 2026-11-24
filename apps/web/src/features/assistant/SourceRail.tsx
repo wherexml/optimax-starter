@@ -52,7 +52,9 @@ export function SourceRail({
               <button
                 type="button"
                 className="pi-source-open"
-                onClick={() => open(source)}
+                onClick={() => {
+                  if (open(source)) onClose();
+                }}
                 disabled={!source.to.startsWith("/")}
               >
                 <LocateFixed size={13} aria-hidden="true" />

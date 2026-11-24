@@ -37,11 +37,11 @@ export function KpiCard({
   const mainContent = (
     <>
       <div className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
           {icon ? (
             <span
-              className="grid size-7 flex-none place-items-center rounded-[7px]"
-              style={{ backgroundColor: style.soft, color: style.text }}
+              aria-hidden="true"
+              className="flex size-4 flex-none items-center justify-center text-muted-foreground opacity-80 [&_svg]:size-4"
             >
               {icon}
             </span>
@@ -54,8 +54,8 @@ export function KpiCard({
       <div className="mt-1 flex items-end justify-between gap-3">
         <div className="flex min-w-0 items-baseline gap-1.5">
           <span
-            className="text-[28px] leading-[34px] font-bold tracking-tight tabular-nums"
-            style={{ color: tone === "neutral" ? "var(--foreground)" : style.text }}
+            className="text-[28px] leading-[34px] font-semibold tracking-tight text-foreground tabular-nums"
+            style={tone === "danger" ? { color: style.text } : undefined}
           >
             {value}
           </span>
@@ -75,7 +75,7 @@ export function KpiCard({
       data-slot="kpi-card"
       aria-label={label}
       className={cn(
-        "flex min-h-[108px] flex-col justify-between gap-2 rounded-xl border-[0.5px] border-border bg-card p-4 shadow-[0_1px_2px_rgb(33_32_28/0.04)] transition-shadow duration-150 ease-out hover:shadow-[0_4px_14px_rgb(33_32_28/0.07)]",
+        "flex min-h-[108px] flex-col justify-between gap-2 rounded-xl border-[0.5px] border-border bg-card p-4 transition-colors duration-150 ease-out hover:border-[color:var(--foreground)]/20",
         className,
       )}
     >

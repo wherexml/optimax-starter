@@ -196,7 +196,7 @@ export const agentRoutes = new Hono<Env>()
               tx,
               "agent.chat",
               actor,
-              { code: scope?.kind || "workspace", name: scope?.label || "全局工作台" },
+              { code: scope?.kind || "workspace", name: scope?.label || "全局概览" },
               {
                 stepCount: event.stepCount,
                 roundLimit: event.roundLimit,

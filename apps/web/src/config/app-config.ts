@@ -1,7 +1,6 @@
 import {
   Activity,
   Boxes,
-  FlaskConical,
   LayoutDashboard,
   ScrollText,
   Settings,
@@ -43,7 +42,6 @@ export type NavTarget =
   | "/system"
   | "/audit"
   | "/settings"
-  | "/demo/navigation"
   // @starter:nav-targets
   | "/demo/forms";
 
@@ -80,9 +78,9 @@ export const NAV_REGISTRY: readonly NavNode[] = [
   {
     kind: "item",
     to: "/",
-    label: "工作台",
+    label: "概览",
     icon: LayoutDashboard,
-    aliases: ["dashboard", "home", "overview", "总览", "首页"],
+    aliases: ["概览", "工作台", "总览", "dashboard", "home", "overview", "首页"],
     permissionCode: "workbench:read",
     exact: true,
   },
@@ -181,17 +179,6 @@ export const NAV_REGISTRY: readonly NavNode[] = [
     label: "Demo",
     demoOnly: true,
     children: [
-      {
-        kind: "item",
-        to: "/demo/navigation",
-        label: "资产视图",
-        icon: Boxes,
-        collapsedIcon: FlaskConical,
-        collapsedLabel: "Demo 资产视图",
-        aliases: ["demo", "navigation", "tabs", "导航", "演示", "资产视图 Demo"],
-        demoOnly: true,
-        defaultSearch: { tab: "all" },
-      },
       {
         kind: "item",
         to: "/demo/forms",

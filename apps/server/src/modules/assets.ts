@@ -46,7 +46,7 @@ import { buildAssetOrder, buildAssetWhere } from "./assets-query";
 // ---------------------------------------------------------------------------
 // Self-registration: demo data, attachment entity, job policies + handlers (side-effect imports).
 // ---------------------------------------------------------------------------
-const DEMO_SYSTEMS = [
+const BASE_DEMO_SYSTEMS = [
   "采购门户",
   "库存服务",
   "订单中心",
@@ -61,18 +61,137 @@ const DEMO_SYSTEMS = [
   "客户门户",
 ] as const;
 
+const DEMO_DOMAIN_GROUPS: ReadonlyArray<{
+  domain: string;
+  owner: string;
+  prefixes: readonly string[];
+}> = [
+  {
+    domain: "采购",
+    owner: "业务运营组",
+    prefixes: ["寻源比价", "招投标协同", "供应商准入", "采购合同", "目录商城"],
+  },
+  {
+    domain: "履约",
+    owner: "交付组",
+    prefixes: ["干线调度", "冷链温控", "备件调拨", "关务申报", "签收回单"],
+  },
+  {
+    domain: "运营",
+    owner: "平台组",
+    prefixes: ["客户工单", "会员权益", "内容投放", "渠道门户", "活动编排"],
+  },
+  {
+    domain: "财务",
+    owner: "财务共享组",
+    prefixes: ["应收结算", "应付核销", "银企直连", "税务发票", "预算费控"],
+  },
+  {
+    domain: "研发",
+    owner: "研发效能组",
+    prefixes: ["制品仓库", "持续集成", "容器编排", "配置中心", "服务网格"],
+  },
+  {
+    domain: "安全",
+    owner: "安全合规组",
+    prefixes: ["统一身份", "零信任网关", "堡垒审计", "密钥托管", "漏洞巡检"],
+  },
+  {
+    domain: "数据",
+    owner: "数据平台组",
+    prefixes: ["实时数仓", "离线调度", "指标血缘", "特征存储", "自助分析"],
+  },
+  {
+    domain: "人力",
+    owner: "人力数字化组",
+    prefixes: ["组织主数据", "招聘协同", "薪酬核算", "绩效评估", "考勤排班"],
+  },
+];
+
+const DEMO_SYSTEM_SUFFIXES = [
+  "门户",
+  "服务",
+  "中心",
+  "平台",
+  "工作台",
+  "引擎",
+  "网关",
+  "总线",
+  "调度器",
+  "控制台",
+  "看板",
+  "归档库",
+  "对账台",
+  "审批流",
+  "连接器",
+  "适配器",
+  "同步器",
+  "巡检台",
+  "沙箱",
+  "知识库",
+  "目录",
+  "编排器",
+  "分析台",
+  "监控台",
+  "中台",
+] as const;
+
+const DEMO_ASSET_COUNT = 1000;
+const SEED_BATCH_SIZE = 250;
+
+/** 确定性生成 1,000 条真实感企业系统资产：保留前 12 条经典示例，同时控制履约/运营待复核总数 <= 12 以兼容分页前首页筛选验证。 */
+function buildDemoAssets(total = DEMO_ASSET_COUNT) {
+  const rows: Array<{ name: string; domain: string; owner: string; stage: string }> =
+    BASE_DEMO_SYSTEMS.map((name, i) => ({
+      name,
+      domain: ["采购", "履约", "运营"][i % 3]!,
+      owner: ["业务运营组", "交付组", "平台组"][i % 3]!,
+      stage: i % 4 === 1 ? "待复核" : "已登记",
+    }));
+
+  const seen = new Set(rows.map((r) => r.name));
+  let fulfillOpsExtraPending = 0;
+
+  outer: for (let s = 0; s < DEMO_SYSTEM_SUFFIXES.length; s++) {
+    const suffix = DEMO_SYSTEM_SUFFIXES[s]!;
+    for (let p = 0; p < 5; p++) {
+      for (let g = 0; g < DEMO_DOMAIN_GROUPS.length; g++) {
+        if (rows.length >= total) break outer;
+        const group = DEMO_DOMAIN_GROUPS[g]!;
+        const name = `${group.prefixes[p]!}${suffix}`;
+        if (seen.has(name)) continue;
+        seen.add(name);
+        const index = rows.length;
+        let stage = "已登记";
+        if (group.domain === "履约" || group.domain === "运营") {
+          if (fulfillOpsExtraPending < 10 && index % 17 === 0) {
+            stage = "待复核";
+            fulfillOpsExtraPending += 1;
+          }
+        } else if (index % 11 === 0) {
+          stage = "待复核";
+        }
+        rows.push({
+          name,
+          domain: group.domain,
+          owner: group.owner,
+          stage,
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
 registerDemoSeeder(async () => {
-  await db
-    .insert(assets)
-    .values(
-      DEMO_SYSTEMS.map((name, i) => ({
-        name,
-        domain: ["采购", "履约", "运营"][i % 3]!,
-        owner: ["业务运营组", "交付组", "平台组"][i % 3]!,
-        stage: i % 4 === 1 ? "待复核" : "已登记",
-      })),
-    )
-    .onConflictDoNothing();
+  const demoRows = buildDemoAssets(DEMO_ASSET_COUNT);
+  for (let offset = 0; offset < demoRows.length; offset += SEED_BATCH_SIZE) {
+    await db
+      .insert(assets)
+      .values(demoRows.slice(offset, offset + SEED_BATCH_SIZE))
+      .onConflictDoNothing();
+  }
 });
 
 registerAttachmentEntity("asset", {

@@ -60,7 +60,7 @@ export async function verifyProductBrand(
       ["accounts", "/accounts"],
       ["audit", "/audit"],
       ["settings", "/settings"],
-      ["demo", "/demo/navigation?tab=pending"],
+      ["demo", "/demo/forms"],
     ]) {
       await page.goto(`${baseUrl}${path}`);
       await ready();
@@ -170,10 +170,10 @@ export async function verifyProductBrand(
       ),
     );
 
-    await page.goto(`${baseUrl}/demo/navigation?tab=pending`);
+    await page.goto(`${baseUrl}/demo/forms`);
     await ready();
     check(
-      "Demo table refresh also uses the standalone vector spinner",
+      "Demo forms refresh uses the standalone vector spinner",
       await page.evaluate(
         () =>
           !document.querySelector(".om-refresh-overlay image") &&

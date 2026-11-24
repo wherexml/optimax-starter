@@ -12,22 +12,35 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Copy, Download } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
+import { storageKey } from "@/config/app-config";
 import { type AuditEntry, api, unwrapRpc } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import { AUDIT_ACTION_LABELS, AUDIT_ACTIONS, parseAuditSearch } from "@/features/filters/search";
-import type { Filters } from "@/hooks/usePersistedFilters";
+import { type Filters, usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { downloadCsv } from "@/lib/csv";
 
 const route = getRouteApi("/audit");
 const SIZES = [20, 50, 100];
+const PERSIST = ["start", "end", "action", "source", "actor"] as const;
+const filterValues = (v: Record<string, unknown>): Filters => {
+  const parsed = parseAuditSearch(v);
+  return {
+    ...(parsed.action ? { action: parsed.action } : {}),
+    ...(parsed.source ? { source: parsed.source } : {}),
+    ...(parsed.actor ? { actor: parsed.actor } : {}),
+    ...(parsed.start ? { start: parsed.start } : {}),
+    ...(parsed.end ? { end: parsed.end } : {}),
+  };
+};
 const ACTION_LABELS: Record<string, string> = AUDIT_ACTION_LABELS;
 const FIELD_LABELS: Record<string, string> = {
   name: "姓名",
@@ -355,11 +368,18 @@ export function AuditPage() {
   );
 
   // 改变筛选回到第一页，保留每页条数。
-  const setFilters = (next: Filters) =>
-    void navigate({
-      search: parseAuditSearch({ ...next, size: params.size }),
-      replace: true,
-    });
+  const setFilters = usePersistedFilters({
+    scope: "audit",
+    accountId: canRead ? me.data?.id : undefined,
+    values: filters,
+    persist: PERSIST,
+    parse: filterValues,
+    apply: (next) =>
+      void navigate({
+        search: parseAuditSearch({ ...filterValues(next), size: params.size }),
+        replace: true,
+      }),
+  });
   const fields: FilterField[] = [
     { key: "start", label: "时间起", type: "date", notAfter: "end" },
     { key: "end", label: "时间止", type: "date", notBefore: "start" },
@@ -388,6 +408,9 @@ export function AuditPage() {
     },
   ];
   const currentItems = query.data?.items ?? [];
+  const detailIndex = detailEntry
+    ? currentItems.findIndex((item) => item.id === detailEntry.id)
+    : -1;
   const formattedDetailJson = detailEntry ? JSON.stringify(detailEntry.detail ?? {}, null, 2) : "";
   return (
     <ResourceTableSlot
@@ -396,6 +419,9 @@ export function AuditPage() {
       fields={fields}
       filters={filters}
       onApplyFilters={setFilters}
+      draftStorageKey={
+        me.data ? `${storageKey("filter-drafts.v1")}:${me.data.id}:audit` : undefined
+      }
       columns={columns}
       data={currentItems}
       isLoading={query.isPending}
@@ -407,36 +433,35 @@ export function AuditPage() {
         setDetailEntry(row);
       }}
       toolbarEnd={
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
+        <TableExportMenu
           disabled={!currentItems.length}
-          onClick={() => {
-            const count = downloadCsv(`操作日志-第${page}页.csv`, currentItems, [
-              { header: "时间", value: (r) => formatter.format(new Date(r.at)) },
-              {
-                header: "操作",
-                value: (r) => ACTION_LABELS[r.action] ?? r.action,
+          items={[
+            {
+              label: "导出当前页 CSV",
+              disabled: !currentItems.length,
+              onSelect: () => {
+                const count = downloadCsv(`操作日志-第${page}页.csv`, currentItems, [
+                  { header: "时间", value: (r) => formatter.format(new Date(r.at)) },
+                  {
+                    header: "操作",
+                    value: (r) => ACTION_LABELS[r.action] ?? r.action,
+                  },
+                  {
+                    header: "来源",
+                    value: (r) =>
+                      ACTOR_SOURCE_LABELS[(r.actorSource as ActorSource) ?? "human"] ?? "人工",
+                  },
+                  { header: "操作人", value: (r) => r.actorName },
+                  { header: "操作人账户", value: (r) => r.actorUsername },
+                  { header: "对象", value: (r) => r.targetName ?? "" },
+                  { header: "对象标识", value: (r) => r.targetUsername ?? "" },
+                  { header: "详情摘要", value: (r) => describe(r) },
+                ]);
+                toast.success(`已导出当前页 ${count} 条操作日志`);
               },
-              {
-                header: "来源",
-                value: (r) =>
-                  ACTOR_SOURCE_LABELS[(r.actorSource as ActorSource) ?? "human"] ?? "人工",
-              },
-              { header: "操作人", value: (r) => r.actorName },
-              { header: "操作人账户", value: (r) => r.actorUsername },
-              { header: "对象", value: (r) => r.targetName ?? "" },
-              { header: "对象标识", value: (r) => r.targetUsername ?? "" },
-              { header: "详情摘要", value: (r) => describe(r) },
-            ]);
-            toast.success(`已导出当前页 ${count} 条操作日志`);
-          }}
-        >
-          <Download size={14} aria-hidden="true" />
-          <span>导出当前页</span>
-        </Button>
+            },
+          ]}
+        />
       }
       pagination={{
         pageIndex: page - 1,
@@ -473,6 +498,24 @@ export function AuditPage() {
               returnFocus.current.focus();
             }
           }}
+          navigation={
+            detailIndex >= 0
+              ? {
+                  hasPrev: detailIndex > 0,
+                  hasNext: detailIndex < currentItems.length - 1,
+                  current: detailIndex + 1,
+                  total: currentItems.length,
+                  onPrev: () => {
+                    const prev = currentItems[detailIndex - 1];
+                    if (prev) setDetailEntry(prev);
+                  },
+                  onNext: () => {
+                    const next = currentItems[detailIndex + 1];
+                    if (next) setDetailEntry(next);
+                  },
+                }
+              : undefined
+          }
         >
           <DetailSection title="审计概览">
             <DetailField label="操作时间">

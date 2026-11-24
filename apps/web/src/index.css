@@ -92,7 +92,8 @@ select:focus-visible {
 [data-slot="input-group"] input:focus-visible,
 [data-slot="input-group"] textarea:focus-visible,
 [data-slot="tag-input"] input:focus-visible,
-[data-slot="popover-content"] input:focus-visible {
+[data-slot="popover-content"] input:focus-visible,
+th button:focus-visible {
   outline: none;
 }
 .boot {
@@ -340,9 +341,7 @@ aside nav a:active {
 }
 .content {
   width: 100%;
-  max-width: 1500px;
-  margin: 0 auto;
-  padding: 16px clamp(16px, 3vw, 40px) 48px;
+  padding: 16px 20px 36px;
   box-sizing: border-box;
 }
 .page-header {
@@ -1079,11 +1078,10 @@ aside nav a:active {
   border: 0.5px solid var(--hairline);
   border-radius: 12px;
   background: var(--card);
-  box-shadow: 0 1px 2px rgb(33 32 28 / 0.04);
-  transition: box-shadow 150ms var(--ease);
+  transition: border-color 150ms var(--ease);
 }
 .stat-card:hover {
-  box-shadow: 0 4px 14px rgb(33 32 28 / 0.08);
+  border-color: color-mix(in srgb, var(--foreground) 20%, var(--hairline));
 }
 .stat-main {
   display: flex;
@@ -1098,24 +1096,26 @@ aside nav a:active {
 .stat-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 13px;
   font-weight: 500;
   color: var(--muted-foreground);
 }
 .stat-icon {
-  width: 32px;
-  height: 32px;
+  width: 16px;
+  height: 16px;
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-foreground);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.8;
 }
 .stat-icon[data-tone="warning"] {
-  background: var(--warning);
+  background: transparent;
   color: var(--warning-foreground);
+  opacity: 1;
 }
 .stat-value {
   font-size: 30px;
@@ -1331,8 +1331,8 @@ a.domain-pending:hover {
 .feature-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 12px 14px;
   border: 0.5px solid var(--hairline);
   border-radius: 12px;
   background: var(--card);
@@ -1340,16 +1340,12 @@ a.domain-pending:hover {
   font-weight: 500;
   text-decoration: none;
   transition:
-    border-color 150ms var(--ease),
-    box-shadow 150ms var(--ease);
+    background-color 150ms var(--ease),
+    border-color 150ms var(--ease);
 }
 .feature-card:hover {
-  border-color: var(--ring);
-  box-shadow: 0 4px 14px rgb(33 32 28 / 0.06);
-}
-.feature-card > svg:last-child {
-  margin-left: auto;
-  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  border-color: color-mix(in srgb, var(--foreground) 20%, var(--hairline));
 }
 @media (max-width: 1100px) {
   .stat-grid {

@@ -92,7 +92,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
         {value.map((tag) => (
           <span
             key={tag}
-            className="inline-flex max-w-full items-center gap-1 rounded-md border-[0.5px] border-ring/40 bg-accent px-2 py-0.5 text-xs font-medium leading-[18px] text-accent-foreground"
+            className="inline-flex max-w-full items-center gap-1 rounded-md border-[0.5px] border-border bg-[var(--surface-subtle)] px-2 py-0.5 text-xs font-medium leading-[18px] text-foreground"
           >
             <span className="truncate font-mono">{tag}</span>
             {!disabled && (
@@ -100,7 +100,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 type="button"
                 aria-label={`移除 ${tag}`}
                 onClick={() => removeAt(tag)}
-                className="grid size-4 shrink-0 place-items-center rounded-sm text-accent-foreground/75 hover:bg-primary/15 hover:text-accent-foreground"
+                className="grid size-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="size-3" />
               </button>

@@ -83,8 +83,8 @@ export async function verifyContentRefresh(task, { evidenceDir, worldUrl = 'http
       observer.disconnect();return flashes===0&&!host.hasAttribute('aria-busy');
     }));
 
-    await starter.goto(starterUrl); await starter.reload(); await starter.waitForSelector('[aria-label="刷新工作台"]:not([disabled])');
-    await apiGate(); await starter.click('[aria-label="刷新工作台"]'); await starter.waitForFunction(visible);
+    await starter.goto(starterUrl); await starter.reload(); await starter.waitForSelector('[aria-label="刷新概览"]:not([disabled])');
+    await apiGate(); await starter.click('[aria-label="刷新概览"]'); await starter.waitForFunction(visible);
     check('Starter manual dashboard refresh tracks three real API reads and keeps sidebar', await starter.evaluate(()=>window.__refreshTest.calls.length===3&&window.__refreshTest.aside===document.querySelector('aside')));
     await screenshot(starter,'starter-loading');
     await starter.evaluate(()=>window.__refreshTest.gates[0]());

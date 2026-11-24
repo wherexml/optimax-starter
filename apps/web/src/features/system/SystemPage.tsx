@@ -1,5 +1,7 @@
 import {
   DEFAULT_SYSTEM_TIMEZONE,
+  formatSystemTimezoneOptionLabel,
+  getSystemTimezoneOptions,
   type SystemSettingsResponse,
   type SystemStatusResponse,
   type SystemTab,
@@ -10,16 +12,10 @@ import { RotateCw, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
 // @starter:agent-start
@@ -31,12 +27,6 @@ import { JobsTab } from "./JobsTab";
 import { parseSystemSearch, SYSTEM_TAB_ITEMS } from "./search";
 
 const route = getRouteApi("/system");
-
-const SOURCE_LABELS: Record<SystemSettingsResponse["source"], string> = {
-  database: "数据库持久化",
-  env: "环境变量回退",
-  default: "系统默认配置",
-};
 
 function formatUptime(sec: number): string {
   if (sec < 60) return `${sec} 秒`;
@@ -133,29 +123,31 @@ export function SystemPage() {
       <PageHeader
         title="系统配置"
         actions={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="刷新"
-            aria-label="刷新系统配置"
-            disabled={refreshing}
-            onClick={() =>
-              void runRefresh(() =>
-                Promise.all([
-                  ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
-                  ...(canReadSettings ? [settingsQuery.refetch()] : []),
-                  ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
-                  // @starter:agent-start
-                  cache.invalidateQueries({ queryKey: ["agent-status"] }),
-                  cache.invalidateQueries({ queryKey: ["ai-model-settings"] }),
-                  // @starter:agent-end
-                ]),
-              )
-            }
-          >
-            <RotateCw size={15} />
-          </Button>
+          activeTab !== "jobs" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="刷新"
+              aria-label="刷新系统配置"
+              disabled={refreshing}
+              onClick={() =>
+                void runRefresh(() =>
+                  Promise.all([
+                    ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
+                    ...(canReadSettings ? [settingsQuery.refetch()] : []),
+                    ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
+                    // @starter:agent-start
+                    cache.invalidateQueries({ queryKey: ["agent-status"] }),
+                    cache.invalidateQueries({ queryKey: ["ai-model-settings"] }),
+                    // @starter:agent-end
+                  ]),
+                )
+              }
+            >
+              <RotateCw size={15} />
+            </Button>
+          ) : undefined
         }
       />
 
@@ -282,11 +274,27 @@ function BaseSettingsPanel({
   const cache = useQueryClient();
   const [timezone, setTimezone] = useState("");
 
+  const currentTimezone = query.data?.timezone;
   useEffect(() => {
-    if (query.data?.timezone) {
-      setTimezone(query.data.timezone);
+    if (currentTimezone) {
+      setTimezone(currentTimezone);
     }
-  }, [query.data?.timezone]);
+  }, [currentTimezone]);
+
+  const timezoneOptions = useMemo(() => {
+    const base = getSystemTimezoneOptions();
+    if (!currentTimezone || base.some((opt) => opt.value === currentTimezone)) {
+      return [...base];
+    }
+    return [
+      {
+        value: currentTimezone,
+        label: formatSystemTimezoneOptionLabel(currentTimezone),
+        keywords: [currentTimezone],
+      },
+      ...base,
+    ];
+  }, [currentTimezone]);
 
   const save = useMutation({
     mutationFn: (nextTimezone: string) =>
@@ -333,46 +341,21 @@ function BaseSettingsPanel({
     <section className="panel" aria-label="时间与区域设置">
       <header className="panel-head">
         <h2>时间与区域设置</h2>
-        <Badge variant={canManageSettings ? "brand" : "neutral"}>
-          {canManageSettings ? "可维护" : "只读"}
-        </Badge>
       </header>
       <div className="flex flex-col gap-5">
         <div className="flex max-w-md flex-col gap-2">
           <Label htmlFor="system-timezone">系统时区</Label>
-          <Select
+          <Combobox
+            id="system-timezone"
+            label="系统时区"
             value={timezone}
             onValueChange={setTimezone}
+            options={timezoneOptions}
+            placeholder="请选择系统时区"
+            searchPlaceholder="搜索城市、时区标识或 UTC 偏移…"
+            emptyText="未找到匹配时区"
             disabled={!canManageSettings || save.isPending}
-          >
-            <SelectTrigger id="system-timezone" aria-label="系统时区">
-              <SelectValue placeholder="请选择系统时区" />
-            </SelectTrigger>
-            <SelectContent>
-              {settings.timezoneOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-3 rounded-md border-[0.5px] border-[var(--hairline)] bg-[var(--surface-subtle)] p-4 text-sm sm:grid-cols-3">
-          <div>
-            <p className="m-0 text-xs text-muted-foreground">当前生效时区</p>
-            <p className="m-0 mt-1 font-medium text-foreground">{settings.timezoneLabel}</p>
-          </div>
-          <div>
-            <p className="m-0 text-xs text-muted-foreground">配置来源</p>
-            <p className="m-0 mt-1 font-medium text-foreground">{SOURCE_LABELS[settings.source]}</p>
-          </div>
-          <div>
-            <p className="m-0 text-xs text-muted-foreground">维护权限</p>
-            <p className="m-0 mt-1 font-medium text-foreground">
-              {canManageSettings ? "可修改" : "仅查看"}
-            </p>
-          </div>
+          />
         </div>
 
         <div className="flex justify-end">

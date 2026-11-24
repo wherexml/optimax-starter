@@ -14,7 +14,7 @@
 
 - **公开浅探针与管理深探针分离**：匿名 `GET /healthz` 仅返回 `{ status, db }` 供容器与部署冒烟使用；`GET /console/system/status` 在鉴权后返回 PostgreSQL `SELECT 1` 毫秒级延迟、当前未过期会话数、进程运行时长、Node 版本，严禁返回数据库连接串、模型 URL 或凭证值。
 - **后端 AI 熔断接口兼容保留**：服务端 `PATCH /console/system/ai-circuit`（`system:ai:manage`）与 `ai.enabled` 持久化契约继续保留供治理接口与自动化测试调用，控制台界面不再展示 AI 客户端与熔断开关卡片。
-- **全局系统时区与权限徽章**：维护 `console_setting`（`key = "timezone"`，默认回退 `STARTER_TIMEZONE` / `APP_TIMEZONE` / `Asia/Shanghai`），右上角按当前有效权限区分 `可维护` 与 `只读` 徽章；更新后 `/audit` 的时间戳格式化与自然日筛选区间即时按新时区生效。
+- **全局系统时区选择**：维护 `console_setting`（`key = "timezone"`，默认回退 `STARTER_TIMEZONE` / `APP_TIMEZONE` / `Asia/Shanghai`），通过可搜索的 `Combobox` 提供完整 IANA 时区清单（按中英文城市、标识与 UTC 偏移过滤）；无 `system:settings:manage` 权限时禁用时区选择并隐藏保存按钮；更新后 `/audit` 的时间戳格式化与自然日筛选区间即时按新时区生效。
 - **单视图降级**：若某角色仅拥有其中一个面板的查看权限，自动省略单标签栏直接展示对应面板。
 
 ## 验收

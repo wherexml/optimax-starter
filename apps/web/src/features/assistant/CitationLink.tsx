@@ -2,12 +2,14 @@ import { useNavigate } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
 import type { ReactNode } from "react";
 import { type AgentCitation, isInternalPath } from "./api";
+import { stepDownAssistantWidth } from "./AssistantDrawer";
 
-/** Opens the cited record in the main pane; the assistant drawer stays open. */
+/** Opens the cited record in the main pane; steps down from fullscreen to narrow drawer without clearing wide preference. */
 export function useOpenCitation() {
   const navigate = useNavigate();
   return (source: AgentCitation) => {
     if (!isInternalPath(source.to)) return false;
+    stepDownAssistantWidth();
     void navigate({ to: source.to as never, search: (source.search ?? {}) as never });
     return true;
   };

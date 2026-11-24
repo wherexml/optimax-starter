@@ -5,6 +5,10 @@
  */
 :root {
   --starter-assistant-width: min(var(--starter-assistant-preferred, 440px), 100vw);
+  --starter-sidebar-offset: 208px;
+}
+:root:has(.workspace.compact) {
+  --starter-sidebar-offset: 64px;
 }
 
 /* ---- Triggers ---------------------------------------------------------- */
@@ -80,11 +84,30 @@
 }
 
 @media (min-width: 721px) {
-  :root[data-assistant-panel="open"]:has(.starter-assistant-panel[data-wide]) {
-    --starter-assistant-width: min(860px, 62vw);
-  }
-  :root[data-assistant-panel="open"] .workspace > main {
+  :root[data-assistant-panel="open"]:not(:has(.starter-assistant-panel[data-wide]))
+    .workspace
+    > main {
     padding-right: var(--starter-assistant-width);
+  }
+  .starter-assistant-panel[data-wide] {
+    inset: 0 0 0 var(--starter-sidebar-offset, 208px);
+    width: auto;
+    border-left: 0;
+    box-shadow: none;
+    transition: left 200ms var(--ease);
+  }
+  .starter-assistant-panel[data-wide] .pi-transcript-inner {
+    width: 100%;
+    max-width: 880px;
+    box-sizing: border-box;
+    padding: 28px 24px;
+  }
+  .starter-assistant-panel[data-wide] .pi-composer-wrap {
+    width: 100%;
+    max-width: 880px;
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 0 24px 18px;
   }
 }
 @media (max-width: 720px) {
@@ -611,13 +634,20 @@
 }
 .pi-quick-icon {
   grid-row: span 2;
+  align-self: start;
+  margin-top: 2px;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-foreground);
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+.pi-quick-icon svg {
+  width: 16px;
+  height: 16px;
 }
 .pi-msg-user {
   display: grid;

@@ -64,7 +64,7 @@ export async function verifySystemAdmin(
     const loginRes = await apiCall("POST", "/login", { username, password });
     assert.equal(loginRes.status, 200, `login failed for ${username}`);
     await page.goto(`${baseUrl}/`);
-    await waitIdle("工作台");
+    await waitIdle("概览");
   }
 
   const suffix = Math.random().toString(16).slice(2, 8);
@@ -81,7 +81,7 @@ export async function verifySystemAdmin(
     });
 
     await page.goto(`${baseUrl}/`);
-    await waitIdle("工作台");
+    await waitIdle("概览");
     if (await page.evaluate(() => !!document.querySelector(".workspace.compact"))) {
       await page.click('[aria-label="展开菜单"]');
     }
@@ -133,26 +133,39 @@ export async function verifySystemAdmin(
     check("Super admin creates temporary member", cMem.status === 201, cMem.status);
     createdUsernames.push(memUser);
 
-    // 2. /permissions UI: super_admin lock, view/operate auto-linkage & save
+    // 2. /permissions UI: super_admin readonly column, hover tooltip on locked items & view/operate linkage
     await page.click('nav a[href="/permissions"]');
     await waitIdle("系统权限");
-    await page.waitForSelector('button[aria-label="超级管理员-系统权限-操作"]');
+    await page.waitForSelector('[data-perm-tag="超级管理员-系统权限-全部权限"]');
 
+    await page.hover('button[aria-label="成员-账户管理-查看"]');
+    await page.waitForSelector('[data-slot="tooltip-content"]', { state: "visible" });
     const permInitial = await page.evaluate(() => {
-      const saBtn = document.querySelector('button[aria-label="超级管理员-系统权限-操作"]');
+      const saTag = document.querySelector('[data-perm-tag="超级管理员-系统权限-全部权限"]');
+      const overviewNoOp = document.querySelector('[data-perm-tag="成员-概览-无操作项"]');
       const bodyText = document.querySelector("main")?.innerText ?? "";
+      const tooltipText =
+        document.querySelector('[data-slot="tooltip-content"]')?.textContent?.trim() ?? "";
       return {
-        saPressed: saBtn?.getAttribute("aria-pressed"),
-        saDisabled: saBtn?.hasAttribute("disabled"),
-        saTitle: saBtn?.getAttribute("title"),
+        saText: saTag?.textContent?.trim(),
+        saHasButtons: Boolean(saTag?.closest("td")?.querySelector("button")),
+        overviewHasOperateBtn: Boolean(
+          document.querySelector('button[aria-label="成员-概览-操作"]'),
+        ),
+        overviewNoOpText: overviewNoOp?.querySelector('[aria-hidden="true"]')?.textContent?.trim(),
+        hasAiControlRow: bodyText.includes("AI 运行控制"),
+        tooltipText,
         hasMiddleDot: bodyText.includes("\u00b7"),
       };
     });
     check(
-      "PermissionsPage locks super_admin column with tooltip and uses zero middle dots",
-      permInitial.saPressed === "true" &&
-        permInitial.saDisabled === true &&
-        Boolean(permInitial.saTitle) &&
+      "PermissionsPage hides fake readonly/ai-control buttons, shows 全部权限 for super_admin, renders hover tooltip, and uses zero middle dots",
+      permInitial.saText === "全部权限" &&
+        !permInitial.saHasButtons &&
+        !permInitial.overviewHasOperateBtn &&
+        permInitial.overviewNoOpText === "—" &&
+        !permInitial.hasAiControlRow &&
+        permInitial.tooltipText.includes("不向普通成员开放") &&
         !permInitial.hasMiddleDot,
       permInitial,
     );
@@ -234,15 +247,19 @@ export async function verifySystemAdmin(
     await page.waitForFunction(() => location.search === "?tab=settings");
     await page.waitForSelector('section[aria-label="时间与区域设置"]');
     await page.click('button[aria-label="系统时区"]');
-    await page.click('loc=role:option[name="协调世界时 UTC+00:00"]');
-    await page.click('button:has-text("保存配置")');
-    await page.waitForFunction(() =>
-      document
-        .querySelector('section[aria-label="时间与区域设置"]')
-        ?.textContent?.includes("数据库持久化"),
-    );
+    await page.fill('input[aria-label="搜索城市、时区标识或 UTC 偏移…"]', "协调世界时");
+    await page.click('button[role="option"]:has-text("协调世界时")');
+    await page.click('section[aria-label="时间与区域设置"] button:has-text("保存配置")');
+    await page.waitForFunction(() => {
+      const sec = document.querySelector('section[aria-label="时间与区域设置"]');
+      const trigger = sec?.querySelector('button[aria-label="系统时区"]');
+      const saveBtn = [...(sec?.querySelectorAll("button") ?? [])].find((b) =>
+        b.textContent?.includes("保存配置"),
+      );
+      return Boolean(trigger?.textContent?.includes("UTC+00:00") && saveBtn?.hasAttribute("disabled"));
+    });
     await shot("desktop-system-settings");
-    check("SystemPage settings tab saves timezone to database", true);
+    check("SystemPage settings tab saves searchable timezone to database", true);
 
     // 4. Multi-role verification: log in as ordinary admin
     await switchUser(admUser, tempPw);
@@ -261,13 +278,13 @@ export async function verifySystemAdmin(
 
     // Direct navigation to unpermitted /audit redirects to first accessible path (/)
     await page.goto(`${baseUrl}/audit`);
-    await waitIdle("工作台");
+    await waitIdle("概览");
     check(
       "Direct visit to unpermitted /audit redirects to first accessible path /",
       new URL(await page.url()).pathname === "/",
     );
 
-    // Ordinary admin on /system?tab=settings sees 只读 badge and disabled controls
+    // Ordinary admin on /system?tab=settings sees disabled timezone control (and no status badge / metadata box)
     await page.goto(`${baseUrl}/system?tab=settings`);
     await waitIdle("系统配置");
     await page.waitForSelector('section[aria-label="时间与区域设置"]');
@@ -275,13 +292,14 @@ export async function verifySystemAdmin(
       const sec = document.querySelector('section[aria-label="时间与区域设置"]');
       const trigger = sec?.querySelector('button[aria-label="系统时区"]');
       return {
-        hasReadonlyBadge: sec?.textContent?.includes("只读") && !sec?.textContent?.includes("可维护"),
-        selectDisabled: trigger?.hasAttribute("disabled") || trigger?.getAttribute("data-disabled") !== null,
+        noStatusBadge: !sec?.textContent?.includes("只读") && !sec?.textContent?.includes("可维护"),
+        selectDisabled:
+          trigger?.hasAttribute("disabled") || trigger?.getAttribute("data-disabled") !== null,
       };
     });
     check(
-      "Ordinary admin sees 只读 badge and disabled timezone selector on /system?tab=settings",
-      Boolean(admReadonly.hasReadonlyBadge && admReadonly.selectDisabled),
+      "Ordinary admin sees disabled timezone combobox without redundant status badges",
+      Boolean(admReadonly.noStatusBadge && admReadonly.selectDisabled),
       admReadonly,
     );
 
@@ -300,7 +318,7 @@ export async function verifySystemAdmin(
     );
     check("Member without assets:read hides /assets and 系统管理", !memLinks.includes("/assets"), memLinks);
     await page.goto(`${baseUrl}/assets`);
-    await waitIdle("工作台");
+    await waitIdle("概览");
     check(
       "Member visiting unpermitted /assets redirects to /",
       new URL(await page.url()).pathname === "/",
@@ -331,13 +349,19 @@ export async function verifySystemAdmin(
     await waitIdle("系统配置");
     await page.waitForSelector('button[aria-label="系统时区"]');
     await page.click('button[aria-label="系统时区"]');
-    await page.click('loc=role:option[name="北京时间 UTC+08:00"]');
-    await page.click('button:has-text("保存配置")');
-    await page.waitForFunction(() =>
-      document
-        .querySelector('section[aria-label="时间与区域设置"]')
-        ?.textContent?.includes("北京时间 UTC+08:00"),
-    );
+    await page.fill('input[aria-label="搜索城市、时区标识或 UTC 偏移…"]', "Asia/Shanghai");
+    await page.click('button[role="option"]:has-text("Asia/Shanghai")');
+    await page.click('section[aria-label="时间与区域设置"] button:has-text("保存配置")');
+    await page.waitForFunction(() => {
+      const sec = document.querySelector('section[aria-label="时间与区域设置"]');
+      const trigger = sec?.querySelector('button[aria-label="系统时区"]');
+      const saveBtn = [...(sec?.querySelectorAll("button") ?? [])].find((b) =>
+        b.textContent?.includes("保存配置"),
+      );
+      return Boolean(
+        trigger?.textContent?.includes("Asia/Shanghai") && saveBtn?.hasAttribute("disabled"),
+      );
+    });
 
     // Check /audit has 来源 column & governance action badges
     await page.goto(`${baseUrl}/audit`);
@@ -352,7 +376,6 @@ export async function verifySystemAdmin(
         hasHumanBadge: text.includes("人工"),
         hasGovActions:
           text.includes("恢复默认权限") &&
-          text.includes("切换 AI 熔断开关") &&
           text.includes("修改系统时区"),
       };
     });

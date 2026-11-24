@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import {
   type KeyboardEvent,
@@ -12,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { storageKey } from "@/config/app-config";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import { AssistantBrandMark } from "./AssistantBrandMark";
 import { AGENT_STATUS_KEY, type AgentScope, fetchAgentStatus } from "./api";
@@ -20,6 +22,23 @@ import "./assistant.css";
 
 const AssistantPanel = lazy(() => import("./AssistantPanel"));
 const NARROW_QUERY = "(max-width: 720px)";
+const WIDE_PREFERENCE_KEY = storageKey("agent.drawer-wide");
+
+function readWidePreference(): boolean {
+  try {
+    return localStorage.getItem(WIDE_PREFERENCE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeWidePreference(wide: boolean) {
+  try {
+    localStorage.setItem(WIDE_PREFERENCE_KEY, wide ? "1" : "0");
+  } catch {
+    /* Storage is optional. */
+  }
+}
 
 /** Page scope sent with the next question; `nonce` lets the same page re-open a fresh request. */
 export type AssistantRequest = { scope?: AgentScope; nonce: number };
@@ -29,7 +48,12 @@ export type AssistantRequest = { scope?: AgentScope; nonce: number };
 // triggers anywhere in the tree can open it without wrapping the shell in a provider.
 // ---------------------------------------------------------------------------
 type DockState = { open: boolean; mounted: boolean; wide: boolean; request: AssistantRequest };
-let state: DockState = { open: false, mounted: false, wide: false, request: { nonce: 0 } };
+let state: DockState = {
+  open: false,
+  mounted: false,
+  wide: readWidePreference(),
+  request: { nonce: 0 },
+};
 let trigger: HTMLElement | null = null;
 const listeners = new Set<() => void>();
 const setState = (next: Partial<DockState>) => {
@@ -46,13 +70,16 @@ function show(element: HTMLElement, scope?: AgentScope) {
   setState({
     open: true,
     mounted: true,
+    wide: state.open ? state.wide : readWidePreference(),
     request: scope ? { scope, nonce: state.request.nonce + 1 } : state.request,
   });
   document.getElementById(PANEL_ID)?.focus({ preventScroll: true });
 }
 
-function close() {
-  setState({ open: false, wide: false });
+function closePanel({ restoreFocus = true }: { restoreFocus?: boolean } = {}) {
+  // Closing hides the drawer without discarding the user's persisted wide preference.
+  setState({ open: false });
+  if (!restoreFocus) return;
   requestAnimationFrame(() => {
     const restore =
       trigger?.isConnected && !trigger.closest("[inert]")
@@ -60,6 +87,23 @@ function close() {
         : document.querySelector<HTMLElement>(".nav-assistant, .menu-opener");
     restore?.focus({ preventScroll: true });
   });
+}
+
+function close() {
+  closePanel();
+}
+
+function toggleWide() {
+  const next = !state.wide;
+  writeWidePreference(next);
+  setState({ wide: next });
+}
+
+/** 全屏态下点击引用或执行页面跳转工具时，临时退回右侧窄抽屉以便对照查看，不覆盖持久化的全屏偏好。 */
+export function stepDownAssistantWidth() {
+  if (state.open && state.wide) {
+    setState({ wide: false });
+  }
 }
 
 export function useAssistantDrawer() {
@@ -148,6 +192,8 @@ export function AssistantDock({ children }: { children?: ReactNode }) {
     () => typeof window !== "undefined" && window.matchMedia(NARROW_QUERY).matches,
   );
   const panel = useRef<HTMLElement>(null);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const prevPathname = useRef(pathname);
 
   useEffect(() => {
     const media = window.matchMedia(NARROW_QUERY);
@@ -174,8 +220,50 @@ export function AssistantDock({ children }: { children?: ReactNode }) {
       shell.inert = previous;
     };
   }, [dock.open, narrow]);
-  // Leaving the authenticated shell (logout) closes the drawer.
-  useEffect(() => () => setState({ open: false, wide: false }), []);
+  useEffect(() => {
+    // Desktop fullscreen: cover <main> and keep keyboard focus inside the assistant/sidebar.
+    if (!dock.open || !dock.wide || narrow) return;
+    const main = document.querySelector<HTMLElement>(".workspace > main");
+    if (!main) return;
+    const previous = main.inert;
+    main.inert = true;
+    return () => {
+      main.inert = previous;
+    };
+  }, [dock.open, dock.wide, narrow]);
+  useEffect(() => {
+    if (prevPathname.current === pathname) return;
+    prevPathname.current = pathname;
+    if (state.open && state.wide && !narrow) {
+      closePanel({ restoreFocus: false });
+    }
+  }, [pathname, narrow]);
+  useEffect(() => {
+    if (!dock.open || !dock.wide || narrow) return;
+    const onDocumentClick = (event: globalThis.MouseEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest("#console-sidebar nav a, .user-menu a.user-menu-item, .quick-nav-item")) {
+        closePanel({ restoreFocus: false });
+      }
+    };
+    const onDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return;
+      if (!(event.target instanceof Element) || !event.target.closest(".quick-nav")) return;
+      setTimeout(() => {
+        if (!document.querySelector(".quick-nav") && state.open && state.wide) {
+          closePanel({ restoreFocus: false });
+        }
+      }, 0);
+    };
+    document.addEventListener("click", onDocumentClick);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => {
+      document.removeEventListener("click", onDocumentClick);
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    };
+  }, [dock.open, dock.wide, narrow]);
+  // Leaving the authenticated shell (logout) closes the drawer without wiping wide preference.
+  useEffect(() => () => setState({ open: false }), []);
 
   function onKeyDown(event: KeyboardEvent) {
     if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -218,7 +306,7 @@ export function AssistantDock({ children }: { children?: ReactNode }) {
                     <AssistantPanel
                       request={dock.request}
                       wide={dock.wide}
-                      onExpand={() => setState({ wide: !state.wide })}
+                      onExpand={toggleWide}
                       onClose={close}
                     />
                   </Suspense>

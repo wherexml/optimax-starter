@@ -19,6 +19,7 @@ import {
   isInternalPath,
   mapAgentError,
 } from "./api";
+import { stepDownAssistantWidth } from "./AssistantDrawer";
 import { AgentLoadingState } from "./beautiful-pi/AgentLoadingState";
 import { ChatMinimap } from "./beautiful-pi/ChatMinimap";
 import { buildConversationReferencePrompt } from "./beautiful-pi/composer";
@@ -143,6 +144,7 @@ export function Conversation({
         input.search && typeof input.search === "object" && !Array.isArray(input.search)
           ? input.search
           : {};
+      stepDownAssistantWidth();
       void navigate({ to: target as never, search: search as never });
       void chat.addToolOutput({
         tool: "navigate_console",

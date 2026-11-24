@@ -250,7 +250,8 @@ export async function verifyFilterState(
     await ready();
     check(
       "corrupt draft cache falls back without breaking assets",
-      (await state()).rows.length === 0 && (await state()).table.includes("采购门户"),
+      (await state()).rows.length === 0 &&
+        Boolean((await state()).table && /AS-\d{3,}/.test((await state()).table)),
     );
     await page.goto(`${baseUrl}/login`);
     await page.waitForSelector('input[type="password"]');

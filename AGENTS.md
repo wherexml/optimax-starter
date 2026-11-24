@@ -7,8 +7,8 @@
 | 项 | 当前项目 |
 | --- | --- |
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
-| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，工作台与模块注册表见 [dashboard](./apps/web/src/features/dashboard/README.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，账户与防提权见 [accounts](./apps/web/src/features/accounts/README.md)，三层角色权限矩阵见 [permissions](./apps/web/src/features/permissions/README.md)，运行探针、时区配置与后台任务见 [system](./apps/web/src/features/system/README.md)，人机双源审计见 [audit](./apps/web/src/features/audit/README.md)，二级导航与顶部 Tab Demo 见 [navigation-demo](./apps/web/src/features/navigation-demo/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
-| 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、顶层页签 PageTabs、工作台图表原语、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量在 `apps/web/src/index.css` |
+| 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，概览与模块注册表见 [dashboard](./apps/web/src/features/dashboard/README.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，账户与防提权见 [accounts](./apps/web/src/features/accounts/README.md)，三层角色权限矩阵见 [permissions](./apps/web/src/features/permissions/README.md)，运行探针、可搜索时区与后台任务见 [system](./apps/web/src/features/system/README.md)，人机双源审计见 [audit](./apps/web/src/features/audit/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
+| 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、全局抽屉 DetailDrawer、顶层页签 PageTabs、概览图表原语、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量在 `apps/web/src/index.css` |
 | 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`，含 `rpc.ts` 端到端类型导出）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module`（支持 `--fields`） |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
 | 验证入口 | [TESTING.md](./TESTING.md)；代码检查与单测：`bun run lint`、`bun run test` |
@@ -34,7 +34,7 @@
 - 删除标语、辅助文本和次要标签。如果某个屏幕需要它们才能有意义，就修复布局。
 - 始终做出最佳决策，以提升这三者：用户体验 (UX)、开发者体验 (DX) 和代理体验 (AX)，同时不破坏任何东西。
 - 不使用绿色或紫色作为主题色。品牌、导航选中态、主按钮与焦点环使用统一的主题色。
-- 左侧导航最多二级；第三级及更深层级移到内容区顶部多 Tab。计数、选型与可操作 Demo 见 [导航规范](./DESIGN.md#页内导航与标签)。
+- 左侧导航最多二级；第三级及更深层级移到内容区顶部多 Tab。计数、选型与规则见 [导航规范](./DESIGN.md#页内导航与标签)。
 - 侧栏保留 Starter 浅色样式；World Model 样式只用于右侧页内 Tab。各页顶部与标题间距统一使用共享 PageHeader 和内容区样式，见 [页面标题区](./DESIGN.md#页面标题区)。
 
 ## 侧栏布局基线（强制）
@@ -91,7 +91,7 @@
 
 可选 AI 智能助理（右侧抽屉、模型配置、写操作确认卡，`--no-agent` 可移除）见 [服务端 agent](./apps/server/src/agent/README.md) 与 [前端 assistant](./apps/web/src/features/assistant/README.md)。
 
-操作日志（区分 `human / agent` 来源并递归脱敏）、三层角色权限矩阵、系统探针与 AI 熔断配置、组合筛选、快速导航已集成，详见 [AUTH.md](./AUTH.md) 与 [REUSE.md](./REUSE.md)。管理与业务写接口必须在同一事务里写入 `console_audit`。
+操作日志（区分 `human / agent` 来源并递归脱敏）、三层角色权限矩阵、系统探针与可搜索时区配置、组合筛选、快速导航已集成，详见 [AUTH.md](./AUTH.md) 与 [REUSE.md](./REUSE.md)。管理与业务写接口必须在同一事务里写入 `console_audit`。
 
 筛选必须保留 EASM 的动态条件列表：添加、删除、切换字段、统一应用，不得退回固定输入框加标签。具体契约见 [FRONTEND.md](./FRONTEND.md)。上游选型比较见 [UPSTREAM_OPTIONS.md](./UPSTREAM_OPTIONS.md)。
 

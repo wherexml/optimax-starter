@@ -6,14 +6,14 @@
 
 | 文件                                                      | 作用                                                                                                                                                                    |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AssistantDrawer.tsx`                                     | 模块级状态驱动的抽屉：`<AssistantDock />`（门户渲染面板）、`<SidebarAssistantTrigger />`、`<AskAssistant />`、`useAssistantAvailability()`                              |
-| `AssistantPanel.tsx`                                      | 懒加载的工作台：顶部栏、历史、引用来源、导出、加宽；未配置或熔断时显示说明卡片                                                                                          |
-| `Conversation.tsx`                                        | `useChat` 接入 `/console/agent/chat`：外发最近 8 条纯文本与最后一条的确认回执，确认后自动续传；客户端工具 `navigate_console` 在主区域跳转；写工具完成后刷新相关查询缓存 |
-| `ChatMessage.tsx` / `ToolSteps.tsx`                       | Markdown、表格、代码块、思考过程、工具时间线与写操作确认卡                                                                                                              |
-| `Composer.tsx`                                            | `/` 快捷指令、页面范围标签（可移除、可重新附带）、输入法保护、空输入按上键调出上一问、字数与 token 估算                                                                 |
-| `SessionRail.tsx` / `SourceRail.tsx` / `CitationLink.tsx` | 历史对话（新建、搜索、置顶、重命名、删除、分支）与引用来源；引用在主区域打开 `to + search`，抽屉保持打开                                                                |
-| `AiModelSettingsCard.tsx`                                 | 模型配置：在线维护模式可编辑并测试草稿；只读模式展示部署凭证并可测试已保存配置                                                                                          |
-| `assistant.css`                                           | 抽屉与对话样式，仅使用主题变量，深浅色通用；抽屉关闭时不影响页面布局                                                                                                    |
+| `AssistantDrawer.tsx`                                     | 模块级状态驱动的抽屉：`<AssistantDock />`（门户渲染面板、桌面全屏下隔离主内容焦点）、`<SidebarAssistantTrigger />`、`<AskAssistant />`、`useAssistantAvailability()`；全屏偏好持久化至 `agent.drawer-wide` |
+| `AssistantPanel.tsx`                                      | 懒加载的工作台：顶部栏、历史、引用来源、导出、全屏展开/退出全屏；未配置或熔断时显示说明卡片与全屏切换                                                                                               |
+| `Conversation.tsx`                                        | `useChat` 接入 `/console/agent/chat`：外发最近 8 条纯文本与最后一条的确认回执，确认后自动续传；客户端工具 `navigate_console` 在主区域跳转（全屏态临时退回窄抽屉对照）；写工具完成后刷新相关查询缓存 |
+| `ChatMessage.tsx` / `ToolSteps.tsx`                       | Markdown、表格、代码块、思考过程、工具时间线与写操作确认卡                                                                                                                                            |
+| `Composer.tsx`                                            | `/` 快捷指令、页面范围标签（可移除、可重新附带）、输入法保护、空输入按上键调出上一问、字数与 token 估算                                                                                               |
+| `SessionRail.tsx` / `SourceRail.tsx` / `CitationLink.tsx` | 历史对话（新建、搜索、置顶、重命名、删除、分支）与引用来源；引用在主区域打开 `to + search`，全屏态点击引用临时退回右侧窄抽屉以便对照（不覆盖全屏偏好），点左侧导航则自动收起助理                   |
+| `AiModelSettingsCard.tsx`                                 | 模型配置：在线维护模式精简移除标题状态胶囊与底部配置元信息块，聚焦协议、模型 ID、API 地址、密钥与测试/保存操作；只读模式展示部署凭证并支持测试已保存配置                                               |
+| `assistant.css`                                           | 抽屉、右侧正文区全屏覆盖（与左侧菜单 `208px` / `64px` 联动对齐）与对话样式，仅使用主题变量，深浅色通用；抽屉关闭时不影响页面布局                                                                      |
 
 ## 历史记录
 

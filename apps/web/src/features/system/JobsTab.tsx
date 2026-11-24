@@ -9,17 +9,21 @@ import {
 } from "@optimax-starter/api";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, Eraser } from "lucide-react";
+import { Download, Eraser, RotateCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { FilterBar, type FilterField } from "@/components/filters/FilterBar";
 import { DataTable } from "@/components/table/DataTable";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
+import { storageKey } from "@/config/app-config";
 import { attachmentDownloadPath, isActiveJob, jobArtifactId, jobsApi } from "@/console-client";
 import { hasPermission, useAccount } from "@/features/auth/session";
+import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
 import type { Filters } from "@/hooks/usePersistedFilters";
+import { downloadCsv } from "@/lib/csv";
 
 const PAGE_SIZES = [20, 50, 100];
 const ACTIVE_REFRESH_MS = 2_000;
@@ -81,6 +85,7 @@ type Pending =
 export function JobsTab() {
   const me = useAccount();
   const cache = useQueryClient();
+  const runRefresh = useContentRefresh();
   const canRead = hasPermission(me.data, "jobs:read");
   const canManage = hasPermission(me.data, "jobs:manage");
   const canCleanup = canManage || hasPermission(me.data, "system:settings:manage");
@@ -288,12 +293,13 @@ export function JobsTab() {
   }
 
   const resetPage = () => setPaging((p) => ({ ...p, pageIndex: 0 }));
-  const hasActive = query.data?.items.some(isActiveJob) ?? false;
+  const currentItems = query.data?.items ?? [];
+  const hasActive = currentItems.some(isActiveJob);
 
   return (
     <>
       <DataTable
-        data={query.data?.items ?? []}
+        data={currentItems}
         columns={columns}
         isLoading={query.isLoading}
         error={query.error?.message}
@@ -302,6 +308,9 @@ export function JobsTab() {
             <FilterBar
               fields={JOB_FILTER_FIELDS}
               values={filters}
+              storageKey={
+                me.data ? `${storageKey("filter-drafts.v1")}:${me.data.id}:jobs` : undefined
+              }
               onApply={(next) => {
                 setFilters(next);
                 resetPage();
@@ -315,18 +324,58 @@ export function JobsTab() {
           </>
         }
         toolbarEnd={
-          canCleanup ? (
+          <>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={(e) => setPending({ kind: "cleanup", trigger: e.currentTarget })}
+              size="icon-sm"
+              variant="ghost"
+              title="刷新"
+              aria-label="刷新后台任务"
+              onClick={() => void runRefresh(() => query.refetch())}
             >
-              <Eraser size={14} aria-hidden="true" />
-              清理过期数据
+              <RotateCw size={15} />
             </Button>
-          ) : undefined
+            <TableExportMenu
+              disabled={!currentItems.length}
+              items={[
+                {
+                  label: "导出当前页 CSV",
+                  disabled: !currentItems.length,
+                  onSelect: () => {
+                    const count = downloadCsv(
+                      `后台任务-第${paging.pageIndex + 1}页.csv`,
+                      currentItems,
+                      [
+                        { header: "编号", value: (r) => `JOB-${r.id}` },
+                        { header: "类型", value: (r) => JOB_TYPE_LABELS[r.type] ?? r.type },
+                        { header: "状态", value: (r) => JOB_STATUS_LABELS[r.status] ?? r.status },
+                        {
+                          header: "进度",
+                          value: (r) => `${Math.max(0, Math.min(100, Number(r.progress) || 0))}%`,
+                        },
+                        { header: "结果", value: (r) => summarizeJobResult(r) },
+                        { header: "尝试", value: (r) => `${r.attempts}/${r.maxAttempts}` },
+                        { header: "创建时间", value: (r) => formatTime(r.createdAt) },
+                      ],
+                    );
+                    toast.success(`已导出当前页 ${count} 条后台任务`);
+                  },
+                },
+              ]}
+            />
+            {canCleanup ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={(e) => setPending({ kind: "cleanup", trigger: e.currentTarget })}
+              >
+                <Eraser size={14} aria-hidden="true" />
+                清理过期数据
+              </Button>
+            ) : null}
+          </>
         }
         pagination={{
           pageIndex: paging.pageIndex,
