@@ -10,13 +10,20 @@ import { CodeBlock } from "./beautiful-pi/CodeBlock";
 import { copyText } from "./beautiful-pi/clipboard";
 import { RichDataTable } from "./beautiful-pi/RichDataTable";
 import { CITATION_HREF_PREFIX, extractHastTable } from "./beautiful-pi/data-table";
+import {
+  ENTITY_HREF_PREFIX,
+  resolveEntityToken,
+  rewriteMarkdownEntityTokens,
+  splitTextByEntityTokens,
+} from "./assistant-links-utils";
 import { CitationLink } from "./CitationLink";
+import { EntityRefChip } from "./EntityRefChip";
 import { type MessageMeta, messageCitations, messageText, readableAssistantText } from "./session";
 import { ApprovalCard, ToolGroup, toolName, WRITE_TOOLS } from "./ToolSteps";
 
-function renderCitations(markdown: string, citations: AgentCitation[]) {
+function renderRichMarkdown(markdown: string, citations: AgentCitation[]) {
   // Literal examples in fenced or inline code are not rewritten. Unknown ids stay plain text.
-  return markdown
+  const withCitations = markdown
     .split(/(```[\s\S]*?```|`[^`\n]*`)/)
     .map((part, index) =>
       index % 2
@@ -29,16 +36,32 @@ function renderCitations(markdown: string, citations: AgentCitation[]) {
           }),
     )
     .join("");
+  return rewriteMarkdownEntityTokens(withCitations);
 }
 
-/** Table cells carry [[E1]] tokens from extractHastTable; known ids become pills. */
-function citationCell(value: string, citations: AgentCitation[]): ReactNode {
-  if (!value.includes("[[E")) return value;
-  return value.split(/(\[\[E\d+\]\])/).map((part, index) => {
+/** Table cells carry [[E1]] tokens from extractHastTable or registered entity tokens; both become pills/chips. */
+function richCell(value: string, citations: AgentCitation[]): ReactNode {
+  const parts = value.includes("[[E") ? value.split(/(\[\[E\d+\]\])/) : [value];
+  const nodes: ReactNode[] = [];
+  for (let i = 0; i < parts.length; i += 1) {
+    const part = parts[i] ?? "";
     const id = /^\[\[(E\d+)\]\]$/.exec(part)?.[1];
-    const source = id ? citations.find((citation) => citation.id === id) : undefined;
-    return source ? <CitationLink key={index} source={source} compact /> : part;
-  });
+    if (id) {
+      const source = citations.find((citation) => citation.id === id);
+      nodes.push(source ? <CitationLink key={`c-${i}`} source={source} compact /> : part);
+      continue;
+    }
+    const pieces = splitTextByEntityTokens(part);
+    for (let j = 0; j < pieces.length; j += 1) {
+      const piece = pieces[j];
+      if (typeof piece === "string") {
+        if (piece) nodes.push(piece);
+      } else if (piece) {
+        nodes.push(<EntityRefChip key={`e-${i}-${j}`} target={piece} compact />);
+      }
+    }
+  }
+  return nodes.length === 1 ? nodes[0] : nodes;
 }
 
 const CITATION_LINK = new RegExp(`^${CITATION_HREF_PREFIX}(E\\d+)$`);
@@ -65,28 +88,34 @@ export const Markdown = memo(function Markdown({
           code({ className, children }) {
             const body = String(children);
             const language = /language-([\w-]+)/.exec(className ?? "")?.[1];
-            return language || body.includes("\n") ? (
-              <CodeBlock language={language ?? ""} text={body} />
-            ) : (
-              <code>{children}</code>
-            );
+            if (language || body.includes("\n")) {
+              return <CodeBlock language={language ?? ""} text={body} />;
+            }
+            const target = resolveEntityToken(body);
+            return target ? <EntityRefChip target={target} compact /> : <code>{children}</code>;
           },
           table({ node, children }) {
             const data = extractHastTable(node);
             return data ? (
-              <RichDataTable {...data} renderCell={(value) => citationCell(value, citations)} />
+              <RichDataTable {...data} renderCell={(value) => richCell(value, citations)} />
             ) : (
               <table>{children}</table>
             );
           },
           a({ href, children }) {
-            const id = CITATION_LINK.exec(href ?? "")?.[1];
+            const rawHref = href ?? "";
+            if (rawHref.startsWith(ENTITY_HREF_PREFIX)) {
+              const code = decodeURIComponent(rawHref.slice(ENTITY_HREF_PREFIX.length));
+              const target = resolveEntityToken(code);
+              if (target) return <EntityRefChip target={target} compact />;
+            }
+            const id = CITATION_LINK.exec(rawHref)?.[1];
             const source = id ? citations.find((citation) => citation.id === id) : undefined;
             return source ? <CitationLink source={source} compact /> : <span>{children}</span>;
           },
         }}
       >
-        {renderCitations(text, citations)}
+        {renderRichMarkdown(text, citations)}
       </ReactMarkdown>
     </div>
   );
@@ -196,6 +225,7 @@ function segments(message: UIMessage): Segment[] {
 
 export function StreamMessage({
   message,
+  inheritedCitations,
   live,
   busy,
   respond,
@@ -205,6 +235,7 @@ export function StreamMessage({
   onSources,
 }: {
   message: UIMessage;
+  inheritedCitations?: AgentCitation[];
   live: boolean;
   busy: boolean;
   respond: (id: string, approved: boolean) => void;
@@ -227,7 +258,7 @@ export function StreamMessage({
       </article>
     );
   }
-  const citations = messageCitations(message);
+  const citations = inheritedCitations ?? messageCitations(message);
   const meta = message.metadata as MessageMeta | undefined;
   const parts = segments(message);
   const text = messageText(message);

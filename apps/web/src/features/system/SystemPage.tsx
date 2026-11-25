@@ -1,19 +1,27 @@
 import {
+  DEFAULT_SESSION_TTL_HOURS,
   DEFAULT_SYSTEM_TIMEZONE,
+  formatSessionTtlHint,
+  formatSessionTtlLabel,
   formatSystemTimezoneOptionLabel,
   getSystemTimezoneOptions,
+  MAX_SESSION_TTL_HOURS,
+  MIN_SESSION_TTL_HOURS,
+  normalizeSessionTtlHours,
   type SystemSettingsResponse,
+  type SystemSettingsUpdateInput,
   type SystemStatusResponse,
   type SystemTab,
 } from "@optimax-starter/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { RotateCw, Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, RotateCcw, RotateCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
+import { NumberInput } from "@/components/ui/number-input";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
 import { toast } from "@/components/ui/toast";
@@ -27,8 +35,11 @@ import { AiModelSettingsCard } from "@/features/assistant/AiModelSettingsCard";
 
 import { JobsTab } from "./JobsTab";
 import { parseSystemSearch, SYSTEM_TAB_ITEMS } from "./search";
+import type { RegisterSettingsSection, SettingsSectionController } from "./settings-controller";
 
 const route = getRouteApi("/system");
+
+type SectionState = Pick<SettingsSectionController, "dirty" | "valid" | "pending">;
 
 function formatUptime(sec: number): string {
   if (sec < 60) return `${sec} 秒`;
@@ -105,7 +116,95 @@ export function SystemPage() {
     enabled: Boolean(me.data) && canReadSettings,
   });
 
+  const controllersRef = useRef<Record<string, SettingsSectionController>>({});
+  const [sectionStates, setSectionStates] = useState<Record<string, SectionState>>({});
+  const [applying, setApplying] = useState(false);
+
+  const registerSection: RegisterSettingsSection = useCallback((id, controller) => {
+    if (!controller) {
+      delete controllersRef.current[id];
+      setSectionStates((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    controllersRef.current[id] = controller;
+    setSectionStates((prev) => {
+      const existing = prev[id];
+      if (
+        existing &&
+        existing.dirty === controller.dirty &&
+        existing.valid === controller.valid &&
+        existing.pending === controller.pending
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [id]: {
+          dirty: controller.dirty,
+          valid: controller.valid,
+          pending: controller.pending,
+        },
+      };
+    });
+  }, []);
+
+  const dirtyIds = useMemo(
+    () =>
+      Object.entries(sectionStates)
+        .filter(([, state]) => state.dirty)
+        .map(([id]) => id),
+    [sectionStates],
+  );
+  const hasDirtyChanges = dirtyIds.length > 0;
+  const allDirtyValid =
+    hasDirtyChanges && dirtyIds.every((id) => sectionStates[id]?.valid !== false);
+  const anyPending =
+    applying || Object.values(sectionStates).some((state) => state.pending);
+
+  const applyAll = useCallback(async () => {
+    if (!hasDirtyChanges || !allDirtyValid || anyPending) return;
+    setApplying(true);
+    try {
+      for (const id of dirtyIds) {
+        await controllersRef.current[id]?.apply();
+      }
+      toast.success("系统配置已应用");
+    } catch (error) {
+      toast.error("系统配置应用失败", {
+        description: error instanceof Error ? error.message : "请稍后重试",
+      });
+    } finally {
+      setApplying(false);
+    }
+  }, [allDirtyValid, anyPending, dirtyIds, hasDirtyChanges]);
+
+  const resetAll = useCallback(() => {
+    if (!hasDirtyChanges || anyPending) return;
+    for (const id of dirtyIds) {
+      controllersRef.current[id]?.reset();
+    }
+  }, [anyPending, dirtyIds, hasDirtyChanges]);
+
+  useEffect(() => {
+    if (activeTab !== "settings" || !canManageSettings) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void applyAll();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTab, applyAll, canManageSettings]);
+
   const activeTimezone = settingsQuery.data?.timezone ?? DEFAULT_SYSTEM_TIMEZONE;
+  const activeSessionTtlLabel =
+    settingsQuery.data?.sessionTtlLabel ?? formatSessionTtlLabel(DEFAULT_SESSION_TTL_HOURS);
 
   if (!canReadAi && !canReadSettings && !canReadJobs) {
     return (
@@ -126,29 +225,56 @@ export function SystemPage() {
         title="系统配置"
         actions={
           activeTab !== "jobs" ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              title="刷新"
-              aria-label="刷新系统配置"
-              disabled={refreshing}
-              onClick={() =>
-                void runRefresh(() =>
-                  Promise.all([
-                    ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
-                    ...(canReadSettings ? [settingsQuery.refetch()] : []),
-                    ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
-                    // @starter:agent-start
-                    cache.invalidateQueries({ queryKey: ["agent-status"] }),
-                    cache.invalidateQueries({ queryKey: ["ai-model-settings"] }),
-                    // @starter:agent-end
-                  ]),
-                )
-              }
-            >
-              <RotateCw size={15} />
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="刷新"
+                aria-label="刷新系统配置"
+                disabled={refreshing || anyPending}
+                onClick={() =>
+                  void runRefresh(() =>
+                    Promise.all([
+                      ...(canReadAi || canReadSettings ? [statusQuery.refetch()] : []),
+                      ...(canReadSettings ? [settingsQuery.refetch()] : []),
+                      ...(canReadJobs ? [cache.invalidateQueries({ queryKey: ["jobs"] })] : []),
+                      // @starter:agent-start
+                      cache.invalidateQueries({ queryKey: ["agent-status"] }),
+                      cache.invalidateQueries({ queryKey: ["ai-model-settings"] }),
+                      // @starter:agent-end
+                    ]),
+                  )
+                }
+              >
+                <RotateCw size={15} />
+              </Button>
+              {activeTab === "settings" && canManageSettings ? (
+                <>
+                  {hasDirtyChanges ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={anyPending}
+                      onClick={resetAll}
+                    >
+                      <RotateCcw size={15} />
+                      重置
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!hasDirtyChanges || !allDirtyValid || anyPending}
+                    onClick={() => void applyAll()}
+                  >
+                    <Check size={15} />
+                    {anyPending ? "应用中…" : "应用"}
+                  </Button>
+                </>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
@@ -164,13 +290,24 @@ export function SystemPage() {
         }}
       >
         <PageTabsPanel value="status">
-          <StatusControlPanel query={statusQuery} timeZone={activeTimezone} />
+          <StatusControlPanel
+            query={statusQuery}
+            timeZone={activeTimezone}
+            sessionTtlLabel={activeSessionTtlLabel}
+          />
         </PageTabsPanel>
         <PageTabsPanel value="settings">
-          <BaseSettingsPanel query={settingsQuery} canManageSettings={canManageSettings} />
+          <BaseSettingsPanel
+            query={settingsQuery}
+            canManageSettings={canManageSettings}
+            registerSection={registerSection}
+          />
           {/* @starter:agent-start */}
-          <div className="mt-5">
-            <AiModelSettingsCard canManageSettings={canManageSettings} />
+          <div className="mt-4">
+            <AiModelSettingsCard
+              canManageSettings={canManageSettings}
+              registerSection={registerSection}
+            />
           </div>
           {/* @starter:agent-end */}
         </PageTabsPanel>
@@ -184,7 +321,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b-[0.5px] border-[var(--hairline)] py-2.5 text-sm last:border-b-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="m-0 text-right font-medium tabular-nums text-foreground">{value}</dd>
+      <dd className="m-0 font-medium tabular-nums text-foreground">{value}</dd>
     </div>
   );
 }
@@ -192,9 +329,11 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 function StatusControlPanel({
   query,
   timeZone,
+  sessionTtlLabel,
 }: {
   query: ReturnType<typeof useQuery<SystemStatusResponse, Error>>;
   timeZone: string;
+  sessionTtlLabel: string;
 }) {
   if (query.isPending) {
     return (
@@ -244,7 +383,7 @@ function StatusControlPanel({
         <h2>服务与数据库探针</h2>
         <Badge variant={dbHealthy ? "success" : "danger"}>{dbHealthy ? "健康" : "异常"}</Badge>
       </header>
-      <div className="mb-3 grid grid-cols-2 gap-px overflow-hidden rounded-lg border-[0.5px] border-[var(--hairline)] bg-[var(--hairline)] sm:grid-cols-4">
+      <div className="cq-kpi-4 mb-3 overflow-hidden rounded-lg border-[0.5px] border-[var(--hairline)] bg-[var(--hairline)]">
         {summaryCells.map((cell) => (
           <div key={cell.label} className="bg-card px-3.5 py-2.5">
             <div className="text-[11px] text-muted-foreground">{cell.label}</div>
@@ -260,6 +399,7 @@ function StatusControlPanel({
           value={dbHealthy ? `正常（${probe.dbLatencyMs ?? 0} ms）` : "连接不可达"}
         />
         <MetricRow label="生效系统时区" value={timeZone} />
+        <MetricRow label="登录会话有效期" value={sessionTtlLabel} />
         <MetricRow label="最近探测时间" value={formatCheckedAt(data.checkedAt, timeZone)} />
       </dl>
     </section>
@@ -269,12 +409,15 @@ function StatusControlPanel({
 function BaseSettingsPanel({
   query,
   canManageSettings,
+  registerSection,
 }: {
   query: ReturnType<typeof useQuery<SystemSettingsResponse, Error>>;
   canManageSettings: boolean;
+  registerSection: RegisterSettingsSection;
 }) {
   const cache = useQueryClient();
   const [timezone, setTimezone] = useState("");
+  const [sessionTtlInput, setSessionTtlInput] = useState<number | "">("");
 
   const currentTimezone = query.data?.timezone;
   useEffect(() => {
@@ -282,6 +425,13 @@ function BaseSettingsPanel({
       setTimezone(currentTimezone);
     }
   }, [currentTimezone]);
+
+  const currentSessionTtl = query.data?.sessionTtlHours;
+  useEffect(() => {
+    if (currentSessionTtl !== undefined) {
+      setSessionTtlInput(currentSessionTtl);
+    }
+  }, [currentSessionTtl]);
 
   const timezoneOptions = useMemo(() => {
     const base = getSystemTimezoneOptions();
@@ -299,23 +449,56 @@ function BaseSettingsPanel({
   }, [currentTimezone]);
 
   const save = useMutation({
-    mutationFn: (nextTimezone: string) =>
-      request<SystemSettingsResponse>("/system/settings", "PUT", {
-        timezone: nextTimezone,
-      }),
+    mutationFn: (payload: SystemSettingsUpdateInput) =>
+      request<SystemSettingsResponse>("/system/settings", "PUT", payload),
     onSuccess: async (updated) => {
       setTimezone(updated.timezone);
+      setSessionTtlInput(updated.sessionTtlHours);
       await Promise.all([
         cache.invalidateQueries({ queryKey: ["system-settings"] }),
         cache.invalidateQueries({ queryKey: ["system-status"] }),
         cache.invalidateQueries({ queryKey: ["audit"] }),
       ]);
-      toast.success("系统配置已保存");
-    },
-    onError: (err) => {
-      toast.error("系统配置保存失败", { description: err.message });
     },
   });
+
+  const settings = query.data;
+  const tzChanged = Boolean(settings && timezone && timezone !== settings.timezone);
+  const parsedTtl =
+    sessionTtlInput === "" ? null : normalizeSessionTtlHours(sessionTtlInput);
+  const ttlChanged = Boolean(settings && sessionTtlInput !== settings.sessionTtlHours);
+  const dirty = tzChanged || ttlChanged;
+  const ttlInvalid = settings !== undefined && parsedTtl === null;
+  const valid = !dirty || parsedTtl !== null;
+
+  const reset = useCallback(() => {
+    if (!settings) return;
+    setTimezone(settings.timezone);
+    setSessionTtlInput(settings.sessionTtlHours);
+  }, [settings]);
+
+  const apply = useCallback(async () => {
+    if (!settings || !dirty || parsedTtl === null) return;
+    const payload: SystemSettingsUpdateInput = {};
+    if (tzChanged) payload.timezone = timezone;
+    if (ttlChanged) payload.sessionTtlHours = parsedTtl;
+    if (Object.keys(payload).length === 0) return;
+    await save.mutateAsync(payload);
+  }, [dirty, parsedTtl, save, settings, timezone, ttlChanged, tzChanged]);
+
+  useEffect(() => {
+    registerSection("base", {
+      dirty,
+      valid,
+      pending: save.isPending,
+      apply,
+      reset,
+    });
+  }, [apply, dirty, registerSection, reset, save.isPending, valid]);
+
+  useEffect(() => {
+    return () => registerSection("base", null);
+  }, [registerSection]);
 
   if (query.isPending) {
     return (
@@ -336,41 +519,67 @@ function BaseSettingsPanel({
     );
   }
 
-  const settings = query.data;
-  const hasChanged = Boolean(timezone && settings.timezone && timezone !== settings.timezone);
-
   return (
-    <section className="panel" aria-label="时间与区域设置">
-      <header className="panel-head">
-        <h2>时间与区域设置</h2>
-      </header>
-      <div className="flex flex-col gap-5">
-        <div className="flex max-w-md flex-col gap-2">
-          <Label htmlFor="system-timezone">系统时区</Label>
-          <Combobox
-            id="system-timezone"
-            label="系统时区"
-            value={timezone}
-            onValueChange={setTimezone}
-            options={timezoneOptions}
-            placeholder="请选择系统时区"
-            searchPlaceholder="搜索城市、时区标识或 UTC 偏移…"
-            emptyText="未找到匹配时区"
-            disabled={!canManageSettings || save.isPending}
-          />
+    <div className="cq-grid-2 items-stretch">
+      <section className="panel flex flex-col justify-between" aria-label="时间与区域设置">
+        <div>
+          <header className="panel-head">
+            <h2>时间与区域设置</h2>
+          </header>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="system-timezone">系统时区</Label>
+            <Combobox
+              id="system-timezone"
+              label="系统时区"
+              value={timezone}
+              onValueChange={setTimezone}
+              options={timezoneOptions}
+              placeholder="请选择系统时区"
+              searchPlaceholder="搜索城市、时区标识或 UTC 偏移…"
+              emptyText="未找到匹配时区"
+              disabled={!canManageSettings || save.isPending}
+            />
+          </div>
         </div>
+        <p className="m-0 mt-3 text-xs leading-relaxed text-muted-foreground">
+          影响审计日志时间展示与按自然日区间筛选边界。
+        </p>
+      </section>
 
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            disabled={!canManageSettings || !hasChanged || save.isPending}
-            onClick={() => save.mutate(timezone)}
-          >
-            <Save size={15} />
-            {save.isPending ? "保存中…" : "保存配置"}
-          </Button>
+      <section className="panel flex flex-col justify-between" aria-label="登录与会话有效期">
+        <div>
+          <header className="panel-head">
+            <h2>登录与会话有效期</h2>
+          </header>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="system-session-ttl">登录保持时长</Label>
+            <NumberInput
+              id="system-session-ttl"
+              aria-label="登录保持时长"
+              label="登录保持时长"
+              value={sessionTtlInput}
+              onValueChange={setSessionTtlInput}
+              min={MIN_SESSION_TTL_HOURS}
+              max={MAX_SESSION_TTL_HOURS}
+              step={1}
+              unit="小时"
+              placeholder="输入 1 到 2160 之间的整数"
+              disabled={!canManageSettings || save.isPending}
+              aria-invalid={ttlInvalid || undefined}
+            />
+          </div>
         </div>
-      </div>
-    </section>
+        {ttlInvalid ? (
+          <p role="alert" className="m-0 mt-3 text-xs leading-relaxed text-destructive">
+            请输入 1 到 2160 之间的整数小时（最多 90 天）。
+          </p>
+        ) : (
+          <p className="m-0 mt-3 text-xs leading-relaxed text-muted-foreground">
+            当前{parsedTtl !== null ? formatSessionTtlHint(parsedTtl) : "有效"}；活跃访问每 5
+            分钟自动顺延（默认 168 小时 / 7 天）。
+          </p>
+        )}
+      </section>
+    </div>
   );
 }

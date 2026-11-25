@@ -1,4 +1,6 @@
-export const SESSION_LIFETIME_SECONDS = 8 * 60 * 60;
+import { DEFAULT_SESSION_TTL_HOURS } from "@optimax-starter/api";
+
+export const SESSION_LIFETIME_SECONDS = DEFAULT_SESSION_TTL_HOURS * 60 * 60;
 export const DEMO_DEFAULT_PASSWORD = ["demo", "2026!"].join("@");
 
 export function getCookieName(): string {

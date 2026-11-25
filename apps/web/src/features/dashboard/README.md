@@ -6,6 +6,7 @@
 
 - **双视图切换**：顶部通过共享 `SegmentedControl` 在「业务总览」与「治理与审计」之间切换；概览页受 `workbench:read` 保护。
 - **按有效权限按需加载**：[DashboardPage.tsx](./DashboardPage.tsx) 仅对当前登录账户具备对应读权限的数据源发起请求（`assets:read`、`accounts:read`、`audit:read`、`jobs:read`、`system:settings:read`），无权限模块与管理员以下成员均不会触发 `403` 请求。
+- **内容区容器查询自适应**：概览双栏与对标分布区域统一采用 `.content` 容器查询（`.cq-split-12`、`8:4` / `7:5` / `6:6`），在展开右侧智能助理抽屉或缩放窗口时按剩余内容宽度自动重排。
 - **独立骨架刷新边界**：主内容包在 `ContentRefresh`（`layout="dashboard"`）中，支持对齐 Bento 与环形图的 `.om-bone` 流光骨架及页头显式刷新（`immediate` 即时节拍）。
 
 ## 注册表驱动与脚手架联动

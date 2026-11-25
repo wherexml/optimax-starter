@@ -59,6 +59,7 @@ tmp
 temp
 
 # Local acceptance recordings, sprint process notes and task state (curated screenshots live in docs/images)
+/data/
 /evidence/
 /tasks/
 docs/sprint/

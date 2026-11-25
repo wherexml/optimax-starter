@@ -26,6 +26,8 @@ export const probeSavedAgent = () => request<AgentProbeResponse>("/agent/test", 
 export const fetchModelSettings = () => request<AgentModelSettings>("/system/ai/model");
 export const saveModelSettings = (input: AgentModelInput) =>
   request<AgentModelSettings>("/system/ai/model", "POST", input);
+export const clearModelSettings = (revision: string) =>
+  request<AgentModelSettings>("/system/ai/model/clear", "POST", { revision });
 export const probeDraftModel = (input: AgentModelInput) =>
   request<AgentProbeResponse>("/system/ai/model/test", "POST", input);
 

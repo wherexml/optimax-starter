@@ -11,9 +11,10 @@
 | `Conversation.tsx`                                        | `useChat` 接入 `/console/agent/chat`：外发最近 8 条纯文本与最后一条的确认回执，确认后自动续传；客户端工具 `navigate_console` 在主区域跳转（全屏态临时退回窄抽屉对照）；写工具完成后刷新相关查询缓存 |
 | `ChatMessage.tsx` / `ToolSteps.tsx`                       | Markdown、表格、代码块、思考过程、工具时间线与写操作确认卡                                                                                                                                            |
 | `Composer.tsx`                                            | `/` 快捷指令、页面范围标签（可移除、可重新附带）、输入法保护、空输入按上键调出上一问、字数与 token 估算                                                                                               |
-| `SessionRail.tsx` / `SourceRail.tsx` / `CitationLink.tsx` | 历史对话（新建、搜索、置顶、重命名、删除、分支）与引用来源；引用在主区域打开 `to + search`，全屏态点击引用临时退回右侧窄抽屉以便对照（不覆盖全屏偏好），点左侧导航则自动收起助理                   |
-| `AiModelSettingsCard.tsx`                                 | 模型配置：在线维护模式精简移除标题状态胶囊与底部配置元信息块，聚焦协议、模型 ID、API 地址、密钥与测试/保存操作；只读模式展示部署凭证并支持测试已保存配置                                               |
-| `assistant.css`                                           | 抽屉、右侧正文区全屏覆盖（与左侧菜单 `208px` / `64px` 联动对齐）与对话样式，仅使用主题变量，深浅色通用；抽屉关闭时不影响页面布局                                                                      |
+| `SessionRail.tsx` / `SourceRail.tsx` / `CitationLink.tsx` | 历史对话（新建、搜索、置顶、重命名、删除、分支）与引用来源；编号徽标与标题均支持点击在主区域打开 `to + search`，全屏态点击引用临时退回窄抽屉，点引用定位后收起侧栏，点左侧导航则自动收起助理 |
+| `assistant-links-utils.ts` / `EntityRefChip.tsx`          | 纯逻辑与快捷跳转芯片：跨轮次引用继承覆盖解析（`resolveMessageCitations` / `sessionCitations`），以及可扩展业务编码链接注册表（`DEFAULT_ENTITY_LINK_RULES` 含 `--no-example` 示例标记），正文、行内代码与表格单元格统一渲染芯片 |
+| `AiModelSettingsCard.tsx`                                 | 模型配置：始终支持网页端直接配置（API 地址、密钥与接口协议、模型 ID、结构化输出方式均衡两行容器查询栅格），卡片头部提供「测试连接」与「清空配置」，提交归属 `/system` 顶部统一「应用」 |
+| `assistant.css`                                           | 抽屉、右侧正文区全屏覆盖（与左侧菜单 `208px` / `64px` 联动对齐）、`minmax(0, 1fr)` / `overflow-x: hidden` 防横向撑破约束与实体芯片样式，仅使用主题变量，深浅色通用；抽屉关闭时不影响页面布局 |
 
 ## 历史记录
 

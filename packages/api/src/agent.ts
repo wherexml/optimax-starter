@@ -23,14 +23,14 @@ export const AGENT_STRUCTURED_MODE_LABELS: Record<AgentStructuredMode, string> =
 };
 
 export const agentModelSettingsSchema = z.object({
-  /** false = read-only deployment credentials (no STARTER_AI_CONFIG_KEY_FILE). */
+  /** Always true: model settings are maintained directly in the console. */
   editable: z.boolean(),
   protocol: agentProtocolSchema,
   baseUrl: z.string(),
   model: z.string(),
   structuredMode: agentStructuredModeSchema,
   hasKey: z.boolean(),
-  source: z.enum(["database", "env", "unconfigured"]),
+  source: z.enum(["database", "unconfigured"]),
   updatedAt: z.string().nullable(),
   updatedBy: z.string().nullable(),
   /** "deployment" until the first save, then a UUID used for optimistic locking. */
@@ -83,6 +83,13 @@ export const agentModelInputSchema = z
   })
   .strict();
 export type AgentModelInput = z.infer<typeof agentModelInputSchema>;
+
+export const agentModelClearSchema = z
+  .object({
+    revision: z.union([z.literal("deployment"), z.uuid()]),
+  })
+  .strict();
+export type AgentModelClearInput = z.infer<typeof agentModelClearSchema>;
 
 export const agentStatusResponseSchema = z.object({
   enabled: z.boolean(),

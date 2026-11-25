@@ -460,8 +460,8 @@ export function AssetDetailPage() {
       </div>
 
       {/* Layer 2: Interactive Topology Canvas + Metadata & Benchmarks */}
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-        <div className={cn("min-w-0", graphExpanded ? "xl:col-span-12" : "xl:col-span-7")}>
+      <div className="cq-split-12-tight">
+        <div className={cn("min-w-0", graphExpanded ? "cq-span-12" : "cq-main-7")}>
           <AssetTopologyGraph
             asset={asset}
             expanded={graphExpanded}
@@ -488,14 +488,7 @@ export function AssetDetailPage() {
           />
         </div>
 
-        <div
-          className={cn(
-            "min-w-0 gap-3",
-            graphExpanded
-              ? "grid grid-cols-1 xl:col-span-12 lg:grid-cols-2"
-              : "flex flex-col xl:col-span-5",
-          )}
-        >
+        <div className={graphExpanded ? "cq-side-stack-expanded" : "cq-side-stack"}>
           <section className="flex flex-col gap-3.5 rounded-xl border-[0.5px] border-border bg-card p-4 sm:p-5">
             <div className="flex items-center justify-between gap-2 border-b-[0.5px] border-border pb-2.5">
               <h2 className="m-0 text-[15px] leading-6 font-semibold text-foreground">

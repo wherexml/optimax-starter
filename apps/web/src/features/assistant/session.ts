@@ -105,33 +105,13 @@ export function sessionSearchText(session: Session) {
   return `${session.title}\n${session.messages.map(messageText).join("\n")}`.toLocaleLowerCase();
 }
 
-function isCitation(value: unknown): value is AgentCitation {
-  if (!value || typeof value !== "object") return false;
-  const citation = value as AgentCitation;
-  return (
-    typeof citation.id === "string" &&
-    typeof citation.title === "string" &&
-    typeof citation.to === "string"
-  );
-}
+import { messageCitations } from "./assistant-links-utils";
 
-/** Citations from caller metadata and every completed tool output of one assistant message, de-duplicated by id. */
-export function messageCitations(message: UIMessage): AgentCitation[] {
-  const found = new Map<string, AgentCitation>();
-  for (const citation of (message.metadata as MessageMeta | undefined)?.citations ?? []) {
-    if (isCitation(citation)) found.set(citation.id, citation);
-  }
-  for (const part of message.parts) {
-    if (!part.type.startsWith("tool-") || !("state" in part) || part.state !== "output-available") {
-      continue;
-    }
-    const output = (part as { output?: { citations?: unknown[] } }).output;
-    for (const citation of output?.citations ?? []) {
-      if (isCitation(citation)) found.set(citation.id, citation);
-    }
-  }
-  return [...found.values()].sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
-}
+export {
+  messageCitations,
+  resolveMessageCitations,
+  sessionCitations,
+} from "./assistant-links-utils";
 
 export const scopeLabel = (scope?: AgentScope) => (scope ? scope.label || scope.kind : "");
 

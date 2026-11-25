@@ -72,7 +72,9 @@ const ACTIVITY_ICONS: Record<string, LucideIcon> = {
   "permission.update": ShieldCheck,
   "permission.reset": ShieldCheck,
   "system.timezone_update": Clock,
+  "system.session_ttl_update": Clock,
   "system.ai_circuit": Power,
+  "system.ai_model": Activity,
   "agent.asset_filter": Activity,
   "asset.create": Boxes,
   "asset.update": Pencil,
@@ -401,8 +403,8 @@ export function DashboardPage() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
-            <div className="flex min-w-0 flex-col gap-4 xl:col-span-8">
+          <div className="cq-split-12 items-start">
+            <div className="cq-main-8 flex min-w-0 flex-col gap-4">
               {canReadAudit ? (
                 auditPage.isPending ? (
                   <PanelSkeleton height={310} />
@@ -437,7 +439,7 @@ export function DashboardPage() {
               )}
             </div>
 
-            <div className="flex min-w-0 flex-col gap-4 xl:col-span-4">
+            <div className="cq-side-4 flex min-w-0 flex-col gap-4">
               {compositionDonut ? (
                 <DonutChart
                   title={compositionDonut.title}
@@ -461,8 +463,8 @@ export function DashboardPage() {
           </div>
 
           {canReadAudit ? (
-            <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
-              <div className="min-w-0 xl:col-span-7">
+            <div className="cq-split-12 items-start">
+              <div className="cq-main-7">
                 <ModuleOverviewPanel
                   visibleModules={visibleModules}
                   activeModule={activeModule}
@@ -472,7 +474,7 @@ export function DashboardPage() {
                 />
               </div>
 
-              <div className="min-w-0 xl:col-span-5">
+              <div className="cq-side-5">
                 <Panel
                   title="最近操作"
                   action={
@@ -1666,8 +1668,8 @@ function GovernanceView({
   return (
     <div className="flex flex-col gap-4">
       {canReadAudit ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <div className="min-w-0 xl:col-span-6">
+        <div className="cq-split-12">
+          <div className="cq-col-6">
             <Panel
               title="高频操作动作排行"
               action={
@@ -1703,7 +1705,7 @@ function GovernanceView({
             </Panel>
           </div>
 
-          <div className="min-w-0 xl:col-span-6">
+          <div className="cq-col-6">
             <Panel
               title="活跃主体分布"
               action={
@@ -1745,9 +1747,9 @@ function GovernanceView({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
+      <div className="cq-split-12 items-start">
         {canReadJobs ? (
-          <div className="min-w-0 xl:col-span-7">
+          <div className="cq-main-7">
             <Panel
               title="后台任务执行记录"
               action={
@@ -1838,7 +1840,7 @@ function GovernanceView({
         ) : null}
 
         {canReadAccounts || canReadSystem ? (
-          <div className={canReadJobs ? "min-w-0 xl:col-span-5" : "min-w-0 xl:col-span-12"}>
+          <div className={canReadJobs ? "cq-side-5" : "cq-span-12"}>
             <Panel
               title="账户与运行探针"
               action={

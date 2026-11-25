@@ -26,11 +26,12 @@ import { buildConversationReferencePrompt } from "./beautiful-pi/composer";
 import { StreamMessage } from "./ChatMessage";
 import { COMMANDS, type Command, Composer, type ComposerHandle } from "./Composer";
 import {
-  messageCitations,
   messageText,
   readableAssistantText,
+  resolveMessageCitations,
   type Session,
   scopeLabel,
+  sessionCitations,
 } from "./session";
 import { toolName, WRITE_TOOLS } from "./ToolSteps";
 
@@ -196,10 +197,7 @@ export function Conversation({
     [chat.stop, onBusy],
   );
 
-  const latest = useMemo(() => {
-    const message = [...chat.messages].reverse().find((entry) => entry.role === "assistant");
-    return message ? messageCitations(message) : [];
-  }, [chat.messages]);
+  const latest = useMemo(() => sessionCitations(chat.messages), [chat.messages]);
   const latestKey = latest.map((citation) => citation.id + citation.title).join(",");
   useEffect(() => {
     onCitations(latest);
@@ -315,6 +313,11 @@ export function Conversation({
                 <StreamMessage
                   key={message.id}
                   message={message}
+                  inheritedCitations={
+                    message.role === "assistant"
+                      ? resolveMessageCitations(chat.messages, index)
+                      : undefined
+                  }
                   live={live}
                   busy={busy}
                   respond={respond}

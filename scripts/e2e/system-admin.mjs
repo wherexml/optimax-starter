@@ -246,20 +246,30 @@ export async function verifySystemAdmin(
     await page.keyboard.press("ArrowRight");
     await page.waitForFunction(() => location.search === "?tab=settings");
     await page.waitForSelector('section[aria-label="时间与区域设置"]');
+    await page.waitForSelector('section[aria-label="登录与会话有效期"]');
+    await page.waitForSelector('section[aria-label="AI 模型配置"]');
+    const modelPanelText = await page.evaluate(
+      () => document.querySelector('section[aria-label="AI 模型配置"]')?.textContent ?? "",
+    );
+    check(
+      "AI model settings card is directly editable without deployment readonly notice",
+      !modelPanelText.includes("STARTER_AI_CONFIG_KEY_FILE") &&
+        (await page.evaluate(() => Boolean(document.querySelector("#ai-model-base-url")))),
+    );
     await page.click('button[aria-label="系统时区"]');
     await page.fill('input[aria-label="搜索城市、时区标识或 UTC 偏移…"]', "协调世界时");
     await page.click('button[role="option"]:has-text("协调世界时")');
-    await page.click('section[aria-label="时间与区域设置"] button:has-text("保存配置")');
+    await page.click('header button:has-text("应用")');
     await page.waitForFunction(() => {
       const sec = document.querySelector('section[aria-label="时间与区域设置"]');
       const trigger = sec?.querySelector('button[aria-label="系统时区"]');
-      const saveBtn = [...(sec?.querySelectorAll("button") ?? [])].find((b) =>
-        b.textContent?.includes("保存配置"),
+      const applyBtn = [...document.querySelectorAll("header button")].find((b) =>
+        b.textContent?.includes("应用"),
       );
-      return Boolean(trigger?.textContent?.includes("UTC+00:00") && saveBtn?.hasAttribute("disabled"));
+      return Boolean(trigger?.textContent?.includes("UTC+00:00") && applyBtn?.hasAttribute("disabled"));
     });
     await shot("desktop-system-settings");
-    check("SystemPage settings tab saves searchable timezone to database", true);
+    check("SystemPage settings tab applies searchable timezone to database", true);
 
     // 4. Multi-role verification: log in as ordinary admin
     await switchUser(admUser, tempPw);
@@ -284,22 +294,36 @@ export async function verifySystemAdmin(
       new URL(await page.url()).pathname === "/",
     );
 
-    // Ordinary admin on /system?tab=settings sees disabled timezone control (and no status badge / metadata box)
+    // Ordinary admin on /system?tab=settings sees disabled controls (and no status badge / Apply button)
     await page.goto(`${baseUrl}/system?tab=settings`);
     await waitIdle("系统配置");
     await page.waitForSelector('section[aria-label="时间与区域设置"]');
     const admReadonly = await page.evaluate(() => {
       const sec = document.querySelector('section[aria-label="时间与区域设置"]');
       const trigger = sec?.querySelector('button[aria-label="系统时区"]');
+      const ttlInput = document.querySelector("#system-session-ttl");
+      const modelUrl = document.querySelector("#ai-model-base-url");
+      const hasApply = [...document.querySelectorAll("header button")].some((b) =>
+        b.textContent?.includes("应用"),
+      );
       return {
         noStatusBadge: !sec?.textContent?.includes("只读") && !sec?.textContent?.includes("可维护"),
         selectDisabled:
           trigger?.hasAttribute("disabled") || trigger?.getAttribute("data-disabled") !== null,
+        ttlDisabled: Boolean(ttlInput?.hasAttribute("disabled")),
+        modelDisabled: Boolean(modelUrl?.hasAttribute("disabled")),
+        hasApply,
       };
     });
     check(
-      "Ordinary admin sees disabled timezone combobox without redundant status badges",
-      Boolean(admReadonly.noStatusBadge && admReadonly.selectDisabled),
+      "Ordinary admin sees disabled settings inputs without status badges or Apply action",
+      Boolean(
+        admReadonly.noStatusBadge &&
+          admReadonly.selectDisabled &&
+          admReadonly.ttlDisabled &&
+          admReadonly.modelDisabled &&
+          !admReadonly.hasApply,
+      ),
       admReadonly,
     );
 
@@ -351,15 +375,15 @@ export async function verifySystemAdmin(
     await page.click('button[aria-label="系统时区"]');
     await page.fill('input[aria-label="搜索城市、时区标识或 UTC 偏移…"]', "Asia/Shanghai");
     await page.click('button[role="option"]:has-text("Asia/Shanghai")');
-    await page.click('section[aria-label="时间与区域设置"] button:has-text("保存配置")');
+    await page.click('header button:has-text("应用")');
     await page.waitForFunction(() => {
       const sec = document.querySelector('section[aria-label="时间与区域设置"]');
       const trigger = sec?.querySelector('button[aria-label="系统时区"]');
-      const saveBtn = [...(sec?.querySelectorAll("button") ?? [])].find((b) =>
-        b.textContent?.includes("保存配置"),
+      const applyBtn = [...document.querySelectorAll("header button")].find((b) =>
+        b.textContent?.includes("应用"),
       );
       return Boolean(
-        trigger?.textContent?.includes("Asia/Shanghai") && saveBtn?.hasAttribute("disabled"),
+        trigger?.textContent?.includes("Asia/Shanghai") && applyBtn?.hasAttribute("disabled"),
       );
     });
 

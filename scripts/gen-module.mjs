@@ -1899,14 +1899,14 @@ ${filterSearchLines.join("\n")}
             )}
           </header>
 
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-            <section className="panel flex flex-col justify-center gap-2 xl:col-span-7">
+          <div className="cq-split-12-tight">
+            <section className="panel cq-main-7 flex flex-col justify-center gap-2">
               <h2 className="m-0 text-sm font-semibold text-foreground">分析视图与关系画布</h2>
               <p className="m-0 text-xs text-muted-foreground">
                 在此区域挂载本模块的拓扑图、时间序列图表（TrendAreaChart / DonutChart）或业务诊断画布，避免在窄侧栏内折叠复杂可视化。
               </p>
             </section>
-            <section className="panel xl:col-span-5">
+            <section className="panel cq-side-5">
               <h2 className="m-0 mb-3 text-sm font-semibold text-foreground">结构化档案</h2>
               <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
 ${infoCards}

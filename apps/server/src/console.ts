@@ -23,10 +23,11 @@ import {
 } from "./core/guards";
 import { getEffectivePermissions } from "./core/permissions";
 import { getUploadMaxBytes } from "./core/storage";
+import { getConfiguredSessionTtlSeconds } from "./core/system-settings";
 import { accountsRoutes } from "./modules/accounts";
 import { attachmentsRoutes } from "./modules/attachments";
 import { auditRoutes } from "./modules/audit";
-import { authRoutes } from "./modules/auth";
+import { authRoutes, setSessionCookie } from "./modules/auth";
 import { jobsRoutes } from "./modules/jobs";
 import { systemRoutes } from "./modules/system";
 import { tokensRoutes } from "./modules/tokens";
@@ -82,7 +83,7 @@ export const REQUEST_POLICIES: RequestPolicy[] = [
   },
   {
     method: "POST",
-    path: /^\/console\/system\/ai\/model(\/test)?$/,
+    path: /^\/console\/system\/ai\/model(\/(test|clear))?$/,
     maxBytes: 16 * 1024,
     contentTypes: ["application/json"],
   },
@@ -220,6 +221,7 @@ consoleApi.use("*", async (c, next) => {
     ? await db
         .select({
           ...accountFields,
+          expires: sessions.expires,
           lastSeenAt: sessions.lastSeenAt,
           ipAddress: sessions.ipAddress,
         })
@@ -229,14 +231,34 @@ consoleApi.use("*", async (c, next) => {
           and(eq(sessions.key, key), gt(sessions.expires, new Date()), eq(accounts.active, true)),
         )
     : [];
-  if (!row || !key) return errorJson(c, 401, "请登录", "AUTH_REQUIRED");
-  const { lastSeenAt, ipAddress, ...actor } = row;
+  if (!row || !key || !token) return errorJson(c, 401, "请登录", "AUTH_REQUIRED");
+  const { expires, lastSeenAt, ipAddress, ...actor } = row;
   const ip = getClientIp(c);
-  if (Date.now() - lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS || ipAddress !== ip) {
+  const nowMs = Date.now();
+  const ttlSeconds = await getConfiguredSessionTtlSeconds();
+  const targetExpiresMs = nowMs + ttlSeconds * 1000;
+  const isSessionClosingRoute =
+    c.req.path === "/console/logout" || c.req.path === "/console/me/password";
+  // Slide session lifetime at most once per 5 minutes so existing short cookies upgrade and active use stays signed in.
+  const shouldSlide =
+    !isSessionClosingRoute && Math.abs(expires.getTime() - targetExpiresMs) > 5 * 60_000;
+
+  if (shouldSlide) {
+    await db
+      .update(sessions)
+      .set({
+        expires: new Date(targetExpiresMs),
+        lastSeenAt: new Date(nowMs),
+        ipAddress: ip,
+      })
+      .where(eq(sessions.key, key))
+      .catch(() => undefined);
+    setSessionCookie(c, token, ttlSeconds);
+  } else if (nowMs - lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS || ipAddress !== ip) {
     // Fire-and-forget, throttled to once per minute per session; never blocks or fails the request.
     void db
       .update(sessions)
-      .set({ lastSeenAt: new Date(), ipAddress: ip })
+      .set({ lastSeenAt: new Date(nowMs), ipAddress: ip })
       .where(eq(sessions.key, key))
       .catch(() => undefined);
   }

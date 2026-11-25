@@ -1,8 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
+import { X509Certificate, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import {
+  type AgentModelClearInput,
   type AgentModelInput,
   type AgentModelSettings,
   type AgentProbeResponse,
@@ -15,26 +16,36 @@ import { type AgentGateway, asAiError, createAgent, probeToolChat } from "@optim
 import {
   type AiConfig,
   type EnabledConfig,
-  readAiConfig,
+  isValidApiKey,
+  isValidModelId,
   readAiSecretFile,
 } from "@optimax-starter/agent/models/config";
 import { db } from "../services";
 import { auditResource } from "../core/audit";
 import { type Actor, Refusal, type Tx, lockPermission } from "../core/guards";
 import { getAiCircuitState } from "../core/system-settings";
+import {
+  MODEL_SETTING_KEY,
+  decryptApiKey,
+  encryptApiKey,
+  validateConsoleModelUrl,
+} from "./model-crypto";
 
 // ---------------------------------------------------------------------------
-// Adaptive model settings.
-// - Managed (editable): STARTER_AI_CONFIG_KEY_FILE holds a 64-hex AES-256-GCM key. The model can be
-//   maintained from the console; the API key is stored encrypted in console_setting("ai.model").
-// - Read-only: no usable key file. Deployment env (readAiConfig) is the only source; DB rows are
-//   ignored and saves are refused.
-// console_setting.value is text, so the stored object is JSON serialized explicitly.
+// Console-managed AI model settings.
+// Settings live in console_setting("ai.model"); the API key is encrypted with
+// an auto-managed AES-256-GCM master key under `<STARTER_UPLOAD_DIR>/.system/ai-model.key`.
 // ---------------------------------------------------------------------------
 
-const SETTING_KEY = "ai.model";
-const DEPLOYMENT_REVISION = "deployment";
+const INITIAL_REVISION = "deployment";
 const DRAFT_TIMEOUT_MS = 45_000;
+const DEFAULT_MODEL_TIMEOUT_MS = 60_000;
+const DEFAULT_MODEL_LIMITS = {
+  concurrency: 4,
+  actorLimit: 2,
+  queueLimit: 16,
+  queueWaitMs: 15_000,
+} as const;
 
 const storedSchema = z
   .object({
@@ -51,14 +62,8 @@ type StoredModel = z.infer<typeof storedSchema>;
 type ModelFields = Pick<AgentModelInput, "protocol" | "baseUrl" | "model" | "structuredMode">;
 type Reader = Tx | typeof db;
 
-const unavailable = { status: "invalid", reason: "Invalid AI configuration." } as const;
-
-const readOnlyRefusal = () =>
-  new Refusal(
-    400,
-    "当前环境使用只读部署凭证，如需在网页端维护模型请配置 STARTER_AI_CONFIG_KEY_FILE",
-    "AI_CONFIG_READONLY",
-  );
+const unconfigured: AiConfig = { status: "disabled" };
+const unavailable: AiConfig = { status: "invalid", reason: "Invalid AI configuration." };
 
 function origin(value?: string) {
   try {
@@ -68,87 +73,49 @@ function origin(value?: string) {
   }
 }
 
-/** Returns the AES key, or null when the console cannot manage model settings. */
-function configKey(): Buffer | null {
-  const file = process.env.STARTER_AI_CONFIG_KEY_FILE?.trim();
-  if (!file) return null;
+function readOptionalCaCert(): string | undefined {
+  const caFile = process.env.STARTER_AI_CA_FILE?.trim();
+  if (!caFile) return undefined;
   try {
-    const secret = readAiSecretFile(file).trim();
-    if (/^[0-9a-fA-F]{64}$/.test(secret)) return Buffer.from(secret, "hex");
+    const ca = readAiSecretFile(caFile);
+    new X509Certificate(ca);
+    return ca;
   } catch {
-    /* Unreadable or invalid key file: stay read-only. */
+    return undefined;
   }
-  return null;
 }
 
-export const isModelSettingsEditable = () => configKey() !== null;
-
-function requireKey() {
-  const key = configKey();
-  if (!key) throw readOnlyRefusal();
-  return key;
-}
-
-function encrypt(plain: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", requireKey(), iv);
-  cipher.setAAD(Buffer.from(SETTING_KEY));
-  return Buffer.concat([
-    iv,
-    cipher.update(plain, "utf8"),
-    cipher.final(),
-    cipher.getAuthTag(),
-  ]).toString("base64");
-}
-
-function decrypt(value: string) {
-  const bytes = Buffer.from(value, "base64");
-  const decipher = createDecipheriv("aes-256-gcm", requireKey(), bytes.subarray(0, 12));
-  decipher.setAAD(Buffer.from(SETTING_KEY));
-  decipher.setAuthTag(bytes.subarray(-16));
-  return Buffer.concat([decipher.update(bytes.subarray(12, -16)), decipher.final()]).toString(
-    "utf8",
-  );
-}
-
-function allowedOrigins() {
-  return (process.env.STARTER_AI_ALLOWED_ORIGINS ?? "")
-    .split(",")
-    .map((value) => origin(value.trim()))
-    .filter((value): value is string => !!value);
-}
-
-/** Validates console-supplied fields against deployment policy; credentials stay server-side. */
-function mergeDeployment(settings: ModelFields, key?: string): EnabledConfig {
-  const target = origin(settings.baseUrl);
-  const deployed = origin(process.env.STARTER_AI_BASE_URL);
-  if (!target || (target !== deployed && !allowedOrigins().includes(target))) {
-    throw new Refusal(400, "API 地址不在此部署的允许列表内", "AI_ORIGIN_NOT_ALLOWED");
+function buildConsoleConfig(settings: ModelFields, apiKey?: string): EnabledConfig {
+  const baseUrl = settings.baseUrl.trim();
+  const urlError = validateConsoleModelUrl(baseUrl);
+  if (urlError) {
+    throw new Refusal(400, urlError, "AI_CONFIG_INVALID");
   }
-  if (target !== deployed && !key) {
-    throw new Refusal(400, "更换 API 服务时请填写该服务的密钥", "AI_KEY_REQUIRED");
+  const model = settings.model.trim();
+  if (!isValidModelId(model)) {
+    throw new Refusal(400, "请输入有效的模型 ID", "AI_CONFIG_INVALID");
   }
-  const config = readAiConfig({
-    ...process.env,
-    STARTER_AI_PROTOCOL: settings.protocol,
-    STARTER_AI_BASE_URL: settings.baseUrl,
-    STARTER_AI_MODEL: settings.model,
-    STARTER_AI_STRUCTURED_MODE: settings.structuredMode,
-    STARTER_AI_API_KEY_FILE: key ? undefined : process.env.STARTER_AI_API_KEY_FILE,
-    STARTER_AI_API_KEY: key ?? process.env.STARTER_AI_API_KEY,
-    // A deployment CA only applies to the deployment endpoint.
-    STARTER_AI_CA_FILE: target === deployed ? process.env.STARTER_AI_CA_FILE : undefined,
-  });
-  if (config.status !== "enabled") {
-    throw new Refusal(400, "请检查 API 地址、模型 ID 和密钥", "AI_CONFIG_INVALID");
+  const trimmedKey = apiKey?.trim();
+  if (!trimmedKey || !isValidApiKey(trimmedKey)) {
+    throw new Refusal(400, "请填写有效的 API 密钥", "AI_KEY_REQUIRED");
   }
-  return config;
+  const ca = readOptionalCaCert();
+  return {
+    status: "enabled",
+    protocol: settings.protocol,
+    baseURL: baseUrl.replace(/\/+$/, ""),
+    model,
+    apiKey: trimmedKey,
+    ...(ca ? { ca } : {}),
+    structuredMode: settings.structuredMode,
+    timeoutMs: DEFAULT_MODEL_TIMEOUT_MS,
+    limits: { ...DEFAULT_MODEL_LIMITS },
+  };
 }
+
+export const isModelSettingsEditable = () => true;
 
 async function readSetting(reader: Reader) {
-  if (!isModelSettingsEditable()) {
-    return { row: undefined, value: undefined, revision: DEPLOYMENT_REVISION };
-  }
   const [row] = await reader
     .select({
       value: systemSettings.value,
@@ -157,8 +124,8 @@ async function readSetting(reader: Reader) {
     })
     .from(systemSettings)
     .leftJoin(accounts, eq(systemSettings.updatedBy, accounts.id))
-    .where(eq(systemSettings.key, SETTING_KEY));
-  if (!row) return { row: undefined, value: undefined, revision: DEPLOYMENT_REVISION };
+    .where(eq(systemSettings.key, MODEL_SETTING_KEY));
+  if (!row) return { row: undefined, value: undefined, revision: INITIAL_REVISION };
   let parsed: unknown;
   try {
     parsed = JSON.parse(row.value);
@@ -166,33 +133,36 @@ async function readSetting(reader: Reader) {
     parsed = undefined;
   }
   const saved = storedSchema.safeParse(parsed);
-  if (!saved.success) throw new Refusal(503, "服务端模型配置无法读取", "AI_CONFIG_UNREADABLE");
+  if (!saved.success) return { row: undefined, value: undefined, revision: INITIAL_REVISION };
   return { row, value: saved.data, revision: saved.data.revision };
 }
 
-function effectiveConfig(value?: StoredModel): AiConfig {
-  if (!value) return readAiConfig(process.env);
+function tryDecryptStoredKey(stored?: StoredModel): string | undefined {
+  if (!stored?.key) return undefined;
   try {
-    return mergeDeployment(value, value.key ? decrypt(value.key) : undefined);
+    return decryptApiKey(stored.key);
+  } catch {
+    return undefined;
+  }
+}
+
+function effectiveConfig(value?: StoredModel): AiConfig {
+  if (!value) return unconfigured;
+  const plainKey = tryDecryptStoredKey(value);
+  if (!plainKey) return unavailable;
+  try {
+    return buildConsoleConfig(value, plainKey);
   } catch {
     return unavailable;
   }
 }
 
-function envDefaults() {
-  const protocol = agentProtocolSchema
-    .catch("openai-completions")
-    .parse(process.env.STARTER_AI_PROTOCOL?.trim());
-  const mode = agentStructuredModeSchema.safeParse(process.env.STARTER_AI_STRUCTURED_MODE?.trim());
+function defaultFields(): ModelFields {
   return {
-    protocol,
-    baseUrl: process.env.STARTER_AI_BASE_URL?.trim() ?? "",
-    model: process.env.STARTER_AI_MODEL?.trim() ?? "",
-    structuredMode: mode.success
-      ? mode.data
-      : protocol === "anthropic-messages"
-        ? ("tool" as const)
-        : ("json_schema" as const),
+    protocol: "openai-completions",
+    baseUrl: "",
+    model: "",
+    structuredMode: "json_schema",
   };
 }
 
@@ -203,21 +173,16 @@ function describe(
   updatedAt?: Date,
   updatedBy?: string | null,
 ): AgentModelSettings {
-  const fallback = value ?? envDefaults();
+  const fallback = value ?? defaultFields();
   const enabled = config.status === "enabled";
-  const source: AgentModelSettings["source"] = value
-    ? "database"
-    : config.status === "disabled"
-      ? "unconfigured"
-      : "env";
   return {
-    editable: isModelSettingsEditable(),
+    editable: true,
     protocol: enabled ? config.protocol : fallback.protocol,
     baseUrl: enabled ? config.baseURL : fallback.baseUrl,
     model: enabled ? config.model : fallback.model,
     structuredMode: enabled ? config.structuredMode : fallback.structuredMode,
     hasKey: enabled,
-    source,
+    source: value ? "database" : "unconfigured",
     updatedAt: updatedAt?.toISOString() ?? null,
     updatedBy: updatedBy ?? null,
     revision,
@@ -234,21 +199,29 @@ async function candidate(reader: Reader, input: AgentModelInput) {
   if (input.revision !== revision) {
     throw new Refusal(409, "配置已更新，请刷新后重试", "AI_CONFIG_CONFLICT");
   }
-  const apiKey = input.apiKey || undefined;
-  const previousOrigin = origin(value?.baseUrl ?? process.env.STARTER_AI_BASE_URL);
-  if (origin(input.baseUrl) !== previousOrigin && !apiKey) {
-    throw new Refusal(400, "更换 API 服务时请填写该服务的密钥", "AI_KEY_REQUIRED");
+  const urlError = validateConsoleModelUrl(input.baseUrl.trim());
+  if (urlError) {
+    throw new Refusal(400, urlError, "AI_CONFIG_INVALID");
   }
-  const retained = value?.key;
-  const key = apiKey ?? (retained ? decrypt(retained) : undefined);
-  return { config: mergeDeployment(input, key), retained, apiKey };
+  const apiKey = input.apiKey?.trim() || undefined;
+  const previousOrigin = origin(value?.baseUrl);
+  if (previousOrigin && origin(input.baseUrl) !== previousOrigin && !apiKey) {
+    throw new Refusal(400, "更换 API 地址后请重新填写密钥", "AI_KEY_REQUIRED");
+  }
+  const retainedCipher = value?.key;
+  const decrypted = !apiKey ? tryDecryptStoredKey(value) : undefined;
+  const key = apiKey ?? decrypted;
+  if (!key) {
+    throw new Refusal(400, "请填写 API 密钥", "AI_KEY_REQUIRED");
+  }
+  return { config: buildConsoleConfig(input, key), retainedCipher, apiKey };
 }
 
 async function circuitOpen() {
   return (await getAiCircuitState()).circuitOpen;
 }
 
-/** Unsaved draft for "test connection". Works in both modes; nothing is persisted. */
+/** Unsaved draft for "test connection"; nothing is persisted. */
 export async function draftModel(raw: AgentModelInput): Promise<AgentGateway> {
   const input = agentModelInputSchema.parse(raw);
   const { config } = await candidate(db, input);
@@ -263,12 +236,10 @@ export async function saveModelSettings(
   actor: Actor,
   input: AgentModelInput,
 ): Promise<AgentModelSettings> {
-  if (!isModelSettingsEditable()) throw readOnlyRefusal();
-  const saved = await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const self = await lockPermission(tx, actor.id, "system:settings:manage", { exclusive: true });
-    const { config, retained, apiKey } = await candidate(tx, input);
-    // Keep the encrypted key when the form omits it; never re-read env credentials into storage.
-    const key = apiKey ? encrypt(apiKey) : retained;
+    const { config, retainedCipher, apiKey } = await candidate(tx, input);
+    const key = apiKey ? encryptApiKey(apiKey) : retainedCipher;
     const value: StoredModel = {
       protocol: config.protocol,
       baseUrl: config.baseURL,
@@ -281,19 +252,43 @@ export async function saveModelSettings(
     const fields = { value: JSON.stringify(value), updatedAt: now, updatedBy: self.id };
     await tx
       .insert(systemSettings)
-      .values({ key: SETTING_KEY, ...fields })
+      .values({ key: MODEL_SETTING_KEY, ...fields })
       .onConflictDoUpdate({ target: systemSettings.key, set: fields });
     await auditResource(
       tx,
       "system.ai_model",
       self,
-      { code: SETTING_KEY, name: "AI 模型配置" },
+      { code: MODEL_SETTING_KEY, name: "AI 模型配置" },
       { revision: value.revision, keyChanged: !!apiKey, model: config.model },
       actor.actorSource,
     );
     return describe(config, value.revision, value, now, self.name);
   });
-  return saved;
+}
+
+export async function clearModelSettings(
+  actor: Actor,
+  input: AgentModelClearInput,
+): Promise<AgentModelSettings> {
+  return db.transaction(async (tx) => {
+    const self = await lockPermission(tx, actor.id, "system:settings:manage", { exclusive: true });
+    const { revision, value } = await readSetting(tx);
+    if (input.revision !== revision) {
+      throw new Refusal(409, "配置已更新，请刷新后重试", "AI_CONFIG_CONFLICT");
+    }
+    if (value) {
+      await tx.delete(systemSettings).where(eq(systemSettings.key, MODEL_SETTING_KEY));
+      await auditResource(
+        tx,
+        "system.ai_model",
+        self,
+        { code: MODEL_SETTING_KEY, name: "AI 模型配置" },
+        { cleared: true },
+        actor.actorSource,
+      );
+    }
+    return describe(unconfigured, INITIAL_REVISION);
+  });
 }
 
 /** Caches one gateway per committed revision/config. In-flight chats finish on their gateway. */
@@ -301,7 +296,7 @@ export function createManagedAgentGateway() {
   let current: { revision: string; config: AiConfig; gateway: AgentGateway } | undefined;
   return {
     async load(): Promise<AgentGateway> {
-      let revision = DEPLOYMENT_REVISION;
+      let revision = INITIAL_REVISION;
       let config: AiConfig;
       try {
         const setting = await readSetting(db);
@@ -319,7 +314,7 @@ export function createManagedAgentGateway() {
         config,
         gateway: createAgent({
           config,
-          env: revision === DEPLOYMENT_REVISION ? process.env : {},
+          env: {},
           isCircuitOpen: circuitOpen,
         }),
       };
@@ -364,6 +359,6 @@ export async function agentStatus() {
     gateway,
     configured: gateway.configured,
     circuitOpen: circuit.circuitOpen,
-    editable: isModelSettingsEditable(),
+    editable: true,
   };
 }

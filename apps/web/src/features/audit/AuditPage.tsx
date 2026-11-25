@@ -5,7 +5,9 @@ import {
   type ActorSource,
   type AuditAction,
   DEFAULT_SYSTEM_TIMEZONE,
+  formatSessionTtlLabel,
   JOB_TYPE_LABELS,
+  normalizeSessionTtlHours,
   PERMISSION_CATALOG,
   ROLE_LABELS,
 } from "@optimax-starter/api";
@@ -153,6 +155,10 @@ function value(action: string, v: unknown) {
   if (action === "account.role") return ROLE[String(v)] ?? String(v);
   if (action === "account.status") return v ? "已启用" : "已停用";
   if (action === "system.ai_circuit") return v ? "正常放行" : "已熔断";
+  if (action === "system.session_ttl_update") {
+    const parsed = normalizeSessionTtlHours(v);
+    return parsed !== null ? formatSessionTtlLabel(parsed) : String(v);
+  }
   if (action === "permission.reset") return v === "default" ? "默认矩阵" : "自定义矩阵";
   return String(v);
 }
@@ -213,9 +219,12 @@ function describe(row: AuditEntry) {
     return parts.join("；") || "已应用自然语言筛选";
   }
   const parts: string[] = [];
+  if (d.cleared === true) parts.push("已清空配置");
   if ("from" in d || "to" in d) {
     parts.push(`${value(row.action, d.from)} → ${value(row.action, d.to)}`);
   }
+  if (typeof d.model === "string") parts.push(`模型：${d.model}`);
+  if (d.keyChanged === true) parts.push("已更新密钥");
   if (typeof d.role === "string") parts.push(`角色：${ROLE[d.role] ?? d.role}`);
   if (typeof d.domain === "string") parts.push(`业务域：${d.domain}`);
   if (typeof d.stage === "string") parts.push(`状态：${d.stage}`);

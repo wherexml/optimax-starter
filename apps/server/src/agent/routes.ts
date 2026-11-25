@@ -6,6 +6,7 @@ import {
   AGENT_MAX_TEXT_CHARS,
   type AgentCitation,
   type AgentStatusResponse,
+  agentModelClearSchema,
   agentModelInputSchema,
   agentScopeSchema,
 } from "@optimax-starter/api";
@@ -24,6 +25,7 @@ import {
 import { approvalTransform, verifyApproval } from "./approval";
 import {
   agentStatus,
+  clearModelSettings,
   draftModel,
   getModelSettings,
   probeGateway,
@@ -116,6 +118,16 @@ export const agentRoutes = new Hono<Env>()
           void gateway.close().catch(() => {});
         }
       });
+    },
+  )
+  .post(
+    "/system/ai/model/clear",
+    requirePermission("system:settings:manage"),
+    modelBodyLimit,
+    jsonBody(agentModelClearSchema, (err) => err.issues[0]?.message || "请提交有效的重置请求"),
+    async (c) => {
+      const data = c.req.valid("json");
+      return guarded(c, async () => c.json(await clearModelSettings(c.get("actor"), data)));
     },
   )
   .post("/agent/chat", requirePermission("agent:use"), async (c) => {

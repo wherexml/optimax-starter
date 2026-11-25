@@ -32,7 +32,10 @@ export interface SystemTimezoneOption {
 }
 
 const TIMEZONE_ALIAS_MAP: Record<string, { zh: string; keywords: string[] }> = {
-  "Asia/Shanghai": { zh: "北京时间", keywords: ["北京", "上海", "中国", "cst", "beijing", "shanghai", "china"] },
+  "Asia/Shanghai": {
+    zh: "北京时间",
+    keywords: ["北京", "上海", "中国", "cst", "beijing", "shanghai", "china"],
+  },
   "Asia/Hong_Kong": { zh: "香港时间", keywords: ["香港", "hongkong", "hk"] },
   "Asia/Taipei": { zh: "台北时间", keywords: ["台北", "台湾", "taipei", "taiwan"] },
   "Asia/Macau": { zh: "澳门时间", keywords: ["澳门", "macau"] },
@@ -41,8 +44,14 @@ const TIMEZONE_ALIAS_MAP: Record<string, { zh: string; keywords: string[] }> = {
   "Asia/Seoul": { zh: "首尔时间", keywords: ["首尔", "韩国", "seoul", "korea", "kst"] },
   "Asia/Singapore": { zh: "新加坡时间", keywords: ["新加坡", "singapore", "sg"] },
   "Asia/Bangkok": { zh: "曼谷时间", keywords: ["曼谷", "泰国", "bangkok", "thailand"] },
-  "Asia/Jakarta": { zh: "雅加达时间", keywords: ["雅加达", "印尼", "印度尼西亚", "jakarta", "indonesia"] },
-  "Asia/Kuala_Lumpur": { zh: "吉隆坡时间", keywords: ["吉隆坡", "马来西亚", "kuala lumpur", "malaysia"] },
+  "Asia/Jakarta": {
+    zh: "雅加达时间",
+    keywords: ["雅加达", "印尼", "印度尼西亚", "jakarta", "indonesia"],
+  },
+  "Asia/Kuala_Lumpur": {
+    zh: "吉隆坡时间",
+    keywords: ["吉隆坡", "马来西亚", "kuala lumpur", "malaysia"],
+  },
   "Asia/Manila": { zh: "马尼拉时间", keywords: ["马尼拉", "菲律宾", "manila", "philippines"] },
   "Asia/Ho_Chi_Minh": { zh: "胡志明市时间", keywords: ["胡志明", "越南", "vietnam"] },
   "Asia/Kolkata": { zh: "新德里时间", keywords: ["印度", "德里", "孟买", "india", "ist"] },
@@ -54,22 +63,56 @@ const TIMEZONE_ALIAS_MAP: Record<string, { zh: string; keywords: string[] }> = {
   "Europe/Paris": { zh: "巴黎时间", keywords: ["巴黎", "法国", "paris", "france", "cet"] },
   "Europe/Berlin": { zh: "柏林时间", keywords: ["柏林", "德国", "berlin", "germany", "cet"] },
   "Europe/Zurich": { zh: "苏黎世时间", keywords: ["瑞士", "苏黎世", "zurich", "switzerland"] },
-  "Europe/Amsterdam": { zh: "阿姆斯特丹时间", keywords: ["荷兰", "阿姆斯特丹", "amsterdam", "netherlands"] },
+  "Europe/Amsterdam": {
+    zh: "阿姆斯特丹时间",
+    keywords: ["荷兰", "阿姆斯特丹", "amsterdam", "netherlands"],
+  },
   "Europe/Madrid": { zh: "马德里时间", keywords: ["西班牙", "马德里", "madrid", "spain"] },
   "Europe/Rome": { zh: "罗马时间", keywords: ["意大利", "罗马", "rome", "italy"] },
   "Europe/Moscow": { zh: "莫斯科时间", keywords: ["俄罗斯", "莫斯科", "moscow", "russia"] },
-  "America/New_York": { zh: "纽约时间", keywords: ["纽约", "美东", "美国东部", "new york", "est", "edt", "us"] },
-  "America/Chicago": { zh: "芝加哥时间", keywords: ["芝加哥", "美中", "美国中部", "chicago", "cst", "cdt"] },
+  "America/New_York": {
+    zh: "纽约时间",
+    keywords: ["纽约", "美东", "美国东部", "new york", "est", "edt", "us"],
+  },
+  "America/Chicago": {
+    zh: "芝加哥时间",
+    keywords: ["芝加哥", "美中", "美国中部", "chicago", "cst", "cdt"],
+  },
   "America/Denver": { zh: "丹佛时间", keywords: ["丹佛", "美国山地", "denver", "mst", "mdt"] },
-  "America/Los_Angeles": { zh: "洛杉矶时间", keywords: ["洛杉矶", "旧金山", "硅谷", "美西", "美国西部", "los angeles", "san francisco", "pst", "pdt"] },
+  "America/Los_Angeles": {
+    zh: "洛杉矶时间",
+    keywords: [
+      "洛杉矶",
+      "旧金山",
+      "硅谷",
+      "美西",
+      "美国西部",
+      "los angeles",
+      "san francisco",
+      "pst",
+      "pdt",
+    ],
+  },
   "America/Toronto": { zh: "多伦多时间", keywords: ["多伦多", "加拿大", "toronto", "canada"] },
   "America/Vancouver": { zh: "温哥华时间", keywords: ["温哥华", "加拿大", "vancouver", "canada"] },
   "America/Sao_Paulo": { zh: "圣保罗时间", keywords: ["圣保罗", "巴西", "brazil", "sao paulo"] },
   "America/Mexico_City": { zh: "墨西哥城时间", keywords: ["墨西哥", "mexico"] },
-  "Australia/Sydney": { zh: "悉尼时间", keywords: ["悉尼", "澳大利亚", "澳洲", "sydney", "australia"] },
-  "Australia/Melbourne": { zh: "墨尔本时间", keywords: ["墨尔本", "澳大利亚", "澳洲", "melbourne", "australia"] },
-  "Pacific/Auckland": { zh: "奥克兰时间", keywords: ["奥克兰", "新西兰", "auckland", "new zealand"] },
-  "Africa/Johannesburg": { zh: "约翰内斯堡时间", keywords: ["南非", "约翰内斯堡", "johannesburg", "south africa"] },
+  "Australia/Sydney": {
+    zh: "悉尼时间",
+    keywords: ["悉尼", "澳大利亚", "澳洲", "sydney", "australia"],
+  },
+  "Australia/Melbourne": {
+    zh: "墨尔本时间",
+    keywords: ["墨尔本", "澳大利亚", "澳洲", "melbourne", "australia"],
+  },
+  "Pacific/Auckland": {
+    zh: "奥克兰时间",
+    keywords: ["奥克兰", "新西兰", "auckland", "new zealand"],
+  },
+  "Africa/Johannesburg": {
+    zh: "约翰内斯堡时间",
+    keywords: ["南非", "约翰内斯堡", "johannesburg", "south africa"],
+  },
   "Africa/Cairo": { zh: "开罗时间", keywords: ["埃及", "开罗", "cairo", "egypt"] },
 };
 
@@ -205,19 +248,77 @@ export interface SystemStatusResponse {
   };
 }
 
+export const DEFAULT_SESSION_TTL_HOURS = 168;
+export const MIN_SESSION_TTL_HOURS = 1;
+export const MAX_SESSION_TTL_HOURS = 2160;
+
+export function normalizeSessionTtlHours(raw: unknown): number | null {
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) && raw >= MIN_SESSION_TTL_HOURS && raw <= MAX_SESSION_TTL_HOURS
+      ? raw
+      : null;
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!/^\d+$/.test(trimmed)) return null;
+    const parsed = Number(trimmed);
+    return Number.isSafeInteger(parsed) &&
+      parsed >= MIN_SESSION_TTL_HOURS &&
+      parsed <= MAX_SESSION_TTL_HOURS
+      ? parsed
+      : null;
+  }
+  return null;
+}
+
+export function formatSessionTtlLabel(hours: number): string {
+  if (!Number.isInteger(hours) || hours < MIN_SESSION_TTL_HOURS) {
+    return `${hours} 小时`;
+  }
+  if (hours >= 24 && hours % 24 === 0) {
+    return `${hours / 24} 天（${hours} 小时）`;
+  }
+  return `${hours} 小时`;
+}
+
+export function formatSessionTtlHint(hours: number): string {
+  if (!Number.isInteger(hours) || hours < MIN_SESSION_TTL_HOURS) {
+    return `${hours} 小时`;
+  }
+  if (hours < 24) {
+    return `${hours} 小时`;
+  }
+  const days = Math.floor(hours / 24);
+  const rem = hours % 24;
+  return rem === 0 ? `折合 ${days} 天` : `折合 ${days} 天 ${rem} 小时`;
+}
+
 export interface SystemSettingsResponse {
   timezone: string;
   timezoneLabel: string;
   source: "database" | "env" | "default";
   updatedAt: string | null;
   timezoneOptions: readonly { value: string; label: string }[];
+  sessionTtlHours: number;
+  sessionTtlLabel: string;
+  sessionTtlSource: "database" | "default";
+  sessionTtlUpdatedAt: string | null;
 }
 
 export const systemSettingsUpdateSchema = z
   .object({
-    timezone: z.string().trim().min(1, "请选择系统时区").max(64),
+    timezone: z.string().trim().min(1, "请选择系统时区").max(64).optional(),
+    sessionTtlHours: z
+      .number()
+      .int("登录有效期必须为整数小时")
+      .min(MIN_SESSION_TTL_HOURS, `登录有效期不能少于 ${MIN_SESSION_TTL_HOURS} 小时`)
+      .max(MAX_SESSION_TTL_HOURS, `登录有效期不能超过 ${MAX_SESSION_TTL_HOURS} 小时（90 天）`)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => data.timezone !== undefined || data.sessionTtlHours !== undefined, {
+    message: "请至少提交一项要更新的系统配置",
+  });
 
 export type SystemSettingsUpdateInput = z.infer<typeof systemSettingsUpdateSchema>;
 

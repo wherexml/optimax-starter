@@ -45,9 +45,46 @@ import "../index.css";
 
 const SIDEBAR_KEY = storageKey("sidebar");
 const MOBILE_QUERY = "(max-width: 720px)";
+const NARROW_DESKTOP_ENTER_WIDTH = 1320;
+const NARROW_DESKTOP_EXIT_WIDTH = 1360;
 const MAC =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+function useAssistantPanelOpen() {
+  const [open, setOpen] = useState(
+    () =>
+      typeof document !== "undefined" && document.documentElement.dataset.assistantPanel === "open",
+  );
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setOpen(root.dataset.assistantPanel === "open");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-assistant-panel"] });
+    return () => observer.disconnect();
+  }, []);
+  return open;
+}
+
+function useNarrowDesktop() {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < NARROW_DESKTOP_ENTER_WIDTH,
+  );
+  useEffect(() => {
+    const onResize = () => {
+      const width = window.innerWidth;
+      setNarrow((prev) => {
+        if (!prev && width < NARROW_DESKTOP_ENTER_WIDTH) return true;
+        if (prev && width >= NARROW_DESKTOP_EXIT_WIDTH) return false;
+        return prev;
+      });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return narrow;
+}
 
 function readCompact() {
   try {
@@ -155,7 +192,20 @@ function Shell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const mobile = useMedia(MOBILE_QUERY);
-  const [compact, setCompact] = useState(readCompact);
+  const [userCompact, setUserCompact] = useState(readCompact);
+  const assistantOpen = useAssistantPanelOpen();
+  const narrowDesktop = useNarrowDesktop();
+  const autoCompact = !mobile && (assistantOpen || narrowDesktop);
+  const [manualOverride, setManualOverride] = useState<{
+    value: boolean;
+    assistantOpen: boolean;
+    narrowDesktop: boolean;
+  } | null>(null);
+  const overrideValid =
+    manualOverride !== null &&
+    manualOverride.assistantOpen === assistantOpen &&
+    manualOverride.narrowDesktop === narrowDesktop;
+  const compact = autoCompact ? (overrideValid ? manualOverride.value : true) : userCompact;
   const [drawer, setDrawer] = useState(false);
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -294,8 +344,13 @@ function Shell() {
                 setDrawer(false);
                 return;
               }
+              if (autoCompact) {
+                setManualOverride({ value: !compact, assistantOpen, narrowDesktop });
+                return;
+              }
               writeCompact(!compact);
-              setCompact(!compact);
+              setUserCompact(!compact);
+              setManualOverride(null);
             }}
           >
             <ToggleIcon size={16} />

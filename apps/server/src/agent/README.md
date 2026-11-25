@@ -12,17 +12,19 @@
 | `POST /agent/chat`           | `agent:use`              | UI Message SSE 流；只取最近 8 条消息、每条 4000 字；未配置或熔断时返回 503            |
 | `POST /agent/test`           | `system:settings:manage` | 用已保存配置跑一次工具调用探针                                                        |
 | `GET /system/ai/model`       | `system:settings:read`   | 模型配置（不含密钥，`hasKey` 仅表示是否存在）                                         |
-| `POST /system/ai/model`      | `system:settings:manage` | 保存配置，16 KiB 上限，同一事务写 `system.ai_model` 审计                              |
-| `POST /system/ai/model/test` | `system:settings:manage` | 用未保存的草稿配置探测连接                                                            |
+| `POST /system/ai/model`      | `system:settings:manage` | 保存并应用配置，16 KiB 上限，同一事务写 `system.ai_model` 审计                        |
+| `POST /system/ai/model/test` | `system:settings:manage` | 用未应用的草稿配置探测连接                                                            |
+| `POST /system/ai/model/clear` | `system:settings:manage` | 清空数据库中的模型配置并回退未配置态，写入 `system.ai_model` 审计                    |
 
 每轮对话结束在同一事务写入 `agent.chat` 审计，只记录步数、轮次上限、工具名、结束原因、Skill 版本与 SHA-256、耗时；不记录提问、回答或密钥。
 
-## 模型配置的两种模式
+## 模型配置存储与安全边界
 
-见 `model-settings.ts`。
+见 `model-settings.ts` 与 `model-crypto.ts`。
 
-- 在线维护（`editable: true`）：`STARTER_AI_CONFIG_KEY_FILE` 指向 64 位十六进制 AES-256-GCM 密钥文件。配置以 JSON 文本存于 `console_setting`（`key = "ai.model"`），API 密钥加密保存，留空沿用旧密钥；`revision` 做乐观锁；API 地址的 origin 必须等于 `STARTER_AI_BASE_URL` 或列在 `STARTER_AI_ALLOWED_ORIGINS`，更换服务时必须同时填写新密钥。
-- 只读部署凭证（`editable: false`）：未配置或无法读取密钥文件时，只使用环境变量（`readAiConfig`），保存返回 `AI_CONFIG_READONLY`；仍可测试连接。
+- **全量网页端配置（无环境变量门禁）**：所有环境默认可直接在 `/system?tab=settings` 维护协议、模型 ID、API 地址、密钥与结构化输出方式，不再依赖 `STARTER_AI_CONFIG_KEY_FILE` 或 `STARTER_AI_ALLOWED_ORIGINS`。
+- **自动主密钥加密**：API 密钥使用 AES-256-GCM 加密存于 `console_setting`（`key = "ai.model"`），主密钥由服务端在持久化目录 `<STARTER_UPLOAD_DIR>/.system/ai-model.key` 自动生成并按 `0600` 权限持久化；留空沿用旧密钥，`revision` 做乐观锁。
+- **SSRF 与传输安全校验**：内置拒绝云元数据与保留未指定地址（如 `169.254.169.254`、`100.100.100.200`、`0.0.0.0`），生产环境要求 `https://`（开发与本地调试允许 `http://`）；更换 API 地址的 origin 时强制重新输入密钥，防止旧密钥外泄。
 
 `managedGateway` 按 revision 与配置缓存网关，配置变化后旧网关在超时后关闭，进行中的对话不受影响。
 

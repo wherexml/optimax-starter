@@ -1,16 +1,16 @@
 import { performance } from "node:perf_hooks";
-import { count, gt, sql } from "drizzle-orm";
-import { Hono } from "hono";
 import {
   aiCircuitUpdateSchema,
+  type SystemStatusResponse,
   systemPermissionsUpdateSchema,
   systemSettingsUpdateSchema,
-  type SystemStatusResponse,
 } from "@optimax-starter/api";
 import { sessions } from "@optimax-starter/db/schema/console";
-import { db } from "../services";
+import { count, gt, sql } from "drizzle-orm";
+import { Hono } from "hono";
 import { aiConfig, aiQueueSnapshot } from "../core/ai";
 import {
+  type Env,
   guarded,
   jsonBody,
   lockPermission,
@@ -18,7 +18,6 @@ import {
   requireAnyPermission,
   requirePermission,
   requireSuperAdmin,
-  type Env,
 } from "../core/guards";
 import {
   getPermissionMatrixPayload,
@@ -31,8 +30,9 @@ import {
   getSystemSettingsPayload,
   invalidateSystemSettingsCache,
   updateAiCircuitTx,
-  updateSystemTimezoneTx,
+  updateSystemSettingsTx,
 } from "../core/system-settings";
+import { db } from "../services";
 
 export const systemRoutes = new Hono<Env>()
   .get(
@@ -143,26 +143,21 @@ export const systemRoutes = new Hono<Env>()
       });
     },
   )
-  .get(
-    "/system/settings",
-    requirePermission("system:settings:read"),
-    async (c) => c.json(await getSystemSettingsPayload()),
+  .get("/system/settings", requirePermission("system:settings:read"), async (c) =>
+    c.json(await getSystemSettingsPayload()),
   )
   .put(
     "/system/settings",
     requirePermission("system:settings:manage"),
-    jsonBody(systemSettingsUpdateSchema, "请选择有效的系统时区"),
+    jsonBody(systemSettingsUpdateSchema, "请选择有效的系统配置"),
     async (c) => {
       const data = c.req.valid("json");
       return guarded(c, async () => {
         const updated = await db.transaction(async (tx) => {
-          const self = await lockPermission(
-            tx,
-            c.get("actor").id,
-            "system:settings:manage",
-            { exclusive: true },
-          );
-          return updateSystemTimezoneTx(tx, self, data.timezone, c.get("actor").actorSource);
+          const self = await lockPermission(tx, c.get("actor").id, "system:settings:manage", {
+            exclusive: true,
+          });
+          return updateSystemSettingsTx(tx, self, data, c.get("actor").actorSource);
         });
         invalidateSystemSettingsCache();
         return c.json(updated);

@@ -1,17 +1,14 @@
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
-import { Hono, type Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
-  INVITE_TOKEN_RE,
-  credentialsSchema,
-  inviteAcceptSchema,
-  passwordChangeSchema,
-  profileInputSchema,
   type AccountSession,
   type AuditDetail,
   type AuthProviderInfo,
+  credentialsSchema,
+  INVITE_TOKEN_RE,
   type InvitePreview,
+  inviteAcceptSchema,
+  passwordChangeSchema,
+  profileInputSchema,
 } from "@optimax-starter/api";
 import {
   accountInvites,
@@ -21,27 +18,31 @@ import {
   oidcStates,
   sessions,
 } from "@optimax-starter/db/schema/console";
-import { verifyPassword, hashPassword } from "../password";
-import { db } from "../services";
+import { and, desc, eq, gt, isNull, lt, ne, sql } from "drizzle-orm";
+import { type Context, Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { audit } from "../core/audit";
+import { getCookieName, getCorsOrigin, SESSION_LIFETIME_SECONDS } from "../core/config";
 import {
-  getCookieName,
-  getCorsOrigin,
-  SESSION_LIFETIME_SECONDS,
-} from "../core/config";
+  buildFeishuAuthorizeUrl,
+  type FeishuConfig,
+  type FeishuIdentity,
+  getFeishuConfig,
+  verifyFeishuCode,
+} from "../core/feishu";
 import {
   ADMIN_LOCK,
-  Refusal,
   digest,
+  type Env,
   errorJson,
   getClientIp,
   guarded,
   jsonBody,
+  type Party,
   parsePositiveId,
   profileFields,
+  Refusal,
   requireCookieSession,
-  type Env,
-  type Party,
   type Tx,
 } from "../core/guards";
 import {
@@ -56,7 +57,6 @@ import {
   userGuardKey,
 } from "../core/login-guard";
 import {
-  OidcError,
   buildAuthorizationUrl,
   codeChallengeS256,
   createCodeVerifier,
@@ -64,24 +64,21 @@ import {
   fetchUserinfo,
   getDiscovery,
   getOidcConfig,
+  type IdTokenClaims,
   isEmailVerified,
+  OidcError,
   randomToken,
+  type SsoErrorCode,
   safeEqual,
   safeRedirectPath,
   ssoErrorRedirect,
   toSsoErrorCode,
   verifyIdTokenWithJwks,
-  type IdTokenClaims,
-  type SsoErrorCode,
 } from "../core/oidc";
-import {
-  buildFeishuAuthorizeUrl,
-  getFeishuConfig,
-  verifyFeishuCode,
-  type FeishuConfig,
-  type FeishuIdentity,
-} from "../core/feishu";
 import { getEffectivePermissions } from "../core/permissions";
+import { getConfiguredSessionTtlSeconds } from "../core/system-settings";
+import { hashPassword, verifyPassword } from "../password";
+import { db } from "../services";
 
 function sanitizeUserAgent(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -106,28 +103,33 @@ const OIDC_STATE_TTL_SECONDS = 10 * 60;
 const oidcStateCookie = () => `${getCookieName()}_oidc`;
 const OIDC_COOKIE_PATH = "/console/auth/sso/";
 
-/** Creates a session row and sets the HttpOnly SameSite=Strict cookie. Runs inside the caller's transaction. */
+/** Creates a session row using the configured TTL. Runs inside the caller's transaction. */
 async function createSession(c: Context<Env>, tx: Tx, accountId: number, ip: string) {
   await tx.delete(sessions).where(lt(sessions.expires, new Date()));
+  const ttlSeconds = await getConfiguredSessionTtlSeconds(tx);
   const token = randomBytes(32).toString("hex");
   await tx.insert(sessions).values({
     key: digest(token),
     account: accountId,
-    expires: new Date(Date.now() + SESSION_LIFETIME_SECONDS * 1000),
+    expires: new Date(Date.now() + ttlSeconds * 1000),
     userAgent: sanitizeUserAgent(c.req.header("user-agent")),
     ipAddress: ip,
     lastSeenAt: new Date(),
   });
-  return token;
+  return { token, ttlSeconds };
 }
 
-function setSessionCookie(c: Context<Env>, token: string) {
+export function setSessionCookie(
+  c: Context<Env>,
+  token: string,
+  maxAgeSeconds = SESSION_LIFETIME_SECONDS,
+) {
   setCookie(c, getCookieName(), token, {
     httpOnly: true,
     sameSite: "Strict",
     secure: secureCookies(),
     path: "/",
-    maxAge: SESSION_LIFETIME_SECONDS,
+    maxAge: maxAgeSeconds,
   });
 }
 
@@ -250,7 +252,7 @@ function providerList(): AuthProviderInfo[] {
 const PRIVILEGED_ROLES = new Set(["admin", "super_admin"]);
 
 type SsoOutcome =
-  | { ok: true; token: string; account: Party }
+  | { ok: true; token: string; ttlSeconds: number; account: Party }
   | { ok: false; code: SsoErrorCode; reason: string; account?: Party };
 
 /** Picks a unique console username for JIT-provisioned Feishu member accounts. */
@@ -318,7 +320,9 @@ async function resolveFeishuAccount(
     const [linked] = await tx
       .select({ accountId: authIdentities.accountId })
       .from(authIdentities)
-      .where(and(eq(authIdentities.provider, "feishu"), eq(authIdentities.subject, identity.openId)));
+      .where(
+        and(eq(authIdentities.provider, "feishu"), eq(authIdentities.subject, identity.openId)),
+      );
 
     let account: Awaited<ReturnType<typeof selectAccount>>[number] | undefined;
     if (linked) {
@@ -395,10 +399,10 @@ async function resolveFeishuAccount(
     const party = { id: account.id, username: account.username, name: account.name };
     if (!account.active) return { ok: false, code: "inactive", reason: "inactive", account: party };
 
-    const token = await createSession(c, tx, account.id, ip);
+    const { token, ttlSeconds } = await createSession(c, tx, account.id, ip);
     await clearUserGuard(tx, account.username);
     await audit(tx, "auth.sso_login", party, party, { provider: "feishu", ip });
-    return { ok: true, token, account: party };
+    return { ok: true, token, ttlSeconds, account: party };
   });
 }
 
@@ -461,10 +465,10 @@ async function resolveSsoAccount(
     if (!account) return { ok: false, code: "unmatched", reason: "unmatched" };
     const party = { id: account.id, username: account.username, name: account.name };
     if (!account.active) return { ok: false, code: "inactive", reason: "inactive", account: party };
-    const token = await createSession(c, tx, account.id, ip);
+    const { token, ttlSeconds } = await createSession(c, tx, account.id, ip);
     await clearUserGuard(tx, account.username);
     await audit(tx, "auth.sso_login", party, party, { provider, ip });
-    return { ok: true, token, account: party };
+    return { ok: true, token, ttlSeconds, account: party };
   });
 }
 
@@ -497,42 +501,43 @@ export const authRoutes = new Hono<Env>()
     },
     jsonBody(credentialsSchema, "请输入账户和密码"),
     async (c) => {
-    const input = c.req.valid("json");
-    const ip = getClientIp(c);
-    const [account] = await db
-      .select()
-      .from(accounts)
-      .where(eq(accounts.username, input.username));
-    const lock = await findActiveLock(db, [userGuardKey(input.username), ipGuardKey(ip)]);
-    if (lock) {
-      await auditLoginFailure(account, input.username, ip, "locked");
-      return lockedResponse(c, lock.lockedUntil);
-    }
-    const valid = account
-      ? account.active && (await verifyPassword(input.password, account.hash))
-      : (await verifyPassword(input.password, await getDummyHash())) && false;
-    if (!valid) {
-      await recordLoginFailure(db, input.username, ip);
-      await auditLoginFailure(
-        account,
-        input.username,
-        ip,
-        account && !account.active ? "inactive" : "invalid_credentials",
-      );
-      return errorJson(c, 401, "账户或密码错误", "AUTH_INVALID_CREDENTIALS");
-    }
-    const party = { id: account!.id, username: account!.username, name: account!.name };
-    const token = await db.transaction(async (tx) => {
-      const created = await createSession(c, tx, party.id, ip);
-      await clearUserGuard(tx, party.username);
-      await audit(tx, "auth.login", party, party, { ip });
-      return created;
-    });
-    setSessionCookie(c, token);
-    // Opportunistic housekeeping of expired guard rows; never fails the login.
-    void pruneLoginGuards(db).catch(() => undefined);
-    return c.json({ ok: true });
-  })
+      const input = c.req.valid("json");
+      const ip = getClientIp(c);
+      const [account] = await db
+        .select()
+        .from(accounts)
+        .where(eq(accounts.username, input.username));
+      const lock = await findActiveLock(db, [userGuardKey(input.username), ipGuardKey(ip)]);
+      if (lock) {
+        await auditLoginFailure(account, input.username, ip, "locked");
+        return lockedResponse(c, lock.lockedUntil);
+      }
+      const valid = account
+        ? account.active && (await verifyPassword(input.password, account.hash))
+        : (await verifyPassword(input.password, await getDummyHash())) && false;
+      if (!valid) {
+        await recordLoginFailure(db, input.username, ip);
+        await auditLoginFailure(
+          account,
+          input.username,
+          ip,
+          account && !account.active ? "inactive" : "invalid_credentials",
+        );
+        return errorJson(c, 401, "账户或密码错误", "AUTH_INVALID_CREDENTIALS");
+      }
+      const party = { id: account!.id, username: account!.username, name: account!.name };
+      const { token, ttlSeconds } = await db.transaction(async (tx) => {
+        const created = await createSession(c, tx, party.id, ip);
+        await clearUserGuard(tx, party.username);
+        await audit(tx, "auth.login", party, party, { ip });
+        return created;
+      });
+      setSessionCookie(c, token, ttlSeconds);
+      // Opportunistic housekeeping of expired guard rows; never fails the login.
+      void pruneLoginGuards(db).catch(() => undefined);
+      return c.json({ ok: true });
+    },
+  )
   // ---------------------------------------------------------------------------
   // One-time activation links (public, IP rate-limited)
   // ---------------------------------------------------------------------------
@@ -774,7 +779,7 @@ export const authRoutes = new Hono<Env>()
         return fail(outcome.code);
       }
       deleteCookie(c, oidcStateCookie(), { path: OIDC_COOKIE_PATH });
-      setSessionCookie(c, outcome.token);
+      setSessionCookie(c, outcome.token, outcome.ttlSeconds);
       return c.redirect(safeRedirectPath(row.redirectTo), 302);
     } catch (error) {
       if (error instanceof OidcError) {
@@ -802,48 +807,49 @@ export const authRoutes = new Hono<Env>()
     // Bearer callers see their effective (role ∩ token scopes) permissions, not the full role.
     const permissions =
       actor.authType === "bearer" ? actor.permissions : await getEffectivePermissions(row.role);
-    return c.json({ ...row, permissions, authType: actor.authType, actorSource: actor.actorSource });
+    return c.json({
+      ...row,
+      permissions,
+      authType: actor.authType,
+      actorSource: actor.actorSource,
+    });
   })
-  .patch(
-    "/me",
-    jsonBody(profileInputSchema, "请检查显示名称、邮箱和公司"),
-    async (c) => {
-      const id = c.get("actor").id;
-      const { name, email, company } = c.req.valid("json");
-      const row = await db.transaction(async (tx) => {
-        const [before] = await tx
-          .select(profileFields)
-          .from(accounts)
-          .where(eq(accounts.id, id))
-          .for("update");
-        if (!before?.active) return null;
-        const set: { name?: string; email?: string | null; company?: string | null } = {};
-        if (name !== undefined && name !== before.name) set.name = name;
-        if (email !== undefined && (email || null) !== before.email) {
-          set.email = email || null;
-        }
-        if (company !== undefined && (company || null) !== before.company) {
-          set.company = company || null;
-        }
-        const changed = Object.keys(set);
-        if (!changed.length) return before;
-        const [after] = await tx
-          .update(accounts)
-          .set(set)
-          .where(eq(accounts.id, id))
-          .returning(profileFields);
-        // A name change keeps its before/after values. Email and company are logged by field name only.
-        const detail: AuditDetail =
-          set.name !== undefined ? { from: before.name, to: after!.name } : {};
-        if (set.email !== undefined || set.company !== undefined) detail.fields = changed;
-        await audit(tx, "profile.update", before, after!, detail, c.get("actor").actorSource);
-        return after!;
-      });
-      if (!row) return errorJson(c, 404, "账户不存在");
-      const permissions = await getEffectivePermissions(row.role);
-      return c.json({ ...row, permissions });
-    },
-  )
+  .patch("/me", jsonBody(profileInputSchema, "请检查显示名称、邮箱和公司"), async (c) => {
+    const id = c.get("actor").id;
+    const { name, email, company } = c.req.valid("json");
+    const row = await db.transaction(async (tx) => {
+      const [before] = await tx
+        .select(profileFields)
+        .from(accounts)
+        .where(eq(accounts.id, id))
+        .for("update");
+      if (!before?.active) return null;
+      const set: { name?: string; email?: string | null; company?: string | null } = {};
+      if (name !== undefined && name !== before.name) set.name = name;
+      if (email !== undefined && (email || null) !== before.email) {
+        set.email = email || null;
+      }
+      if (company !== undefined && (company || null) !== before.company) {
+        set.company = company || null;
+      }
+      const changed = Object.keys(set);
+      if (!changed.length) return before;
+      const [after] = await tx
+        .update(accounts)
+        .set(set)
+        .where(eq(accounts.id, id))
+        .returning(profileFields);
+      // A name change keeps its before/after values. Email and company are logged by field name only.
+      const detail: AuditDetail =
+        set.name !== undefined ? { from: before.name, to: after!.name } : {};
+      if (set.email !== undefined || set.company !== undefined) detail.fields = changed;
+      await audit(tx, "profile.update", before, after!, detail, c.get("actor").actorSource);
+      return after!;
+    });
+    if (!row) return errorJson(c, 404, "账户不存在");
+    const permissions = await getEffectivePermissions(row.role);
+    return c.json({ ...row, permissions });
+  })
   .get("/me/sessions", requireCookieSession, async (c) => {
     const id = c.get("actor").id;
     const key = currentSessionKey(c);
@@ -917,9 +923,7 @@ export const authRoutes = new Hono<Env>()
         if (target.key === key) {
           throw new Refusal(400, "当前会话请使用退出登录");
         }
-        await tx
-          .delete(sessions)
-          .where(and(eq(sessions.id, id), eq(sessions.account, actor.id)));
+        await tx.delete(sessions).where(and(eq(sessions.id, id), eq(sessions.account, actor.id)));
         await audit(tx, "profile.session_revoke", actor, actor, {
           sessions: 1,
         });

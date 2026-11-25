@@ -38,7 +38,7 @@ def client():
     )
 
 
-def call(session, method, path, status=200, data=None):
+def call(session, method, path, status=200, data=None, return_headers=False):
     req = urllib.request.Request(
         ORIGIN + "/console" + path,
         method=method,
@@ -56,11 +56,14 @@ def call(session, method, path, status=200, data=None):
     with res:
         raw = res.read().decode("utf-8", "replace")
         assert res.status == status, (method, path, res.status, status, raw[:220])
-        return (
+        body = (
             json.loads(raw)
             if "application/json" in res.headers.get("Content-Type", "")
             else raw
         )
+        if return_headers:
+            return body, res.headers.get_all("Set-Cookie") or []
+        return body
 
 
 def sql(statement: str) -> str:
@@ -294,8 +297,74 @@ try:
     assert call(sa, "GET", "/system/status", 200)["ai"]["circuitOpen"] is False
 
     call(sa, "PUT", "/system/settings", 422, {"timezone": "Invalid/Timezone"})
+    call(sa, "PUT", "/system/settings", 400, {})
+    call(sa, "PUT", "/system/settings", 400, {"sessionTtlHours": 0})
+    call(sa, "PUT", "/system/settings", 400, {"sessionTtlHours": 2161})
     tz_back = call(sa, "PUT", "/system/settings", 200, {"timezone": "Asia/Shanghai"})
     assert tz_back["timezone"] == "Asia/Shanghai"
+
+    # Session TTL default (168h = 7d), update persistence, cookie Max-Age, and sliding renewal
+    initial_settings = call(sa, "GET", "/system/settings", 200)
+    assert initial_settings["sessionTtlHours"] == 168, initial_settings
+
+    ttl_res = call(sa, "PUT", "/system/settings", 200, {"sessionTtlHours": 720})
+    assert ttl_res["sessionTtlHours"] == 720 and ttl_res["sessionTtlSource"] == "database"
+    assert ttl_res["sessionTtlLabel"] == "30 天（720 小时）"
+
+    # Existing sa session (issued under 168h) slides forward to 720h on active request
+    _, sa_slide_cookies = call(sa, "GET", "/system/settings", 200, return_headers=True)
+    assert any("Max-Age=2592000" in item for item in sa_slide_cookies), sa_slide_cookies
+
+    # Fresh login issues cookie with configured Max-Age=2592000, and logout clears without re-setting
+    ttl_client = client()
+    _, login_cookies = call(
+        ttl_client,
+        "POST",
+        "/login",
+        200,
+        {"username": SUPER_USER, "password": SUPER_PW},
+        return_headers=True,
+    )
+    assert any("Max-Age=2592000" in item for item in login_cookies), login_cookies
+    _, logout_cookies = call(ttl_client, "POST", "/logout", 200, {}, return_headers=True)
+    assert not any("Max-Age=2592000" in item for item in logout_cookies), logout_cookies
+    call(ttl_client, "GET", "/me", 401)
+
+    # AI model settings managed directly in console (no env gate) + clear endpoint
+    model_init = call(sa, "GET", "/system/ai/model", 200)
+    assert model_init["editable"] is True, model_init
+    call(
+        adm,
+        "POST",
+        "/system/ai/model",
+        403,
+        {
+            "protocol": "openai-completions",
+            "baseUrl": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "structuredMode": "json_schema",
+            "apiKey": "sk-adm-forbidden",
+            "revision": model_init["revision"],
+        },
+    )
+    saved_model = call(
+        sa,
+        "POST",
+        "/system/ai/model",
+        200,
+        {
+            "protocol": "openai-completions",
+            "baseUrl": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "structuredMode": "json_schema",
+            "apiKey": "sk-gov-qa-test-key",
+            "revision": model_init["revision"],
+        },
+    )
+    assert saved_model["editable"] is True and saved_model["source"] == "database"
+    assert saved_model["hasKey"] is True and "sk-gov-qa-test-key" not in json.dumps(saved_model)
+    cleared_model = call(sa, "POST", "/system/ai/model/clear", 200, {"revision": saved_model["revision"]})
+    assert cleared_model["source"] == "unconfigured" and cleared_model["hasKey"] is False
 
     # Transaction rollback test on system.timezone_update
     sql(
@@ -326,7 +395,9 @@ CREATE TRIGGER gov_qa_reject BEFORE INSERT ON console_audit FOR EACH ROW EXECUTE
         "permission.update",
         "permission.reset",
         "system.ai_circuit",
+        "system.ai_model",
         "system.timezone_update",
+        "system.session_ttl_update",
     }.issubset(recorded_actions)
 
     agent_audit = call(sa, "GET", "/audit?source=agent&size=20", 200)
@@ -336,7 +407,7 @@ CREATE TRIGGER gov_qa_reject BEFORE INSERT ON console_audit FOR EACH ROW EXECUTE
         call(s, "POST", "/logout", 200, {})
 
     print(
-        "PASS: 3-tier RBAC, escalation defenses, permission matrix linkage, system probes, AI circuit breaker, timezone & rollback, human/agent audit"
+        "PASS: 3-tier RBAC, escalation defenses, permission matrix linkage, system probes, AI circuit breaker, model settings, timezone & session TTL rollback/sliding renewal, human/agent audit"
     )
 finally:
     ids_csv = ",".join(str(int(i)) for i in created_ids)
@@ -349,8 +420,8 @@ finally:
     )
     sql(
         f"BEGIN; {id_cleanup}"
-        f"DELETE FROM console_audit WHERE actor_username='{SUPER_USER}' AND action IN ('permission.update','permission.reset','system.ai_circuit','system.timezone_update'); "
+        f"DELETE FROM console_audit WHERE actor_username='{SUPER_USER}' AND action IN ('permission.update','permission.reset','system.ai_circuit','system.ai_model','system.timezone_update','system.session_ttl_update'); "
         f"DELETE FROM console_role_permission; "
-        f"DELETE FROM console_setting WHERE key IN ('timezone','ai.enabled'); "
+        f"DELETE FROM console_setting WHERE key IN ('timezone','session.ttl_hours','ai.enabled','ai.model'); "
         f"COMMIT;"
     )

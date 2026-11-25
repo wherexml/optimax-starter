@@ -45,8 +45,30 @@ export function SourceRail({
               data-focus={source.id === focus || undefined}
             >
               <div className="pi-source-head">
-                <span className="pi-citation is-static">{source.id}</span>
-                <strong>{source.title}</strong>
+                <button
+                  type="button"
+                  className="pi-citation"
+                  disabled={!source.to.startsWith("/")}
+                  aria-label={`定位 ${source.id}：${source.title}`}
+                  onClick={() => {
+                    if (open(source)) onClose();
+                  }}
+                >
+                  {source.id}
+                </button>
+                {source.to.startsWith("/") ? (
+                  <button
+                    type="button"
+                    className="pi-source-title-btn"
+                    onClick={() => {
+                      if (open(source)) onClose();
+                    }}
+                  >
+                    <strong className="pi-source-title">{source.title}</strong>
+                  </button>
+                ) : (
+                  <strong className="pi-source-title">{source.title}</strong>
+                )}
               </div>
               {source.snippet && <p>{source.snippet}</p>}
               <button
@@ -64,7 +86,7 @@ export function SourceRail({
           ))}
         </ol>
       ) : (
-        <p className="pi-rail-empty">本轮回答没有引用来源</p>
+        <p className="pi-rail-empty">当前对话暂无引用来源</p>
       )}
     </aside>
   );

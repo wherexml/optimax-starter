@@ -24,9 +24,9 @@
 | 项 | 内容 |
 | --- | --- |
 | 登录方式 | 账户名 + 密码（Argon2id `@node-rs/argon2`）；可选标准 OIDC 企业单点登录（`AUTH_OIDC_*`）与飞书企业 OAuth v2 + PKCE S256 登录（`AUTH_FEISHU_*`，默认关闭、按需通过 `feishu-auth` 开启），均支持保留口令并存或纯单点登录模式（`AUTH_PASSWORD_LOGIN_ENABLED=false`），见 [§5](#5-oauth--sso) |
-| Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要；记录登录 `ip_address`，`last_seen_at` 由会话中间件每 60 秒最多刷新一次） |
+| Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要；记录登录 `ip_address`，`last_seen_at` 由会话中间件每 60 秒最多刷新一次，`expires` 在与目标到期时间相差超过 5 分钟时滑动顺延） |
 | Token 传递 | 浏览器：HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`）；Agent / 集成：`Authorization: Bearer optx_…` 个人 API 密钥（`console_api_token`，见 [§12](#12-cookiebearer-与本地存储)） |
-| Session 有效期 | 8 小时（`28800` 秒） |
+| Session 有效期 | 默认 7 天（`168` 小时 / `604800` 秒）；可在 `/system?tab=settings` 直接输入调整（`1–2160` 小时）并统一点击顶部「应用」生效 |
 | 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
 | OAuth Provider | 默认无；`AUTH_OIDC_*` 配置标准 OIDC（仅关联已有启用账户）；`AUTH_FEISHU_*` 配置飞书企业自建应用（强校验 `tenant_key`，可选 `AUTH_FEISHU_AUTO_PROVISION=true` 仅自动创建 `member`）；旧 `AUTH_SSO_*` 自定义入口仍兼容 |
 | 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户（设置初始密码或生成 72 小时一次性激活链接）；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
@@ -34,7 +34,7 @@
 | 客户端 IP | 默认取 TCP 对端地址；仅 `TRUST_PROXY=true` 时信任 `X-Forwarded-For` 首跳 / `X-Real-IP`（必须是合法 IPv4/IPv6） |
 | 权限模型 | 三层角色（`super_admin`、`admin`、`member`）+ `console_role_permission` 模块级「查看 / 操作」权限矩阵；同一咨询锁 key 分共享/独占两种模式：业务写入取 `PERMISSION_SHARED_LOCK`（互不阻塞），账户、权限矩阵、系统设置、本人改密、激活与 SSO 关联取独占 `ADMIN_LOCK`；锁内二次复核操作者启用态、角色与实时有效权限 |
 | 租户字段 | 无（单组织后台基线） |
-| 审计日志 | `console_audit` 只追加表，记录 `actor_source`（`human` / `agent` / `system`；Cookie 会话恒为 `human`，Bearer 取密钥创建时选择的 `agent` 或 `system`）并对敏感键名递归 `[REDACTED]` 脱敏；同事务覆盖账户生命周期、激活链接生成/撤销/使用、本人资料与改密、权限矩阵修改/恢复默认、系统时区与 AI 熔断开关变更、资产增删改及 Agent 筛选回执；另记录 `auth.login` / `auth.login_failed`（含 `ip`、`reason`）/ `auth.logout` / `auth.sso_login` / `auth.sso_failed`。本人改密时“当前密码错误”不写审计 |
+| 审计日志 | `console_audit` 只追加表，记录 `actor_source`（`human` / `agent` / `system`；Cookie 会话恒为 `human`，Bearer 取密钥创建时选择的 `agent` 或 `system`）并对敏感键名递归 `[REDACTED]` 脱敏；同事务覆盖账户生命周期、激活链接生成/撤销/使用、本人资料与改密、权限矩阵修改/恢复默认、系统时区 / 登录有效期与 AI 熔断开关变更、资产增删改及 Agent 筛选回执；另记录 `auth.login` / `auth.login_failed`（含 `ip`、`reason`）/ `auth.logout` / `auth.sso_login` / `auth.sso_failed`。本人改密时“当前密码错误”不写审计 |
 
 ---
 
@@ -66,7 +66,7 @@ Session 续期：
 - 可以使用 idle timeout，但续期必须由服务端控制。
 - 服务端发现 session 失效时返回 `AUTH_SESSION_EXPIRED` 或同等稳定错误码（Starter 当前统一返回 `401` + `AUTH_REQUIRED`）。
 
-Starter 实现（2026-11-21）：`console_session` 已有 `id`、`account`、`created_at`、`expires`、`user_agent`，并新增 `ip_address`（登录 IP，随访问 IP 变化刷新）与 `last_seen_at`（非阻塞更新，60 秒节流）；`GET /console/me/sessions` 返回 `ipAddress`、`lastSeenAt`，个人设置「在线会话」展示。
+Starter 实现（2026-11-25）：`console_session` 已有 `id`、`account`、`created_at`、`expires`、`user_agent`、`ip_address` 与 `last_seen_at`；默认登录有效期 7 天（`168` 小时，可在 `/system?tab=settings` 直接输入 `1–2160` 小时）；会话中间件对除 `/console/logout` 与 `/console/me/password` 外的活跃 Cookie 请求启用 5 分钟窗口滑动续期，同步延展 `expires` 与浏览器 Cookie `Max-Age`（未触发窗口时仍以 60 秒节流刷新 `last_seen_at`）；`GET /console/me/sessions` 返回 `ipAddress`、`lastSeenAt`，个人设置「在线会话」展示。
 - 客户端对过期、撤销与退出的响应统一见 [FRONTEND.md §8](./FRONTEND.md#8-登录态权限与启动自检)。
 
 ---

@@ -43,6 +43,7 @@ export const OPTIONAL_MARKED_FILES = [
   "apps/web/src/features/assistant/ToolSteps.tsx",
   "apps/web/src/features/assistant/Composer.tsx",
   "apps/web/src/features/assistant/Conversation.tsx",
+  "apps/web/src/features/assistant/assistant-links-utils.ts",
 ];
 
 const BLOCK_RE = new RegExp(

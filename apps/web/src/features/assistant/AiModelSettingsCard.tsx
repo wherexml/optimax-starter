@@ -3,27 +3,25 @@ import {
   AGENT_STRUCTURED_MODE_LABELS,
   type AgentProtocol,
   type AgentStructuredMode,
+  agentModelInputSchema,
 } from "@optimax-starter/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PlugZap, Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { PlugZap, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SelectControl, SelectItem } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
+import type { RegisterSettingsSection } from "@/features/system/settings-controller";
 import {
   AGENT_STATUS_KEY,
   type AgentModelInput,
   type AgentModelSettings,
   type AgentProbeResponse,
+  clearModelSettings,
   fetchAgentStatus,
   fetchModelSettings,
   MODEL_SETTINGS_KEY,
@@ -32,12 +30,6 @@ import {
   probeSavedAgent,
   saveModelSettings,
 } from "./api";
-
-const SOURCE_LABELS: Record<AgentModelSettings["source"], string> = {
-  database: "网页端配置",
-  env: "环境变量",
-  unconfigured: "未配置",
-};
 
 type Draft = Omit<AgentModelInput, "revision" | "apiKey"> & { apiKey: string };
 
@@ -49,31 +41,34 @@ const toDraft = (settings: AgentModelSettings): Draft => ({
   apiKey: "",
 });
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="m-0 text-xs text-muted-foreground">{label}</p>
-      <p className="m-0 mt-1 truncate font-medium text-foreground" title={value}>
-        {value || "未设置"}
-      </p>
-    </div>
-  );
+function getOrigin(raw: string): string | undefined {
+  try {
+    return new URL(raw.trim()).origin;
+  } catch {
+    return undefined;
+  }
 }
 
 function ProbeResult({ result }: { result?: AgentProbeResponse }) {
   if (!result) return null;
   return result.ok ? (
-    <span role="status" className="text-sm text-[var(--success-foreground)]">
-      连接正常，耗时 {result.chat.latencyMs} ms
+    <span role="status" className="text-xs text-[var(--success-foreground)]">
+      连接正常（{result.chat.latencyMs} ms）
     </span>
   ) : (
-    <span role="alert" className="text-sm text-destructive">
+    <span role="alert" className="text-xs text-destructive">
       连接失败：{mapAgentError(result.chat.error ?? "")}
     </span>
   );
 }
 
-export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: boolean }) {
+export function AiModelSettingsCard({
+  canManageSettings,
+  registerSection,
+}: {
+  canManageSettings: boolean;
+  registerSection?: RegisterSettingsSection;
+}) {
   const cache = useQueryClient();
   const settingsQuery = useQuery({
     meta: { contentRefresh: true },
@@ -93,27 +88,124 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
     if (settings) setDraft(toDraft(settings));
   }, [settings]);
 
+  const invalidateRelated = useCallback(async () => {
+    await Promise.all([
+      cache.invalidateQueries({ queryKey: MODEL_SETTINGS_KEY }),
+      cache.invalidateQueries({ queryKey: AGENT_STATUS_KEY }),
+      cache.invalidateQueries({ queryKey: ["system-status"] }),
+      cache.invalidateQueries({ queryKey: ["audit"] }),
+    ]);
+  }, [cache]);
+
   const save = useMutation({
     mutationFn: (input: AgentModelInput) => saveModelSettings(input),
     onSuccess: async (saved) => {
       setDraft(toDraft(saved));
       setProbe(undefined);
-      await Promise.all([
-        cache.invalidateQueries({ queryKey: MODEL_SETTINGS_KEY }),
-        cache.invalidateQueries({ queryKey: AGENT_STATUS_KEY }),
-        cache.invalidateQueries({ queryKey: ["system-status"] }),
-        cache.invalidateQueries({ queryKey: ["audit"] }),
-      ]);
-      toast.success("模型配置已保存");
+      await invalidateRelated();
     },
-    onError: (error) => toast.error("模型配置保存失败", { description: mapAgentError(error) }),
   });
+
+  const clear = useMutation({
+    mutationFn: (revision: string) => clearModelSettings(revision),
+    onSuccess: async (cleared) => {
+      setDraft(toDraft(cleared));
+      setProbe(undefined);
+      await invalidateRelated();
+      toast.success("已清空 AI 模型配置");
+    },
+    onError: (error) => toast.error("清空配置失败", { description: mapAgentError(error) }),
+  });
+
   const test = useMutation({
     mutationFn: (input?: AgentModelInput) => (input ? probeDraftModel(input) : probeSavedAgent()),
     onMutate: () => setProbe(undefined),
     onSuccess: setProbe,
     onError: (error) => toast.error("连接测试失败", { description: mapAgentError(error) }),
   });
+
+  const current = draft ?? (settings ? toDraft(settings) : undefined);
+  const baseUrlTrimmed = current?.baseUrl.trim() ?? "";
+  const modelTrimmed = current?.model.trim() ?? "";
+  const apiKeyTrimmed = current?.apiKey.trim() ?? "";
+
+  const dirty = Boolean(
+    settings &&
+      current &&
+      (current.protocol !== settings.protocol ||
+        baseUrlTrimmed !== settings.baseUrl ||
+        modelTrimmed !== settings.model ||
+        current.structuredMode !== settings.structuredMode ||
+        apiKeyTrimmed.length > 0),
+  );
+
+  const buildInput = useCallback((): AgentModelInput => {
+    if (!settings || !current) {
+      return {
+        protocol: "openai-completions",
+        baseUrl: "",
+        model: "",
+        structuredMode: "json_schema",
+        revision: "deployment",
+      };
+    }
+    return {
+      protocol: current.protocol,
+      baseUrl: current.baseUrl.trim(),
+      model: current.model.trim(),
+      structuredMode: current.structuredMode,
+      revision: settings.revision,
+      ...(current.apiKey.trim() ? { apiKey: current.apiKey.trim() } : {}),
+    };
+  }, [current, settings]);
+
+  let validationError: string | null = null;
+  if (settings && current) {
+    const parsedDraft = agentModelInputSchema.safeParse(buildInput());
+    if (!parsedDraft.success) {
+      validationError = parsedDraft.error.issues[0]?.message ?? "请检查模型配置";
+    } else {
+      const originChanged = Boolean(
+        settings.baseUrl && getOrigin(baseUrlTrimmed) !== getOrigin(settings.baseUrl),
+      );
+      if ((!settings.hasKey || originChanged) && !apiKeyTrimmed) {
+        validationError = originChanged ? "更换 API 地址后请重新填写密钥" : "请填写 API 密钥";
+      }
+    }
+  }
+
+  const valid = !dirty || validationError === null;
+  const pending = save.isPending || clear.isPending || test.isPending;
+
+  const reset = useCallback(() => {
+    if (!settings) return;
+    setDraft(toDraft(settings));
+    setProbe(undefined);
+  }, [settings]);
+
+  const apply = useCallback(async () => {
+    if (!settings || !dirty || !valid) return;
+    try {
+      await save.mutateAsync(buildInput());
+    } catch (error) {
+      throw new Error(mapAgentError(error));
+    }
+  }, [buildInput, dirty, save, settings, valid]);
+
+  useEffect(() => {
+    if (!registerSection) return;
+    registerSection("ai-model", {
+      dirty,
+      valid,
+      pending: save.isPending || clear.isPending,
+      apply,
+      reset,
+    });
+  }, [apply, clear.isPending, dirty, registerSection, reset, save.isPending, valid]);
+
+  useEffect(() => {
+    return () => registerSection?.("ai-model", null);
+  }, [registerSection]);
 
   if (settingsQuery.isPending) {
     return (
@@ -122,7 +214,7 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
       </div>
     );
   }
-  if (settingsQuery.isError || !settings) {
+  if (settingsQuery.isError || !settings || !current) {
     return (
       <div role="alert" className="panel flex items-center justify-between gap-3 p-5">
         <p className="m-0 text-sm text-destructive">
@@ -138,173 +230,147 @@ export function AiModelSettingsCard({ canManageSettings }: { canManageSettings: 
   const status = statusQuery.data;
   const configured = status?.configured ?? settings.hasKey;
   const circuitOpen = status?.circuitOpen ?? false;
-  const pending = save.isPending || test.isPending;
-  const current = draft ?? toDraft(settings);
-  const input = (): AgentModelInput => ({
-    protocol: current.protocol,
-    baseUrl: current.baseUrl.trim(),
-    model: current.model.trim(),
-    structuredMode: current.structuredMode,
-    revision: settings.revision,
-    ...(current.apiKey.trim() ? { apiKey: current.apiKey.trim() } : {}),
-  });
-  const editable = settings.editable && canManageSettings;
-  const changed =
-    current.protocol !== settings.protocol ||
-    current.baseUrl.trim() !== settings.baseUrl ||
-    current.model.trim() !== settings.model ||
-    current.structuredMode !== settings.structuredMode ||
-    Boolean(current.apiKey.trim());
-  const complete = Boolean(current.baseUrl.trim() && current.model.trim());
+  const disabled = !canManageSettings || pending;
+  const canProbeDraft = dirty && validationError === null;
+  const canProbeSaved = !dirty && configured && !circuitOpen;
 
   return (
     <section className="panel" aria-label="AI 模型配置">
-      <header className="panel-head">
-        <h2>AI 模型配置</h2>
-      </header>
+      <header className="panel-head flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <h2>AI 模型配置</h2>
+          <Badge variant={settings.hasKey ? "success" : "neutral"}>
+            {settings.hasKey ? "已配置" : "未配置"}
+          </Badge>
+        </div>
 
-      {!settings.editable ? (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-3 rounded-md border-[0.5px] border-[var(--hairline)] bg-[var(--surface-subtle)] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Fact label="协议" value={AGENT_PROTOCOL_LABELS[settings.protocol]} />
-            <Fact label="模型" value={settings.model} />
-            <Fact label="API 地址" value={settings.baseUrl} />
-            <Fact label="配置来源" value={SOURCE_LABELS[settings.source]} />
-          </div>
-          <p className="m-0 text-sm text-muted-foreground">
-            当前使用部署环境中的只读凭证。配置 STARTER_AI_CONFIG_KEY_FILE
-            后，可在此处在线维护模型与密钥。
-          </p>
-          {configured && !circuitOpen && canManageSettings && (
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <ProbeResult result={probe} />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending}
-                onClick={() => test.mutate(undefined)}
-              >
-                <PlugZap size={15} />
-                {test.isPending ? "测试中…" : "测试连接"}
-              </Button>
-            </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ProbeResult result={probe} />
+          {canManageSettings && settings.source === "database" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() => clear.mutate(settings.revision)}
+            >
+              <RotateCcw size={14} />
+              {clear.isPending ? "清空中…" : "清空配置"}
+            </Button>
+          )}
+          {canManageSettings && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending || !(canProbeDraft || canProbeSaved)}
+              onClick={() => test.mutate(canProbeDraft ? buildInput() : undefined)}
+            >
+              <PlugZap size={14} />
+              {test.isPending ? "测试中…" : "测试连接"}
+            </Button>
           )}
         </div>
-      ) : (
-        <form
-          className="flex flex-col gap-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (editable && changed && complete) save.mutate(input());
-          }}
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ai-model-protocol">协议</Label>
-              <Select
-                value={current.protocol}
-                onValueChange={(value) =>
-                  setDraft({ ...current, protocol: value as AgentProtocol })
-                }
-                disabled={!editable || pending}
-              >
-                <SelectTrigger id="ai-model-protocol" aria-label="协议">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(AGENT_PROTOCOL_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ai-model-id">模型 ID</Label>
-              <Input
-                id="ai-model-id"
-                value={current.model}
-                maxLength={200}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="例如 qwen-plus"
-                disabled={!editable || pending}
-                onChange={(event) => setDraft({ ...current, model: event.target.value })}
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="ai-model-base-url">API 地址</Label>
-              <Input
-                id="ai-model-base-url"
-                value={current.baseUrl}
-                maxLength={1024}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="https://api.example.com/v1"
-                disabled={!editable || pending}
-                onChange={(event) => setDraft({ ...current, baseUrl: event.target.value })}
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:col-span-2">
-              <Label htmlFor="ai-model-key">API 密钥</Label>
-              <PasswordInput
-                id="ai-model-key"
-                value={current.apiKey}
-                maxLength={4096}
-                autoComplete="new-password"
-                placeholder={settings.hasKey ? "已保存，留空沿用当前密钥" : "输入服务商 API 密钥"}
-                disabled={!editable || pending}
-                onChange={(event) => setDraft({ ...current, apiKey: event.target.value })}
-              />
-            </div>
+      </header>
+
+      <div className="flex flex-col gap-4">
+        <div className="cq-grid-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ai-model-base-url">API 地址</Label>
+            <Input
+              id="ai-model-base-url"
+              value={current.baseUrl}
+              maxLength={1024}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="https://api.openai.com/v1"
+              disabled={disabled}
+              onChange={(event) => {
+                setProbe(undefined);
+                setDraft({ ...current, baseUrl: event.target.value });
+              }}
+            />
           </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ai-model-key">API 密钥</Label>
+            <PasswordInput
+              id="ai-model-key"
+              value={current.apiKey}
+              maxLength={4096}
+              autoComplete="new-password"
+              placeholder={settings.hasKey ? "已保存，留空沿用当前密钥" : "输入服务商 API 密钥"}
+              disabled={disabled}
+              onChange={(event) => {
+                setProbe(undefined);
+                setDraft({ ...current, apiKey: event.target.value });
+              }}
+            />
+          </div>
+        </div>
 
-          <details className="rounded-md border-[0.5px] border-[var(--hairline)] p-3 text-sm">
-            <summary className="cursor-pointer text-muted-foreground">高级选项</summary>
-            <div className="mt-3 flex max-w-sm flex-col gap-2">
-              <Label htmlFor="ai-model-structured">结构化输出方式</Label>
-              <Select
-                value={current.structuredMode}
-                onValueChange={(value) =>
-                  setDraft({ ...current, structuredMode: value as AgentStructuredMode })
-                }
-                disabled={!editable || pending}
-              >
-                <SelectTrigger id="ai-model-structured" aria-label="结构化输出方式">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(AGENT_STRUCTURED_MODE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </details>
+        <div className="cq-grid-3">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ai-model-protocol">接口协议</Label>
+            <SelectControl
+              id="ai-model-protocol"
+              aria-label="接口协议"
+              value={current.protocol}
+              onValueChange={(value) => {
+                setProbe(undefined);
+                setDraft({ ...current, protocol: value as AgentProtocol });
+              }}
+              disabled={disabled}
+            >
+              {Object.entries(AGENT_PROTOCOL_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectControl>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ai-model-id">模型 ID</Label>
+            <Input
+              id="ai-model-id"
+              value={current.model}
+              maxLength={200}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="例如 deepseek-chat 或 gpt-4o-mini"
+              disabled={disabled}
+              onChange={(event) => {
+                setProbe(undefined);
+                setDraft({ ...current, model: event.target.value });
+              }}
+            />
+          </div>
+          <div className="cq-span-2-sm flex flex-col gap-2">
+            <Label htmlFor="ai-model-structured">结构化输出方式</Label>
+            <SelectControl
+              id="ai-model-structured"
+              aria-label="结构化输出方式"
+              value={current.structuredMode}
+              onValueChange={(value) => {
+                setProbe(undefined);
+                setDraft({ ...current, structuredMode: value as AgentStructuredMode });
+              }}
+              disabled={disabled}
+            >
+              {Object.entries(AGENT_STRUCTURED_MODE_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectControl>
+          </div>
+        </div>
 
-          {canManageSettings && (
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <ProbeResult result={probe} />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={pending || !complete}
-                onClick={() => test.mutate(input())}
-              >
-                <PlugZap size={15} />
-                {test.isPending ? "测试中…" : "测试连接"}
-              </Button>
-              <Button type="submit" disabled={pending || !changed || !complete}>
-                <Save size={15} />
-                {save.isPending ? "保存中…" : "保存配置"}
-              </Button>
-            </div>
-          )}
-        </form>
-      )}
+        {dirty && validationError ? (
+          <p role="alert" className="m-0 text-xs text-destructive">
+            {validationError}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

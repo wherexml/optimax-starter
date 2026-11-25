@@ -126,11 +126,19 @@ th button:focus-visible {
   flex: none;
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 8px;
   padding: 0 8px 0 12px;
+  overflow: hidden;
   font-size: 16px;
   white-space: nowrap;
   border-bottom: 0.5px solid var(--hairline);
+}
+.brand strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .identity i {
   display: grid;
@@ -341,8 +349,11 @@ aside nav a:active {
 }
 .content {
   width: 100%;
+  min-width: 0;
   padding: 16px 20px 36px;
   box-sizing: border-box;
+  container-type: inline-size;
+  container-name: main-content;
 }
 .page-header {
   min-height: 40px;
@@ -1534,4 +1545,115 @@ a.domain-pending:hover {
 .password-toggle:hover {
   background: var(--muted);
   color: var(--foreground);
+}
+
+/* ---- 内容区容器查询（响应左侧栏收起、右侧助理抽屉与视口宽度叠加变化） ---- */
+.cq-split-12,
+.cq-split-12-tight {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+.cq-split-12-tight {
+  gap: 0.75rem;
+}
+.cq-main-8,
+.cq-main-7,
+.cq-side-4,
+.cq-side-5,
+.cq-col-6,
+.cq-span-12,
+.cq-span-full,
+.cq-span-2-sm {
+  min-width: 0;
+}
+.cq-side-stack,
+.cq-side-stack-expanded {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-width: 0;
+}
+.cq-grid-2,
+.cq-grid-3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+.cq-kpi-4 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  min-width: 0;
+}
+@container main-content (min-width: 600px) {
+  .cq-side-stack,
+  .cq-side-stack-expanded {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cq-grid-2,
+  .cq-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cq-kpi-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cq-span-2-sm {
+    grid-column: span 2 / span 2;
+  }
+}
+@container main-content (min-width: 820px) {
+  .cq-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cq-span-2-sm {
+    grid-column: span 1 / span 1;
+  }
+}
+@container main-content (min-width: 1040px) {
+  .cq-split-12,
+  .cq-split-12-tight {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .cq-split-12 > .cq-main-8,
+  .cq-split-12-tight > .cq-main-8 {
+    grid-column: span 8 / span 8;
+  }
+  .cq-split-12 > .cq-side-4,
+  .cq-split-12-tight > .cq-side-4 {
+    grid-column: span 4 / span 4;
+  }
+  .cq-split-12 > .cq-main-7,
+  .cq-split-12-tight > .cq-main-7 {
+    grid-column: span 7 / span 7;
+  }
+  .cq-split-12 > .cq-side-5,
+  .cq-split-12-tight > .cq-side-5 {
+    grid-column: span 5 / span 5;
+  }
+  .cq-split-12 > .cq-col-6,
+  .cq-split-12-tight > .cq-col-6 {
+    grid-column: span 6 / span 6;
+  }
+  .cq-split-12 > .cq-col-6:only-child,
+  .cq-split-12 > .cq-span-12,
+  .cq-split-12-tight > .cq-col-6:only-child,
+  .cq-split-12-tight > .cq-span-12 {
+    grid-column: span 12 / span 12;
+  }
+  .cq-split-12 > .cq-side-stack,
+  .cq-split-12-tight > .cq-side-stack {
+    display: flex;
+    flex-direction: column;
+    grid-column: span 5 / span 5;
+  }
+  .cq-split-12 > .cq-side-stack-expanded,
+  .cq-split-12-tight > .cq-side-stack-expanded {
+    grid-column: span 12 / span 12;
+  }
+  .cq-span-full {
+    grid-column: 1 / -1;
+  }
 }

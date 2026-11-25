@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = [
   "permission.update",
   "permission.reset",
   "system.timezone_update",
+  "system.session_ttl_update",
   "system.ai_circuit",
   "agent.asset_filter",
   "asset.create",
@@ -72,6 +73,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "permission.update": "修改系统权限",
   "permission.reset": "恢复默认权限",
   "system.timezone_update": "修改系统时区",
+  "system.session_ttl_update": "修改登录有效期",
   "system.ai_circuit": "切换 AI 熔断开关",
   "agent.asset_filter": "Agent 筛选资产",
   "asset.create": "新增资产",
@@ -126,8 +128,8 @@ export type AssetPage = PaginatedResult<Asset>;
 // Fields allowed in audit detail. Never store passwords, hashes, cookies, prompts or tokens here.
 export type AuditDetail = {
   entityId?: number;
-  from?: string | boolean;
-  to?: string | boolean;
+  from?: string | number | boolean;
+  to?: string | number | boolean;
   role?: string;
   sessions?: number;
   /** Names of changed profile/entity fields only, never secret values. */
@@ -174,9 +176,10 @@ export type AuditDetail = {
   skillVersion?: string;
   skillSha256?: string;
   elapsedMs?: number;
-  /** AI model settings revision and whether a new key was supplied (never the key). */
+  /** AI model settings revision, whether a new key was supplied, or cleared (never the key). */
   revision?: string;
   keyChanged?: boolean;
+  cleared?: boolean;
   // @starter:agent-end
 };
 
