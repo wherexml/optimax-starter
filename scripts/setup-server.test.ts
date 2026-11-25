@@ -89,6 +89,7 @@ describe("buildActionCommand", () => {
       label: "供应商台账",
       singular: "vendor",
       fields: "code:string:编号,kind:enum:采购|销售:类型,remark:text:备注?",
+      detail: "page",
     });
     expect(cmd.bin).toBe(process.execPath);
     expect(cmd.args).toEqual([
@@ -100,11 +101,27 @@ describe("buildActionCommand", () => {
       "vendor",
       "--fields",
       "code:string:编号,kind:enum:采购|销售:类型,remark:text:备注?",
+      "--detail",
+      "page",
+    ]);
+    const withDrawer = buildActionCommand("gen_module", {
+      slug: "vendors",
+      label: "供应商台账",
+      detail: "drawer",
+    });
+    expect(withDrawer.args).toEqual([
+      "scripts/gen-module.mjs",
+      "vendors",
+      "--label",
+      "供应商台账",
+      "--detail",
+      "drawer",
     ]);
     const dry = buildActionCommand("gen_module_dry_run", { slug: "vendors", label: "供应商" });
     expect(dry.args.at(-1)).toBe("--dry-run");
     for (const slug of GEN_MODULE_RESERVED) rejects("gen_module", { slug, label: "x" });
     rejects("gen_module", { slug: "vendors" });
+    rejects("gen_module", { slug: "vendors", label: "供应商", detail: "modal" });
     rejects("gen_module", { slug: "vendors", label: "供应商", fields: "id:string" });
     rejects("gen_module", { slug: "vendors", label: "供应商", fields: "a:float" });
     rejects("gen_module", { slug: "vendors", label: "供应商", fields: "kind:enum:one" });

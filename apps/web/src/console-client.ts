@@ -2,12 +2,16 @@ import type {
   ApiToken,
   ApiTokenCreated,
   ApiTokenCreateInput,
+  Asset,
+  AssetDetailResponse,
   AssetFacetResponse,
   AssetImportCommitResult,
   AssetImportDuplicateMode,
   AssetImportPreview,
+  AssetLedgerSummary,
   AssetPage,
   AssetSearch,
+  AssetTopologyResponse,
   Attachment,
   Job,
   JobCreateInput,
@@ -29,16 +33,29 @@ export type {
   ApiTokenCreated,
   ApiTokenCreateInput,
   Asset,
+  AssetAuditEntry,
+  AssetDetailResponse,
   AssetExportFilter,
   AssetFacetResponse,
+  AssetGraphDomainDto,
+  AssetGraphEdge,
+  AssetGraphLinkType,
+  AssetGraphNode,
+  AssetGraphNodeType,
+  AssetGroupStat,
   AssetImportCommitResult,
   AssetImportDuplicateMode,
   AssetImportPreview,
   AssetImportRow,
+  AssetLedgerSummary,
+  AssetNeighbor,
   AssetPage,
   AssetSearch,
   AssetSortField,
   AssetStage,
+  AssetSubgraphDto,
+  AssetSubgraphPath,
+  AssetTopologyResponse,
   Attachment,
   AuditDetail,
   AuditEntry,
@@ -265,7 +282,7 @@ const listParams = (params: URLSearchParams, key: string, value: string | string
     params.append(key, v);
 };
 
-export function assetPageQuery(search: AssetSearch): string {
+export function assetFilterQuery(search: AssetSearch): string {
   const params = new URLSearchParams();
   if (search.code) params.set("code", search.code);
   if (search.code && search.codeOp === "equals") params.set("codeOp", "equals");
@@ -274,6 +291,11 @@ export function assetPageQuery(search: AssetSearch): string {
   listParams(params, "stage", search.stage);
   listParams(params, "domain", search.domain);
   listParams(params, "owner", search.owner);
+  return params.toString();
+}
+
+export function assetPageQuery(search: AssetSearch): string {
+  const params = new URLSearchParams(assetFilterQuery(search));
   params.set("sortBy", search.sortBy ?? "id");
   params.set("sortDir", search.sortDir ?? "desc");
   params.set("page", String(search.page ?? 1));
@@ -284,7 +306,32 @@ export function assetPageQuery(search: AssetSearch): string {
 export const assetsApi = {
   page: (search: AssetSearch, signal?: AbortSignal) =>
     request<AssetPage>(`/assets/page?${assetPageQuery(search)}`, "GET", undefined, { signal }),
+  summary: (search: AssetSearch, signal?: AbortSignal) => {
+    const qs = assetFilterQuery(search);
+    return request<AssetLedgerSummary>(
+      qs ? `/assets/summary?${qs}` : "/assets/summary",
+      "GET",
+      undefined,
+      { signal },
+    );
+  },
+  get: (id: number, signal?: AbortSignal) =>
+    request<Asset>(`/assets/${id}`, "GET", undefined, { signal }),
+  detail: (id: number, search: AssetSearch = {}, signal?: AbortSignal) => {
+    const params = new URLSearchParams(assetFilterQuery(search));
+    if (search.sortBy) params.set("sortBy", search.sortBy);
+    if (search.sortDir) params.set("sortDir", search.sortDir);
+    const qs = params.toString();
+    return request<AssetDetailResponse>(
+      qs ? `/assets/${id}/detail?${qs}` : `/assets/${id}/detail`,
+      "GET",
+      undefined,
+      { signal },
+    );
+  },
   facets: () => request<AssetFacetResponse>("/assets/facets"),
+  topology: (signal?: AbortSignal) =>
+    request<AssetTopologyResponse>("/assets/topology", "GET", undefined, { signal }),
   importTemplatePath: "/console/assets/import/template",
   importForm: (file: File, onDuplicate: AssetImportDuplicateMode) => {
     const form = new FormData();

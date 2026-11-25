@@ -1,10 +1,16 @@
 import {
+  ACTOR_SOURCES,
+  type ActorSource,
   ASSET_IMPORT_SYNC_MAX_ROWS,
   ASSET_SORT_FIELDS,
   ASSET_STAGES,
+  type AssetAuditEntry,
+  type AssetDetailResponse,
   type AssetFacetResponse,
+  type AssetGroupStat,
   type AssetImportDuplicateMode,
   type AssetImportPreview,
+  type AssetLedgerSummary,
   type AuditDetail,
   assetBulkDeleteSchema,
   assetBulkStageSchema,
@@ -13,8 +19,8 @@ import {
   assetPatchSchema,
 } from "@optimax-starter/api";
 import { assets } from "@optimax-starter/db/schema/assets";
-import { attachments } from "@optimax-starter/db/schema/console";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { attachments, audits } from "@optimax-starter/db/schema/console";
+import { and, count, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { assetAgentApi } from "../asset-agent";
@@ -38,10 +44,12 @@ import {
 } from "../core/guards";
 import { registerDemoSeeder } from "../core/seed";
 import { deleteStoredObjects } from "../core/storage";
+import { getConfiguredTimezone } from "../core/system-settings";
 import { db } from "../services";
 import "./assets-jobs";
 import "./assets-policy";
 import { buildAssetOrder, buildAssetWhere } from "./assets-query";
+import { getCachedAssetTopology } from "./assets-topology";
 
 // ---------------------------------------------------------------------------
 // Self-registration: demo data, attachment entity, job policies + handlers (side-effect imports).
@@ -344,6 +352,74 @@ function validateOrRefuse(csv: string, existing: ReadonlySet<string>) {
   }
 }
 
+const ASSET_AUDIT_ACTIONS = [
+  "asset.create",
+  "asset.update",
+  "asset.delete",
+  "attachment.upload",
+  "attachment.delete",
+] as const;
+
+type ParsedAssetQuery = {
+  code?: string;
+  codeOp?: "contains" | "equals";
+  q?: string;
+  qOp?: "contains" | "equals";
+  stages: string[];
+  domains: string[];
+  owners: string[];
+  sortBy: z.infer<typeof assetPageQuerySchema>["sortBy"];
+  sortDir: z.infer<typeof assetPageQuerySchema>["sortDir"];
+  page: number;
+  size: number;
+};
+
+function parseAssetFilterParams(c: Context<Env>): ParsedAssetQuery | { error: string } {
+  const scalar = Object.fromEntries(
+    Object.entries(c.req.query()).filter(
+      ([k, v]) => k !== "stage" && k !== "domain" && k !== "owner" && v.trim() !== "",
+    ),
+  );
+  const parsed = assetPageQuerySchema.safeParse(scalar);
+  if (!parsed.success) return { error: "筛选参数无效" };
+
+  const stages = normalizeListParam(c.req.queries("stage"), 20);
+  if (stages.some((s) => !(ASSET_STAGES as readonly string[]).includes(s))) {
+    return { error: "无效的登记状态" };
+  }
+  const domains = normalizeListParam(c.req.queries("domain"), 80);
+  const owners = normalizeListParam(c.req.queries("owner"), 60);
+  return { ...parsed.data, stages, domains, owners };
+}
+
+function sortGroupStats(rows: AssetGroupStat[]): AssetGroupStat[] {
+  return [...rows]
+    .map((r) => ({
+      name: r.name,
+      total: Number(r.total ?? 0),
+      registered: Number(r.registered ?? 0),
+      pending: Number(r.pending ?? 0),
+    }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "zh-CN"));
+}
+
+async function queryGroupStats(
+  column: typeof assets.domain | typeof assets.owner,
+  where?: ReturnType<typeof buildAssetWhere>,
+): Promise<AssetGroupStat[]> {
+  const rows = await db
+    .select({
+      name: column,
+      total: sql<number>`count(*)::int`,
+      registered: sql<number>`sum(case when ${assets.stage} = '已登记' then 1 else 0 end)::int`,
+      pending: sql<number>`sum(case when ${assets.stage} = '待复核' then 1 else 0 end)::int`,
+    })
+    .from(assets)
+    .where(where)
+    .groupBy(column);
+  return sortGroupStats(rows);
+}
+
 export const assetsRoutes = new Hono<Env>()
   .route("/assets/agent", assetAgentApi)
   // Full list endpoint preserved for scripts and Agent pilot compatibility (do not change).
@@ -352,22 +428,10 @@ export const assetsRoutes = new Hono<Env>()
   )
   // Server-side paginated + multi-select + contains/equals filtering + sorting.
   .get("/assets/page", requirePermission("assets:read"), async (c) => {
-    const scalar = Object.fromEntries(
-      Object.entries(c.req.query()).filter(
-        ([k, v]) => k !== "stage" && k !== "domain" && k !== "owner" && v.trim() !== "",
-      ),
-    );
-    const parsed = assetPageQuerySchema.safeParse(scalar);
-    if (!parsed.success) return c.json({ error: "筛选参数无效" }, 400);
+    const query = parseAssetFilterParams(c);
+    if ("error" in query) return c.json({ error: query.error }, 400);
 
-    const stages = normalizeListParam(c.req.queries("stage"), 20);
-    if (stages.some((s) => !(ASSET_STAGES as readonly string[]).includes(s))) {
-      return c.json({ error: "无效的登记状态" }, 400);
-    }
-    const domains = normalizeListParam(c.req.queries("domain"), 80);
-    const owners = normalizeListParam(c.req.queries("owner"), 60);
-    const { code, codeOp, q, qOp, sortBy, sortDir, page, size } = parsed.data;
-
+    const { code, codeOp, q, qOp, stages, domains, owners, sortBy, sortDir, page, size } = query;
     const where = buildAssetWhere({ code, codeOp, q, qOp, stages, domains, owners });
 
     const [items, totals] = await Promise.all([
@@ -382,6 +446,33 @@ export const assetsRoutes = new Hono<Env>()
     ]);
     return c.json({ items, total: Number(totals[0]?.n ?? 0), page, size });
   })
+  .get("/assets/summary", requirePermission("assets:read"), async (c) => {
+    const query = parseAssetFilterParams(c);
+    if ("error" in query) return c.json({ error: query.error }, 400);
+
+    const where = buildAssetWhere(query);
+    const [totalsRow, domainBreakdown, ownerBreakdown] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          registered: sql<number>`sum(case when ${assets.stage} = '已登记' then 1 else 0 end)::int`,
+          pending: sql<number>`sum(case when ${assets.stage} = '待复核' then 1 else 0 end)::int`,
+        })
+        .from(assets)
+        .where(where),
+      queryGroupStats(assets.domain, where),
+      queryGroupStats(assets.owner, where),
+    ]);
+    const stats = totalsRow[0];
+    const body: AssetLedgerSummary = {
+      total: Number(stats?.total ?? 0),
+      registered: Number(stats?.registered ?? 0),
+      pending: Number(stats?.pending ?? 0),
+      domainBreakdown,
+      ownerBreakdown,
+    };
+    return c.json(body);
+  })
   .get("/assets/facets", requirePermission("assets:read"), async (c) => {
     const [domainRows, ownerRows] = await Promise.all([
       db.selectDistinct({ v: assets.domain }).from(assets),
@@ -393,6 +484,161 @@ export const assetsRoutes = new Hono<Env>()
       owners: sortZh(ownerRows.map((r) => r.v)),
     };
     return c.json(body);
+  })
+  .get("/assets/topology", requirePermission("assets:read"), async (c) => {
+    const rows = await db.select().from(assets).orderBy(assets.id);
+    return c.json(getCachedAssetTopology(rows));
+  })
+  .get("/assets/:id/detail", requirePermission("assets:read"), async (c) => {
+    const id = parsePositiveId(c.req.param("id"));
+    if (!id) return c.json({ error: "无效的资产编号" }, 400);
+
+    const query = parseAssetFilterParams(c);
+    if ("error" in query) return c.json({ error: query.error }, 400);
+
+    const [asset] = await db.select().from(assets).where(eq(assets.id, id));
+    if (!asset) return c.json({ error: "资产不存在" }, 404);
+
+    const filterWhere = buildAssetWhere(query);
+    const idText = String(id);
+    const [
+      orderedIds,
+      attachmentRows,
+      timezone,
+      allDomainStats,
+      allOwnerStats,
+      ownerPeersInDomain,
+      sameDomainPeers,
+      sameOwnerCrossDomain,
+      peerAssets,
+      auditRows,
+    ] = await Promise.all([
+      db
+        .select({ id: assets.id, name: assets.name })
+        .from(assets)
+        .where(filterWhere)
+        .orderBy(...buildAssetOrder(query.sortBy, query.sortDir)),
+      db
+        .select({ n: count() })
+        .from(attachments)
+        .where(and(eq(attachments.entityType, "asset"), eq(attachments.entityId, id))),
+      getConfiguredTimezone(),
+      queryGroupStats(assets.domain),
+      queryGroupStats(assets.owner),
+      queryGroupStats(assets.owner, eq(assets.domain, asset.domain)),
+      db
+        .select()
+        .from(assets)
+        .where(and(eq(assets.domain, asset.domain), ne(assets.id, id)))
+        .orderBy(desc(assets.id))
+        .limit(6),
+      db
+        .select()
+        .from(assets)
+        .where(and(eq(assets.owner, asset.owner), ne(assets.domain, asset.domain)))
+        .orderBy(desc(assets.id))
+        .limit(4),
+      db
+        .select()
+        .from(assets)
+        .where(
+          and(
+            ne(assets.id, id),
+            or(eq(assets.domain, asset.domain), eq(assets.owner, asset.owner)),
+          ),
+        )
+        .orderBy(
+          sql`case when ${assets.domain} = ${asset.domain} and ${assets.owner} = ${asset.owner} then 0 when ${assets.domain} = ${asset.domain} then 1 else 2 end`,
+          desc(assets.id),
+        )
+        .limit(12),
+      db
+        .select({
+          id: audits.id,
+          at: audits.at,
+          action: audits.action,
+          actorSource: audits.actorSource,
+          actorName: audits.actorName,
+          actorUsername: audits.actorUsername,
+          detail: audits.detail,
+        })
+        .from(audits)
+        .where(
+          and(
+            inArray(audits.action, [...ASSET_AUDIT_ACTIONS]),
+            sql`${audits.detail}->>'entityId' = ${idText}`,
+          ),
+        )
+        .orderBy(desc(audits.at), desc(audits.id))
+        .limit(20),
+    ]);
+
+    const idx = orderedIds.findIndex((item) => item.id === id);
+    const domainStat = allDomainStats.find((s) => s.name === asset.domain) ?? {
+      name: asset.domain,
+      total: 1,
+      registered: asset.stage === "已登记" ? 1 : 0,
+      pending: asset.stage === "待复核" ? 1 : 0,
+    };
+    const ownerStat = allOwnerStats.find((s) => s.name === asset.owner) ?? {
+      name: asset.owner,
+      total: 1,
+      registered: asset.stage === "已登记" ? 1 : 0,
+      pending: asset.stage === "待复核" ? 1 : 0,
+    };
+    const ledgerTotal = allDomainStats.reduce((sum, s) => sum + s.total, 0);
+
+    const auditTrail: AssetAuditEntry[] = auditRows.map((row) => ({
+      id: row.id,
+      at: row.at instanceof Date ? row.at.toISOString() : String(row.at),
+      action: row.action,
+      actorSource: ((ACTOR_SOURCES as readonly string[]).includes(row.actorSource)
+        ? row.actorSource
+        : "human") as ActorSource,
+      actorName: row.actorName,
+      actorUsername: row.actorUsername,
+      detail: row.detail ?? {},
+    }));
+
+    const detailBody: AssetDetailResponse = {
+      asset,
+      attachmentCount: Number(attachmentRows[0]?.n ?? 0),
+      timezone,
+      neighbor: {
+        position: idx >= 0 ? idx + 1 : null,
+        total: orderedIds.length,
+        prev: idx > 0 ? (orderedIds[idx - 1] ?? null) : null,
+        next: idx >= 0 && idx < orderedIds.length - 1 ? (orderedIds[idx + 1] ?? null) : null,
+      },
+      metrics: {
+        ledgerTotal,
+        domainTotal: domainStat.total,
+        domainRegistered: domainStat.registered,
+        domainPending: domainStat.pending,
+        ownerTotal: ownerStat.total,
+        ownerRegistered: ownerStat.registered,
+        ownerPending: ownerStat.pending,
+        sameDomainTeamCount: ownerPeersInDomain.length,
+        crossDomainCount: Math.max(
+          ownerStat.total - (ownerPeersInDomain.find((o) => o.name === asset.owner)?.total ?? 0),
+          0,
+        ),
+      },
+      domainBreakdown: allDomainStats.slice(0, 8),
+      ownerPeersInDomain,
+      sameDomainPeers,
+      sameOwnerCrossDomain,
+      peerAssets,
+      auditTrail,
+    };
+    return c.json(detailBody);
+  })
+  .get("/assets/:id", requirePermission("assets:read"), async (c) => {
+    const id = parsePositiveId(c.req.param("id"));
+    if (!id) return c.json({ error: "无效的资产编号" }, 400);
+    const [row] = await db.select().from(assets).where(eq(assets.id, id));
+    if (!row) return c.json({ error: "资产不存在" }, 404);
+    return c.json(row);
   })
   .get("/assets/import/template", requirePermission("assets:read"), (c) =>
     c.body(ASSET_IMPORT_TEMPLATE, 200, {

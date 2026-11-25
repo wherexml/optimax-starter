@@ -32,7 +32,7 @@
   - `attachments.ts`：`GET /attachments?entityType&entityId`、`POST /attachments`（multipart，仅资产、`assets:manage`；先写字节再落库，失败回收孤儿对象）、`GET /attachments/:id/download`（重新鉴权，`octet-stream` + `attachment` + `nosniff` + `CSP sandbox`）、`DELETE /attachments/:id`；写操作同事务审计 `attachment.upload` / `attachment.delete`。
   - `jobs.ts`：`GET /jobs`（`jobs:read` 看全部，否则仅本人）、`GET /jobs/:id`、`POST /jobs`（按任务类型校验权限并在共享锁内复核实时角色）、`POST /jobs/:id/retry`（`jobs:manage`，仅 `failed`/`cancelled`）、`POST /jobs/:id/cancel`（`jobs:manage` 可取消排队/执行中；发起人可取消本人排队任务）；审计 `job.create` / `job.retry` / `job.cancel`。
   - `tokens.ts`：`GET/POST /me/tokens`、`DELETE /me/tokens/:id`（全部 `requireCookieSession`）；scopes 必须是本人当前有效权限子集，每账户最多 20 个有效密钥，明文仅在创建响应中返回一次；审计 `token.create` / `token.revoke`。
-  - `assets.ts`：`/assets`、`/assets/page`（`stage`/`domain`/`owner` 多值、`sortBy`/`sortDir`、`page`/`size`）、`/assets/facets`、`/assets/import/{template,preview,commit}`（同步 ≤ 500 行，`onDuplicate=fail|skip`，同事务审计 `asset.bulk_import`）、资产增删改、批量流转/删除（`/assets/bulk-stage`、`/assets/bulk-delete`）及 `/assets/agent`（受 `assets:read` 权限与全局熔断双重约束，回执写入 `agent.asset_filter` 审计）。
+  - `assets.ts`：`/assets`、`/assets/page`（`stage`/`domain`/`owner` 多值、`sortBy`/`sortDir`、`page`/`size`）、`/assets/summary`（当前筛选范围的状态与业务域/团队聚合统计）、`/assets/facets`、`/assets/topology`（`assets-topology.ts` 基于全量资产确定性计算 `2400 x 1600` 扇区力导向超大图并按指纹缓存）、`/assets/:id`、`/assets/:id/detail`（单条详情、筛选队列前后邻居、同域/跨域拓扑关系、`console_attachment` 计数与关联 `console_audit` 记录）、`/assets/import/{template,preview,commit}`（同步 ≤ 500 行，`onDuplicate=fail|skip`，同事务审计 `asset.bulk_import`）、资产增删改、批量流转/删除（`/assets/bulk-stage`、`/assets/bulk-delete`）及 `/assets/agent`（受 `assets:read` 权限与全局熔断双重约束，回执写入 `agent.asset_filter` 审计）。
 
 ## 新增模块步骤
 
@@ -43,4 +43,4 @@
 
 ## 单元测试
 
-`src/core/*.test.ts` 只覆盖无 DB 依赖的纯函数（`http`、`bearer`、`job-policy`、`storage`、`csv`、`oidc`、`feishu`、`login-guard`、`audit` 脱敏）；涉及数据库、事务与 HTTP 全链路的行为以 E2E 为准（见 [TESTING.md](../../TESTING.md)）。
+`src/core/*.test.ts` 与 `src/modules/assets-{policy,topology}.test.ts` 只覆盖无 DB 依赖的纯函数（`http`、`bearer`、`job-policy`、`storage`、`csv`、`oidc`、`feishu`、`login-guard`、`audit` 脱敏、`assets-topology` 构图）；涉及数据库、事务与 HTTP 全链路的行为以 E2E 为准（见 [TESTING.md](../../TESTING.md)）。

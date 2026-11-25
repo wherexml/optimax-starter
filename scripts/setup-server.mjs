@@ -143,7 +143,7 @@ function bootstrapArgs(params, { dryRun }) {
 }
 
 function genModuleArgs(params, { dryRun }) {
-  assertKeys(params, ["slug", "label", "singular", "fields"]);
+  assertKeys(params, ["slug", "label", "singular", "fields", "detail"]);
   const slug = reqString(params, "slug", {
     re: /^[a-z][a-z0-9-]{1,28}$/,
     max: 29,
@@ -175,6 +175,12 @@ function genModuleArgs(params, { dryRun }) {
     }
     args.push("--fields", fields);
   }
+  const detail = optString(params, "detail", {
+    re: /^(drawer|page)$/,
+    max: 16,
+    message: "detail 仅支持 drawer 或 page",
+  });
+  if (detail) args.push("--detail", detail);
   if (dryRun) args.push("--dry-run");
   return args;
 }

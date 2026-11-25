@@ -36,8 +36,8 @@
 | 技术栈 | React + Vite、TanStack Router / Query / Table、React Hook Form + Zod（共享契约见 [packages/api](./packages/api/README.md)） |
 | 包管理器 | Bun 1.3.14 |
 | API 代理方式 | Vite 代理同源 `/console` 到 `API_PROXY_TARGET`（生产单容器由 Hono `SERVE_WEB_DIST` 同源托管）；数据库 Session Cookie，不在前端保存 token |
-| UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`DetailDrawer` 含顶部操作栏与左下角上下条切换、`PageTabs`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；不使用原生 HTML dialog |
-| 图表/地图库 | 无；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
+| UI 组件库 | 共享 `@optimax-starter/ui`（`Dialog`、`FormDialog`、`DetailDrawer` 含顶部操作栏与左下角上下条切换、`PageTabs`、`Toaster` / `toast` 右下角全局通知、`FieldLayout`/`FormSection`、`Label`、`Input`/`InputGroup`/`ClearableInput`/`CopyableInput`、`PasswordInput`、`NumberInput`、`TagInput`、`Select`、`Combobox`、`MultiSelect`、`SegmentedControl`、`Textarea`、`Switch`、`Checkbox`、`ContentRefresh` / `PageSkeleton`）及高层列表槽位 [ResourceTableSlot](./apps/web/src/components/crud/README.md)；详情页超过 10 字段或含图表/大图时改用独立详情路由；不使用原生 HTML dialog |
+| 图表/地图库 | `@optimax-starter/ui` 内置 Recharts 与 Tremor Raw 风格可视化原语（`KpiCard`、`SparkChart`、`TrendAreaChart`、`DonutChart`、`CategoryBar`、`BarList`、`Tracker`）及交互式 High-DPI Canvas2D 超大图拓扑画布与泳道视图；登录页使用 4K 装饰背景图与透明产品标识，详见 [登录与品牌](./apps/web/src/features/auth/README.md) |
 | 是否允许 mock | 否；本地演示数据由服务端幂等写入 PostgreSQL，页面只读真实 API |
 | AI 服务 | [资产自然语言筛选](./apps/web/src/features/assets/README.md) 为可选服务端 OpenAI-compatible 模型能力（详见 [core/ai](./apps/server/src/core/ai/README.md)）；UI SDK 路由遵循 [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)，默认关闭 |
 
@@ -194,13 +194,19 @@ AppShell
 - 删除页面时，同步清理导航、路由表、懒加载 import、测试入口。
 - 404、无权限、未登录、加载失败要有清楚反馈。
 
+### 独立详情页路由与筛选上下文透传
+
+- 满足 [DESIGN 详情承载选型](./DESIGN.md#详情承载选型独立详情页-vs-右侧抽屉) 任一条件时，使用 TanStack Router 非嵌套兄弟路由文件 `apps/web/src/routes/<slug>_.$id.tsx`（声明 `createFileRoute("/<slug>_/$id")` 与复用列表页 `validateSearch`），避免与父级列表 `routes/<slug>.tsx` 发生 `<Outlet />` 嵌套冲突，同时保持侧栏 `<Link to="/<slug>">` 前缀高亮与 `isPathAccessible` 权限拦截。
+- 列表页通过 `navigate({ to: "/<slug>/$id", params: { ... }, search })` 透传筛选/排序/分页查询参数；详情页左上角 `<Link to="/<slug>" search={search}>` 原位返回，并由后端按同一筛选队列返回 `neighbor` 供「上一条 / 下一条」切换。新生成模块可传入 `--detail page`（默认 `drawer`）。
+
 路由事实表：
 
 | 路径 | 页面 | 权限 | 数据来源 | 验收入口 |
 | --- | --- | --- | --- | --- |
 | `/login` | `features/auth/LoginPage` | 公开；已有 Session 时仍可访问，不自动跳转 | `/console` 登录 API，设置 Session Cookie | `http://127.0.0.1:38140/login` |
 | `/` | `features/dashboard/DashboardPage`（概览） | `workbench:read` | `/console/assets`、`/console/accounts`、`/console/audit`（按有效权限请求） | `http://127.0.0.1:38140/` |
-| `/assets` | `features/assets/AssetsPage`（资产台账） | `assets:read`（写操作需 `assets:manage`） | `/console/assets`；URL 参数 `q`、`qOp`、`stage`、`domain` | `http://127.0.0.1:38140/assets` |
+| `/assets` | `features/assets/AssetsPage` + `AssetLedgerAnalyticsPanel`（资产台账与顶部概览） | `assets:read`（写操作需 `assets:manage`） | `/console/assets/page`、`/console/assets/summary`；URL 参数 `code`、`q`、`stage`、`domain`、`owner`、`sortBy`、`page` | `http://127.0.0.1:38140/assets` |
+| `/assets/$assetId` | `features/assets/AssetDetailPage` + `AssetTopologyGraph`（资产独立可视化详情页） | `assets:read`（写操作需 `assets:manage`） | `/console/assets/:id/detail`、`/console/assets/topology`、`/console/attachments` | `http://127.0.0.1:38140/assets/1` |
 | `/accounts` | `features/accounts/AccountsPage` + `CreateAccountDialog` | `accounts:read`（写操作需 `accounts:manage`，提权仅限 `super_admin`） | `/console/accounts`；URL 参数 `q`、`status`、`role` | `http://127.0.0.1:38140/accounts` |
 | `/permissions` | `features/permissions/PermissionsPage`（系统权限） | `super_admin`（`system:permission:read`） | `/console/system/permissions` | `http://127.0.0.1:38140/permissions` |
 | `/system` | `features/system/SystemPage`（系统配置） | `system:ai:read` 或 `system:settings:read` | `/console/system/status`、`/console/system/settings`；URL 参数 `tab=status\|settings` | `http://127.0.0.1:38140/system?tab=status` |

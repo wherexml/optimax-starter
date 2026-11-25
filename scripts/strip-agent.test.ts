@@ -120,18 +120,31 @@ function expectAgentStripped(root: string) {
   expect(shell).not.toContain("@/features/assistant");
   expect(shell).not.toContain("AssistantDock");
   expect(shell).not.toContain("SidebarAssistantTrigger");
+  expect(shell).toContain('from "@/features/auth/session"');
+  expect(shell).toContain('from "../console-client"');
   const system = readFileSync(
     path.join(root, "apps/web/src/features/system/SystemPage.tsx"),
     "utf-8",
   );
   expect(system).not.toContain("AiModelSettingsCard");
   expect(system).not.toContain('"agent-status"');
+  expect(system).toContain('from "@/features/auth/session"');
+  expect(system).toContain('from "@/features/refresh/WorkspaceRefresh"');
   const assetsPage = path.join(root, "apps/web/src/features/assets/AssetsPage.tsx");
   if (existsSync(assetsPage)) {
     const assets = readFileSync(assetsPage, "utf-8");
     expect(assets).not.toContain("AskAssistant");
+    expect(assets).toContain('from "@/features/auth/session"');
+    expect(assets).toContain('from "./AssetFormDialog"');
     expect(assets).toContain("importTrigger");
     expect(assets).toContain("createTrigger");
+  }
+  const assetDetailPage = path.join(root, "apps/web/src/features/assets/AssetDetailPage.tsx");
+  if (existsSync(assetDetailPage)) {
+    const detail = readFileSync(assetDetailPage, "utf-8");
+    expect(detail).not.toContain("AskAssistant");
+    expect(detail).toContain('from "@/features/auth/session"');
+    expect(detail).toContain('from "./AssetTopologyGraph"');
   }
   expect(markerHits(root, MIDDLE_DOT, { includeMd: true })).toEqual([]);
 }
@@ -139,6 +152,10 @@ function expectAgentStripped(root: string) {
 function expectExampleStripped(root: string) {
   for (const rel of example.EXAMPLE_PATHS)
     expect(existsSync(path.join(root, rel)), rel).toBe(false);
+  expect(existsSync(path.join(root, "apps/web/src/routes/assets_.$assetId.tsx"))).toBe(false);
+  expect(existsSync(path.join(root, "apps/web/src/features/assets/AssetDetailPage.tsx"))).toBe(
+    false,
+  );
   expect(markerHits(root, /@starter:example-assets-/)).toEqual([]);
 }
 

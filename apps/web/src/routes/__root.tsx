@@ -31,14 +31,16 @@ import {
   type NavLeafItem,
   storageKey,
 } from "@/config/app-config";
-// @starter:agent-start
-import { AssistantDock, SidebarAssistantTrigger } from "@/features/assistant/AssistantDrawer";
 import { getRoleLabel, hasPermission, useAccount } from "@/features/auth/session";
 import { QuickNav } from "@/features/navigation/QuickNav";
 import { useSidebarGlide } from "@/features/navigation/useSidebarGlide";
 import { WorkspaceRefresh } from "@/features/refresh/WorkspaceRefresh";
 import { request } from "../console-client";
+
+// @starter:agent-start
+import { AssistantDock, SidebarAssistantTrigger } from "@/features/assistant/AssistantDrawer";
 // @starter:agent-end
+
 import "../index.css";
 
 const SIDEBAR_KEY = storageKey("sidebar");

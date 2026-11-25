@@ -18,11 +18,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { PageTabs, PageTabsPanel } from "@/components/ui/page-tabs";
 import { toast } from "@/components/ui/toast";
 import { request } from "@/console-client";
-// @starter:agent-start
-import { AiModelSettingsCard } from "@/features/assistant/AiModelSettingsCard";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import { useContentRefresh } from "@/features/refresh/WorkspaceRefresh";
+
+// @starter:agent-start
+import { AiModelSettingsCard } from "@/features/assistant/AiModelSettingsCard";
 // @starter:agent-end
+
 import { JobsTab } from "./JobsTab";
 import { parseSystemSearch, SYSTEM_TAB_ITEMS } from "./search";
 

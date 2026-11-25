@@ -221,6 +221,150 @@ export interface AssetFacetResponse {
   owners: string[];
 }
 
+export interface AssetNeighbor {
+  id: number;
+  name: string;
+}
+
+export interface AssetGroupStat {
+  name: string;
+  total: number;
+  registered: number;
+  pending: number;
+}
+
+export interface AssetLedgerSummary {
+  total: number;
+  registered: number;
+  pending: number;
+  domainBreakdown: AssetGroupStat[];
+  ownerBreakdown: AssetGroupStat[];
+}
+
+export interface AssetAuditEntry {
+  id: number;
+  at: string;
+  action: string;
+  actorSource: ActorSource;
+  actorName: string;
+  actorUsername: string;
+  detail: Record<string, unknown>;
+}
+
+export interface AssetDetailResponse {
+  asset: Asset;
+  attachmentCount: number;
+  timezone: string;
+  neighbor: {
+    position: number | null;
+    total: number;
+    prev: AssetNeighbor | null;
+    next: AssetNeighbor | null;
+  };
+  metrics: {
+    ledgerTotal: number;
+    domainTotal: number;
+    domainRegistered: number;
+    domainPending: number;
+    ownerTotal: number;
+    ownerRegistered: number;
+    ownerPending: number;
+    sameDomainTeamCount: number;
+    crossDomainCount: number;
+  };
+  domainBreakdown: AssetGroupStat[];
+  ownerPeersInDomain: AssetGroupStat[];
+  sameDomainPeers: Asset[];
+  sameOwnerCrossDomain: Asset[];
+  peerAssets: Asset[];
+  auditTrail: AssetAuditEntry[];
+}
+
+export const ASSET_GRAPH_NODE_TYPES = ["DomainAnchor", "OwnerTeam", "Asset"] as const;
+export type AssetGraphNodeType = (typeof ASSET_GRAPH_NODE_TYPES)[number];
+
+export const ASSET_GRAPH_LINK_TYPES = [
+  "ANCHORS_DOMAIN",
+  "GOVERNED_BY",
+  "COLLABORATES_WITH",
+  "DATA_FLOW",
+  "INFRA_DEPENDENCY",
+] as const;
+export type AssetGraphLinkType = (typeof ASSET_GRAPH_LINK_TYPES)[number];
+
+export interface AssetGraphDomainDto {
+  key: string;
+  label: string;
+  description: string;
+  color: string;
+  nodeCount: number;
+  registeredCount: number;
+  pendingCount: number;
+  anchorX: number;
+  anchorY: number;
+}
+
+export interface AssetGraphNode {
+  id: string;
+  assetId?: number;
+  code: string;
+  label: string;
+  objectType: AssetGraphNodeType;
+  domain: string;
+  owner?: string;
+  stage?: AssetStage;
+  x: number;
+  y: number;
+  upstreamCount: number;
+  downstreamCount: number;
+  assetCount?: number;
+}
+
+export interface AssetGraphEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  linkType: AssetGraphLinkType;
+  label: string;
+}
+
+export interface AssetSubgraphPath {
+  id: string;
+  label: string;
+  kind: "upstream" | "downstream" | "governance";
+  nodeIds: string[];
+  edgeIds: string[];
+}
+
+export interface AssetSubgraphDto {
+  seedNodeId: string;
+  direction: "both" | "upstream" | "downstream";
+  nodeIds: string[];
+  edgeIds: string[];
+  nodeRoles: Record<string, "seed" | "upstream" | "downstream" | "team" | "peer">;
+  nodeHops: Record<string, number>;
+  orderedPaths: AssetSubgraphPath[];
+  stats: {
+    highlightedNodeCount: number;
+    highlightedEdgeCount: number;
+    compressionRatio: number;
+  };
+}
+
+export interface AssetTopologyResponse {
+  world: { width: number; height: number };
+  domains: AssetGraphDomainDto[];
+  nodes: AssetGraphNode[];
+  edges: AssetGraphEdge[];
+  stats: {
+    nodeCount: number;
+    edgeCount: number;
+    assetCount: number;
+    domainCount: number;
+    teamCount: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // CSV bulk import
 // ---------------------------------------------------------------------------

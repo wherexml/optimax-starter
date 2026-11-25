@@ -24,23 +24,27 @@ const RESERVED = new Set([
 
 function usage() {
   console.log(`用法:
-  bun run gen:module <slug> --label <中文模块名> [--singular <单数英文名>] [--fields "<字段声明>"] [--dry-run]
+  bun run gen:module <slug> --label <中文模块名> [--singular <单数英文名>] [--detail drawer|page] [--fields "<字段声明>"] [--dry-run]
 
 字段语法（可选，省略时生成 name/category/owner/status 默认 4 字段）:
   <name>:<type>[:<中文标签>][?] ，多字段用英文逗号分隔；末尾 ? 表示可选
   支持类型: string | text | int | number | boolean | date | enum:选项A|选项B
 
+详情承载模式（--detail）:
+  drawer  默认值，列表页右侧抽屉（仅限 ≤10 个只读/轻交互字段的记录速览）
+  page    独立详情页（/<slug>/$id），适用于大图可视化、多维分析或复杂关联流程
+
 示例:
   bun run gen:module vendors --label 供应商台账 --singular vendor
-  bun run gen:module contracts --label 合同台账 --singular contract \\
+  bun run gen:module contracts --label 合同台账 --singular contract --detail page \\
     --fields "code:string:合同编号,amount:number:金额,qty:int:数量,kind:enum:采购|销售:类型,signedAt:date:签约日期,active:boolean:有效,remark:text:备注?"
 
 生成内容:
   1. packages/db/src/schema/<slug>.ts         Drizzle 数据表定义并注册到 schema/index.ts
   2. packages/api/src/<slug>.ts               前后端共享 Zod 契约与 URL 筛选解析器
-  3. apps/server/src/modules/<slug>.ts        Hono 链式分页筛选 + 管理员 CRUD + 同事务审计路由
-  4. apps/web/src/features/<slug>/*           ResourceTableSlot 列表页 + FormDialog 表单弹窗 + DetailDrawer + CSV 导出
-  5. apps/web/src/routes/<slug>.tsx           TanStack Router 路由并注册侧栏 / Cmd+K 导航
+  3. apps/server/src/modules/<slug>.ts        Hono 链式分页筛选 + 单条读取 + 管理员 CRUD + 同事务审计路由
+  4. apps/web/src/features/<slug>/*           ResourceTableSlot 列表页 + FormDialog + 详情抽屉或独立详情页 + CSV 导出
+  5. apps/web/src/routes/<slug>*.tsx          TanStack Router 路由并注册侧栏 / Cmd+K 导航
   6. scripts/verify-<slug>.py                 接口级权限、分页与审计闭环 E2E 脚本`);
 }
 
@@ -54,6 +58,7 @@ const slug = args[0];
 let label = "";
 let singular = "";
 let fieldsSpec = "";
+let detailMode = "drawer";
 let dryRun = false;
 
 for (let i = 1; i < args.length; i += 1) {
@@ -63,6 +68,8 @@ for (let i = 1; i < args.length; i += 1) {
     singular = args[++i] ?? "";
   } else if (args[i] === "--fields") {
     fieldsSpec = args[++i] ?? "";
+  } else if (args[i] === "--detail") {
+    detailMode = args[++i] ?? "";
   } else if (args[i] === "--dry-run") {
     dryRun = true;
   } else {
@@ -75,6 +82,9 @@ if (!/^[a-z][a-z0-9-]{1,28}$/.test(slug) || RESERVED.has(slug)) {
 }
 if (!label.trim()) {
   throw new Error("请通过 --label 提供中文模块名称，例如 --label 供应商台账");
+}
+if (detailMode !== "drawer" && detailMode !== "page") {
+  throw new Error(`无效的详情模式: ${detailMode}（仅支持 drawer 或 page）`);
 }
 label = label.trim();
 
@@ -605,6 +615,13 @@ ${dateRangeChecks ? `${dateRangeChecks}\n` : ""}${multiEnumChecks ? `${multiEnum
       db.select({ n: count() }).from(${camel}Table)${totalWhereClause},
     ]);
     return c.json({ items, total: Number(totals[0]?.n ?? 0), page, size });
+  })
+  .get("/${slug}/:id", requirePermission("${slug}:read"), async (c) => {
+    const id = parsePositiveId(c.req.param("id"));
+    if (!id) return c.json({ error: "无效的编号" }, 400);
+    const [row] = await db.select().from(${camel}Table).where(eq(${camel}Table.id, id));
+    if (!row) return c.json({ error: "${label}记录不存在" }, 404);
+    return c.json(row);
   })
   .post("/${slug}", requirePermission("${slug}:manage"), async (c) => {
     const parsed = ${camel}InputSchema.safeParse(await c.req.json().catch(() => null));
@@ -1215,254 +1232,51 @@ function buildWebPageContent() {
     .join("\n");
 
   const badgeImport = hasBadge ? 'import { Badge } from "@/components/ui/badge";\n' : "";
-
-  return `import { getRouteApi } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
-import {
-  ${apiImports.join(",\n  ")},
-} from "@optimax-starter/api/${slug}";
-import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
-import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
-import type { FilterField } from "@/components/filters/FilterBar";
-import { TableExportMenu } from "@/components/table/TableExportMenu";
-${badgeImport}import { Button } from "@/components/ui/button";
-import {
+  const isPageDetail = detailMode === "page";
+  const detailDrawerImport = isPageDetail
+    ? ""
+    : `import {
   DetailDrawer,
   DetailField,
   DetailSection,
-} from "@/components/ui/detail-drawer";
-import { toast } from "@/components/ui/toast";
-import { storageKey } from "@/config/app-config";
-import { request } from "@/console-client";
-import { hasPermission, useAccount } from "@/features/auth/session";
-import type { Filters } from "@/hooks/usePersistedFilters";
-import { downloadCsv } from "@/lib/csv";
-import { ${pascal}FormDialog } from "./${pascal}FormDialog";
+} from "@/components/ui/detail-drawer";\n`;
 
-const route = getRouteApi("/${slug}");
-const SIZES = [20, 50, 100];
-
-const FIELDS: FilterField[] = [
-${filterFields.join(",\n")}
-];
-
-export function ${pascal}Page() {
-  const me = useAccount();
-  const cache = useQueryClient();
-  const canRead = hasPermission(me.data, "${slug}:read");
-  const canManage = hasPermission(me.data, "${slug}:manage");
-  const params = route.useSearch();
-  const navigate = route.useNavigate();
-  const page = params.page ?? 1;
-  const size = params.size ?? SIZES[0]!;
-  const [pending, setPending] = useState<
-    { kind: "create" } | { kind: "edit" | "delete"; row: ${singularPascal}Record } | null
-  >(null);
-  const [detailRow, setDetailRow] = useState<${singularPascal}Record | null>(null);
-  const createTrigger = useRef<HTMLButtonElement>(null);
-  const returnFocus = useRef<HTMLElement | null>(null);
-  const returnToDetailRef = useRef<number | null>(null);
-
-  const filters: Filters = {
-${filterStateLines.join("\n")}
-  };
-
-  const query = useQuery({
-    meta: { contentRefresh: true },
-    queryKey: ["${slug}", params],
-    queryFn: () => {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries({ ...filters, page, size })) {
-        if (v === undefined) continue;
-        if (Array.isArray(v)) {
-          for (const item of v) {
-            if (String(item) !== "") qs.append(k, String(item));
-          }
-          continue;
-        }
-        if (String(v) !== "") qs.set(k, String(v));
-      }
-      return request<${singularPascal}Page>(\`/${slug}?\${qs.toString()}\`);
-    },
-    enabled: Boolean(me.data) && canRead,
-    placeholderData: keepPreviousData,
-  });
-
-  const currentItems = query.data?.items ?? [];
-  const activeDetailRow = detailRow
+  const stateDecl = isPageDetail
+    ? ""
+    : `\n  const [detailRow, setDetailRow] = useState<${singularPascal}Record | null>(null);`;
+  const detailRefDecl = isPageDetail
+    ? ""
+    : "\n  const returnToDetailRef = useRef<number | null>(null);";
+  const activeDetailBlock = isPageDetail
+    ? ""
+    : `\n  const activeDetailRow = detailRow
     ? (currentItems.find((r) => r.id === detailRow.id) ?? detailRow)
     : null;
   const detailIndex = activeDetailRow
     ? currentItems.findIndex((r) => r.id === activeDetailRow.id)
-    : -1;
-
-  const columns = useMemo<ColumnDef<${singularPascal}Record>[]>(() => {
-    const base: ColumnDef<${singularPascal}Record>[] = [
-      {
-        accessorKey: "id",
-        header: "编号",
-        enableSorting: false,
-        cell: (c) => (
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
-            ${codePrefix}-{String(c.getValue()).padStart(3, "0")}
-          </span>
-        ),
-      },
-${columnBlocks.join(",\n")},
-    ];
-    return [
-      ...base,
-      {
-        id: "action",
-        header: "操作",
-        enableSorting: false,
-        cell: (c) => {
-          const row = c.row.original;
-          return (
-            <div className="row-actions">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  returnFocus.current = e.currentTarget;
-                  setDetailRow(row);
-                }}
-              >
-                详情
-              </Button>
-              {canManage && (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      returnFocus.current = e.currentTarget;
-                      setPending({ kind: "edit", row });
-                    }}
-                  >
-                    编辑
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      returnFocus.current = e.currentTarget;
-                      setPending({ kind: "delete", row });
-                    }}
-                  >
-                    删除
-                  </Button>
-                </>
-              )}
-            </div>
-          );
-        },
-      },
-    ];
-  }, [canManage]);
-
-  return (
-    <ResourceTableSlot
-      title="${label}"
-      allowed={canRead}
-      actions={
-        canManage ? (
-          <Button
-            ref={createTrigger}
-            size="sm"
-            onClick={() => {
-              returnFocus.current = createTrigger.current;
-              setPending({ kind: "create" });
-            }}
-          >
-            <Plus size={15} />
-            新增${label}
-          </Button>
-        ) : undefined
-      }
-      fields={FIELDS}
-      filters={filters}
-      onApplyFilters={(next) =>
-        void navigate({
-          search: parse${singularPascal}Search({ ...next, size: params.size }),
-          replace: true,
-        })
-      }
-      draftStorageKey={
-        me.data ? \`\${storageKey("filter-drafts.v1")}:\${me.data.id}:${slug}\` : undefined
-      }
-      columns={columns}
-      data={currentItems}
-      isLoading={query.isPending}
-      error={query.error?.message}
-      onRefresh={() => query.refetch()}
-      refreshLabel="刷新${label}"
-      onRowClick={(row) => {
-        returnFocus.current = null;
-        setDetailRow(row);
-      }}
-      toolbarEnd={
-        <TableExportMenu
-          disabled={!currentItems.length}
-          items={[
-            {
-              label: "导出当前页 CSV",
-              disabled: !currentItems.length,
-              onSelect: () => {
-                const count = downloadCsv(\`${label}-第\${page}页.csv\`, currentItems, [
-                  {
-                    header: "编号",
-                    value: (r) => \`${codePrefix}-\${String(r.id).padStart(3, "0")}\`,
-                  },
-${csvColumns}
-                  { header: "创建时间", value: (r) => r.createdAt },
-                ]);
-                toast.success(\`已导出当前页 \${count} 条${label}记录\`);
-              },
-            },
-          ]}
-        />
-      }
-      pagination={{
-        pageIndex: page - 1,
-        pageSize: size,
-        total: query.data?.total ?? 0,
-        sizes: SIZES,
-        onChange: (p) =>
-          void navigate({
-            search: parse${singularPascal}Search({
-              ...filters,
-              page: p.pageIndex + 1,
-              size: p.pageSize,
-            }),
-            replace: true,
-          }),
-      }}
-    >
-      {pending?.kind === "create" && (
-        <${pascal}FormDialog
-          trigger={returnFocus.current}
-          close={(msg) => {
+    : -1;`;
+  const detailClickHandler = isPageDetail
+    ? `void navigate({
+                    to: "/${slug}/$id",
+                    params: { id: String(row.id) },
+                    search: params,
+                  });`
+    : `returnFocus.current = e.currentTarget;
+                  setDetailRow(row);`;
+  const rowClickHandler = isPageDetail
+    ? `void navigate({
+          to: "/${slug}/$id",
+          params: { id: String(row.id) },
+          search: params,
+        });`
+    : `returnFocus.current = null;
+        setDetailRow(row);`;
+  const editCloseBlock = isPageDetail
+    ? `close={(msg) => {
             setPending(null);
             if (msg) toast.success(msg);
-          }}
-        />
-      )}
-      {pending?.kind === "edit" && (
-        <${pascal}FormDialog
-          record={pending.row}
-          trigger={returnFocus.current}
-          close={(msg) => {
+          }}`
+    : `close={(msg) => {
             const backId = returnToDetailRef.current;
             returnToDetailRef.current = null;
             const fallbackRow = pending.row;
@@ -1472,17 +1286,17 @@ ${csvColumns}
               const latest = currentItems.find((r) => r.id === backId) ?? fallbackRow;
               setDetailRow(latest);
             }
-          }}
-        />
-      )}
-      {pending?.kind === "delete" && (
-        <ConfirmDialog
-          title="删除记录"
-          description={\`将删除「\${String(pending.row.${primaryField.name} ?? pending.row.id)}」并记录操作日志。\`}
-          submitText="删除"
-          trigger={returnFocus.current}
-          action={() => request(\`/${slug}/\${pending.row.id}\`, "DELETE", {})}
-          close={async (done) => {
+          }}`;
+  const deleteCloseBlock = isPageDetail
+    ? `close={async (done) => {
+            const name = String(pending.row.${primaryField.name} ?? pending.row.id);
+            setPending(null);
+            if (done) {
+              await cache.invalidateQueries({ queryKey: ["${slug}"] });
+              toast.success(\`已删除 \${name}\`);
+            }
+          }}`
+    : `close={async (done) => {
             const targetRow = pending.row;
             const backId = returnToDetailRef.current;
             returnToDetailRef.current = null;
@@ -1495,10 +1309,10 @@ ${csvColumns}
               const latest = currentItems.find((r) => r.id === backId) ?? targetRow;
               setDetailRow(latest);
             }
-          }}
-        />
-      )}
-      <DetailDrawer
+          }}`;
+  const drawerJsx = isPageDetail
+    ? ""
+    : `\n      <DetailDrawer
         open={Boolean(activeDetailRow)}
         onOpenChange={(open) => {
           if (!open) setDetailRow(null);
@@ -1579,8 +1393,564 @@ ${detailFields}
             </DetailField>
           </DetailSection>
         )}
-      </DetailDrawer>
+      </DetailDrawer>`;
+
+  return `import { getRouteApi } from "@tanstack/react-router";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Plus } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import {
+  ${apiImports.join(",\n  ")},
+} from "@optimax-starter/api/${slug}";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
+import type { FilterField } from "@/components/filters/FilterBar";
+import { TableExportMenu } from "@/components/table/TableExportMenu";
+${badgeImport}import { Button } from "@/components/ui/button";
+${detailDrawerImport}import { toast } from "@/components/ui/toast";
+import { storageKey } from "@/config/app-config";
+import { request } from "@/console-client";
+import { hasPermission, useAccount } from "@/features/auth/session";
+import type { Filters } from "@/hooks/usePersistedFilters";
+import { downloadCsv } from "@/lib/csv";
+import { ${pascal}FormDialog } from "./${pascal}FormDialog";
+
+const route = getRouteApi("/${slug}");
+const SIZES = [20, 50, 100];
+
+const FIELDS: FilterField[] = [
+${filterFields.join(",\n")}
+];
+
+export function ${pascal}Page() {
+  const me = useAccount();
+  const cache = useQueryClient();
+  const canRead = hasPermission(me.data, "${slug}:read");
+  const canManage = hasPermission(me.data, "${slug}:manage");
+  const params = route.useSearch();
+  const navigate = route.useNavigate();
+  const page = params.page ?? 1;
+  const size = params.size ?? SIZES[0]!;
+  const [pending, setPending] = useState<
+    { kind: "create" } | { kind: "edit" | "delete"; row: ${singularPascal}Record } | null
+  >(null);${stateDecl}
+  const createTrigger = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);${detailRefDecl}
+
+  const filters: Filters = {
+${filterStateLines.join("\n")}
+  };
+
+  const query = useQuery({
+    meta: { contentRefresh: true },
+    queryKey: ["${slug}", params],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries({ ...filters, page, size })) {
+        if (v === undefined) continue;
+        if (Array.isArray(v)) {
+          for (const item of v) {
+            if (String(item) !== "") qs.append(k, String(item));
+          }
+          continue;
+        }
+        if (String(v) !== "") qs.set(k, String(v));
+      }
+      return request<${singularPascal}Page>(\`/${slug}?\${qs.toString()}\`);
+    },
+    enabled: Boolean(me.data) && canRead,
+    placeholderData: keepPreviousData,
+  });
+
+  const currentItems = query.data?.items ?? [];${activeDetailBlock}
+
+  const columns = useMemo<ColumnDef<${singularPascal}Record>[]>(() => {
+    const base: ColumnDef<${singularPascal}Record>[] = [
+      {
+        accessorKey: "id",
+        header: "编号",
+        enableSorting: false,
+        cell: (c) => (
+          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            ${codePrefix}-{String(c.getValue()).padStart(3, "0")}
+          </span>
+        ),
+      },
+${columnBlocks.join(",\n")},
+    ];
+    return [
+      ...base,
+      {
+        id: "action",
+        header: "操作",
+        enableSorting: false,
+        cell: (c) => {
+          const row = c.row.original;
+          return (
+            <div className="row-actions">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ${detailClickHandler}
+                }}
+              >
+                详情
+              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      returnFocus.current = e.currentTarget;
+                      setPending({ kind: "edit", row });
+                    }}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      returnFocus.current = e.currentTarget;
+                      setPending({ kind: "delete", row });
+                    }}
+                  >
+                    删除
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ];
+  }, [${isPageDetail ? "canManage, navigate, params" : "canManage"}]);
+
+  return (
+    <ResourceTableSlot
+      title="${label}"
+      allowed={canRead}
+      actions={
+        canManage ? (
+          <Button
+            ref={createTrigger}
+            size="sm"
+            onClick={() => {
+              returnFocus.current = createTrigger.current;
+              setPending({ kind: "create" });
+            }}
+          >
+            <Plus size={15} />
+            新增${label}
+          </Button>
+        ) : undefined
+      }
+      fields={FIELDS}
+      filters={filters}
+      onApplyFilters={(next) =>
+        void navigate({
+          search: parse${singularPascal}Search({ ...next, size: params.size }),
+          replace: true,
+        })
+      }
+      draftStorageKey={
+        me.data ? \`\${storageKey("filter-drafts.v1")}:\${me.data.id}:${slug}\` : undefined
+      }
+      columns={columns}
+      data={currentItems}
+      isLoading={query.isPending}
+      error={query.error?.message}
+      onRefresh={() => query.refetch()}
+      refreshLabel="刷新${label}"
+      onRowClick={(row) => {
+        ${rowClickHandler}
+      }}
+      toolbarEnd={
+        <TableExportMenu
+          disabled={!currentItems.length}
+          items={[
+            {
+              label: "导出当前页 CSV",
+              disabled: !currentItems.length,
+              onSelect: () => {
+                const count = downloadCsv(\`${label}-第\${page}页.csv\`, currentItems, [
+                  {
+                    header: "编号",
+                    value: (r) => \`${codePrefix}-\${String(r.id).padStart(3, "0")}\`,
+                  },
+${csvColumns}
+                  { header: "创建时间", value: (r) => r.createdAt },
+                ]);
+                toast.success(\`已导出当前页 \${count} 条${label}记录\`);
+              },
+            },
+          ]}
+        />
+      }
+      pagination={{
+        pageIndex: page - 1,
+        pageSize: size,
+        total: query.data?.total ?? 0,
+        sizes: SIZES,
+        onChange: (p) =>
+          void navigate({
+            search: parse${singularPascal}Search({
+              ...filters,
+              page: p.pageIndex + 1,
+              size: p.pageSize,
+            }),
+            replace: true,
+          }),
+      }}
+    >
+      {pending?.kind === "create" && (
+        <${pascal}FormDialog
+          trigger={returnFocus.current}
+          close={(msg) => {
+            setPending(null);
+            if (msg) toast.success(msg);
+          }}
+        />
+      )}
+      {pending?.kind === "edit" && (
+        <${pascal}FormDialog
+          record={pending.row}
+          trigger={returnFocus.current}
+          ${editCloseBlock}
+        />
+      )}
+      {pending?.kind === "delete" && (
+        <ConfirmDialog
+          title="删除记录"
+          description={\`将删除「\${String(pending.row.${primaryField.name} ?? pending.row.id)}」并记录操作日志。\`}
+          submitText="删除"
+          trigger={returnFocus.current}
+          action={() => request(\`/${slug}/\${pending.row.id}\`, "DELETE", {})}
+          ${deleteCloseBlock}
+        />
+      )}${drawerJsx}
     </ResourceTableSlot>
+  );
+}
+`;
+}
+
+function buildWebDetailPageContent() {
+  const hasBadge = fields.some((f) => f.type === "enum" || f.type === "boolean");
+  const badgeImport = hasBadge ? 'import { Badge } from "@/components/ui/badge";\n' : "";
+  const infoCards = fields
+    .map((f) => {
+      if (f.type === "boolean") {
+        return `            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-muted-foreground">${f.label}</dt>
+              <dd className="m-0 text-sm text-foreground">
+                <Badge variant={record.${f.name} ? "brand" : "neutral"}>
+                  {record.${f.name} === null || record.${f.name} === undefined
+                    ? "—"
+                    : record.${f.name}
+                      ? "是"
+                      : "否"}
+                </Badge>
+              </dd>
+            </div>`;
+      }
+      if (f.type === "enum") {
+        return `            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-muted-foreground">${f.label}</dt>
+              <dd className="m-0 text-sm text-foreground">
+                {record.${f.name} ? (
+                  <Badge variant={record.${f.name} === ${JSON.stringify(f.options[0])} ? "brand" : "neutral"}>
+                    {String(record.${f.name})}
+                  </Badge>
+                ) : (
+                  "—"
+                )}
+              </dd>
+            </div>`;
+      }
+      if (f.type === "int" || f.type === "number" || f.type === "date") {
+        return `            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-muted-foreground">${f.label}</dt>
+              <dd className="m-0 font-mono text-sm text-foreground tabular-nums">
+                {record.${f.name} === null || record.${f.name} === undefined || record.${f.name} === ""
+                  ? "—"
+                  : String(record.${f.name})}
+              </dd>
+            </div>`;
+      }
+      const spanClass = f.type === "text" ? " sm:col-span-2" : "";
+      return `            <div className="flex flex-col gap-1${spanClass}">
+              <dt className="text-xs text-muted-foreground">${f.label}</dt>
+              <dd className="m-0 text-sm text-foreground">
+                {record.${f.name} ? String(record.${f.name}) : "—"}
+              </dd>
+            </div>`;
+    })
+    .join("\n");
+
+  const filterSearchLines = [];
+  for (const f of fields) {
+    if (f === searchField) {
+      filterSearchLines.push('    if (params.q) qs.set("q", params.q);');
+      filterSearchLines.push('    if (params.q && params.qOp) qs.set("qOp", params.qOp);');
+    } else if (f.type === "enum") {
+      filterSearchLines.push(`    if (params.${f.name}) {`);
+      filterSearchLines.push(
+        `      const vals = Array.isArray(params.${f.name}) ? params.${f.name} : [params.${f.name}];`,
+      );
+      filterSearchLines.push(`      for (const v of vals) if (v) qs.append("${f.name}", v);`);
+      filterSearchLines.push("    }");
+    } else if (f.type === "date") {
+      filterSearchLines.push(
+        `    if (params.${f.name}From) qs.set("${f.name}From", params.${f.name}From);`,
+      );
+      filterSearchLines.push(
+        `    if (params.${f.name}To) qs.set("${f.name}To", params.${f.name}To);`,
+      );
+    }
+  }
+
+  return `import { getRouteApi, Link } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import type { ${singularPascal}Page, ${singularPascal}Record } from "@optimax-starter/api/${slug}";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+${badgeImport}import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { request } from "@/console-client";
+import { hasPermission, useAccount } from "@/features/auth/session";
+import { ${pascal}FormDialog } from "./${pascal}FormDialog";
+
+const route = getRouteApi("/${slug}_/$id");
+
+export function ${pascal}DetailPage() {
+  const me = useAccount();
+  const cache = useQueryClient();
+  const canRead = hasPermission(me.data, "${slug}:read");
+  const canManage = hasPermission(me.data, "${slug}:manage");
+  const { id } = route.useParams();
+  const params = route.useSearch();
+  const navigate = route.useNavigate();
+  const recordId = /^\\d+$/.test(id) ? Number(id) : 0;
+  const [pending, setPending] = useState<"edit" | "delete" | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+
+  const detailQuery = useQuery({
+    meta: { contentRefresh: true },
+    queryKey: ["${slug}", "detail", recordId],
+    queryFn: () => request<${singularPascal}Record>(\`/${slug}/\${recordId}\`),
+    enabled: Boolean(me.data) && canRead && recordId > 0,
+  });
+
+  const listQuery = useQuery({
+    queryKey: ["${slug}", params],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+${filterSearchLines.join("\n")}
+      qs.set("page", String(params.page ?? 1));
+      qs.set("size", String(params.size ?? 20));
+      return request<${singularPascal}Page>(\`/${slug}?\${qs.toString()}\`);
+    },
+    enabled: Boolean(me.data) && canRead,
+  });
+
+  if (me.data && !canRead) {
+    return (
+      <p role="alert" className="text-sm text-muted-foreground">
+        需要查看权限才可访问${label}详情
+      </p>
+    );
+  }
+
+  if (recordId <= 0) {
+    return (
+      <div className="panel flex flex-col gap-3">
+        <p role="alert" className="m-0 text-sm text-destructive">
+          无效的记录编号
+        </p>
+        <div>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/${slug}" search={params}>
+              <ArrowLeft size={14} aria-hidden="true" />
+              返回${label}
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const record = detailQuery.data;
+  const items = listQuery.data?.items ?? [];
+  const currentIdx = items.findIndex((item) => item.id === recordId);
+  const prevItem = currentIdx > 0 ? items[currentIdx - 1] : null;
+  const nextItem = currentIdx >= 0 && currentIdx < items.length - 1 ? items[currentIdx + 1] : null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" asChild className="-ml-2">
+          <Link to="/${slug}" search={params}>
+            <ArrowLeft size={14} aria-hidden="true" />
+            返回${label}
+          </Link>
+        </Button>
+        {currentIdx >= 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {currentIdx + 1} / {items.length}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!prevItem}
+              onClick={() =>
+                prevItem &&
+                void navigate({
+                  to: "/${slug}/$id",
+                  params: { id: String(prevItem.id) },
+                  search: params,
+                })
+              }
+            >
+              <ChevronLeft size={14} aria-hidden="true" />
+              上一条
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!nextItem}
+              onClick={() =>
+                nextItem &&
+                void navigate({
+                  to: "/${slug}/$id",
+                  params: { id: String(nextItem.id) },
+                  search: params,
+                })
+              }
+            >
+              下一条
+              <ChevronRight size={14} aria-hidden="true" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {detailQuery.isPending ? (
+        <div className="panel h-48 animate-pulse bg-muted/40" />
+      ) : detailQuery.error || !record ? (
+        <div className="panel flex flex-col gap-3">
+          <p role="alert" className="m-0 text-sm text-destructive">
+            {detailQuery.error?.message ?? "记录不存在或已被删除"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <header className="page-header flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+              <span className="rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-xs text-muted-foreground tabular-nums">
+                ${codePrefix}-{String(record.id).padStart(3, "0")}
+              </span>
+              <h1 className="m-0 truncate text-xl font-semibold tracking-tight text-foreground">
+                {String(record.${primaryField.name} ?? "${label}详情")}
+              </h1>
+            </div>
+            {canManage && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    returnFocus.current = e.currentTarget;
+                    setPending("edit");
+                  }}
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                  编辑
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    returnFocus.current = e.currentTarget;
+                    setPending("delete");
+                  }}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  删除
+                </Button>
+              </div>
+            )}
+          </header>
+
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
+            <section className="panel flex flex-col justify-center gap-2 xl:col-span-7">
+              <h2 className="m-0 text-sm font-semibold text-foreground">分析视图与关系画布</h2>
+              <p className="m-0 text-xs text-muted-foreground">
+                在此区域挂载本模块的拓扑图、时间序列图表（TrendAreaChart / DonutChart）或业务诊断画布，避免在窄侧栏内折叠复杂可视化。
+              </p>
+            </section>
+            <section className="panel xl:col-span-5">
+              <h2 className="m-0 mb-3 text-sm font-semibold text-foreground">结构化档案</h2>
+              <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
+${infoCards}
+                <div className="flex flex-col gap-1 sm:col-span-2">
+                  <dt className="text-xs text-muted-foreground">创建时间</dt>
+                  <dd className="m-0 font-mono text-xs text-muted-foreground tabular-nums">
+                    {record.createdAt}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+
+          {pending === "edit" && (
+            <${pascal}FormDialog
+              record={record}
+              trigger={returnFocus.current}
+              close={(msg) => {
+                setPending(null);
+                if (msg) toast.success(msg);
+              }}
+            />
+          )}
+          {pending === "delete" && (
+            <ConfirmDialog
+              title="删除记录"
+              description={\`将删除「\${String(record.${primaryField.name} ?? record.id)}」并记录操作日志。\`}
+              submitText="删除"
+              trigger={returnFocus.current}
+              action={() => request(\`/${slug}/\${record.id}\`, "DELETE", {})}
+              close={async (done) => {
+                const name = String(record.${primaryField.name} ?? record.id);
+                setPending(null);
+                if (done) {
+                  await cache.invalidateQueries({ queryKey: ["${slug}"] });
+                  toast.success(\`已删除 \${name}\`);
+                  void navigate({ to: "/${slug}", search: params, replace: true });
+                }
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 }
 `;
@@ -1679,9 +2049,12 @@ ${sampleEntries.join("\n")}
 created = call(admin, "POST", "/${slug}", 201, payload)
 try:
 ${filterAssert}
+    single = call(admin, "GET", f"/${slug}/{created['id']}", 200)
+    assert single["id"] == created["id"]
+    call(admin, "GET", "/${slug}/99999999", 404)
     call(admin, "PATCH", f"/${slug}/{created['id']}", 200, ${patchPayloadCode})
     call(admin, "DELETE", f"/${slug}/{created['id']}", 200, {})
-    print("PASS: ${slug} anonymous 401, create, server filter, patch, delete")
+    print("PASS: ${slug} anonymous 401, create, detail, server filter, patch, delete")
 finally:
     subprocess.run(
         ["docker", "compose", "exec", "-T", "db", "psql", "-v", "ON_ERROR_STOP=1", "-U", "starter", "-d", "starter"],
@@ -1715,6 +2088,26 @@ const files = [
     rel: `apps/web/src/features/${slug}/${pascal}Page.tsx`,
     content: buildWebPageContent(),
   },
+  ...(detailMode === "page"
+    ? [
+        {
+          rel: `apps/web/src/features/${slug}/${pascal}DetailPage.tsx`,
+          content: buildWebDetailPageContent(),
+        },
+        {
+          rel: `apps/web/src/routes/${slug}_.$id.tsx`,
+          content: `import { createFileRoute } from "@tanstack/react-router";
+import { parse${singularPascal}Search } from "@optimax-starter/api/${slug}";
+import { ${pascal}DetailPage } from "@/features/${slug}/${pascal}DetailPage";
+
+export const Route = createFileRoute("/${slug}_/$id")({
+  validateSearch: parse${singularPascal}Search,
+  component: ${pascal}DetailPage,
+});
+`,
+        },
+      ]
+    : []),
   {
     rel: `apps/web/src/routes/${slug}.tsx`,
     content: `import { createFileRoute } from "@tanstack/react-router";

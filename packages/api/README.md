@@ -4,7 +4,7 @@
 
 ## 文件职责
 
-- [contracts.ts](./src/contracts.ts)：核心实体类型（`Account`、`Asset`、`AuditEntry`、`PaginatedResult<T>`、`AuthProviderInfo` 含可选 `icon` 与 `passwordLoginDisabled`）、审计动作枚举 `AUDIT_ACTIONS` 与标签 `AUDIT_ACTION_LABELS`，以及登录、账户、个人资料、资产写入的严格 Zod Schema。
+- [contracts.ts](./src/contracts.ts)：核心实体类型（`Account`、`Asset`、`AuditEntry`、`PaginatedResult<T>`、`AuthProviderInfo` 含可选 `icon` 与 `passwordLoginDisabled`、`AssetLedgerSummary`、`AssetDetailResponse`、`AssetTopologyResponse` 资产汇总与超大图拓扑契约）、审计动作枚举 `AUDIT_ACTIONS` 与标签 `AUDIT_ACTION_LABELS`，以及登录、账户、个人资料、资产写入的严格 Zod Schema。
 - [permissions.ts](./src/permissions.ts)：三层系统角色（`member`、`admin`、`super_admin`）、权限目录 `PERMISSION_CATALOG`、超管独占权限集、`SYSTEM_PERMISSION_ROWS` 模块级「查看 / 操作」映射（含只读模块 `readonlyReason` 与 `hasModuleOperateAction` 判定）及权限矩阵更新 Schema。
 - [system.ts](./src/system.ts)：审计来源枚举 `ACTOR_SOURCES`（`human` | `agent` | `system`）、系统控制页标签 `SYSTEM_TABS`、系统状态探针响应 `SystemStatusResponse`、全量 IANA 可搜索时区清单 `getSystemTimezoneOptions`（含常用预设、UTC 偏移与中英文城市检索词）与熔断/基础配置写入 Schema。
 - [asset-agent.ts](./src/asset-agent.ts)：资产自然语言筛选的参数白名单与请求校验，详见 [资产模块](../../apps/web/src/features/assets/README.md)。

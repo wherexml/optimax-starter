@@ -41,15 +41,17 @@ export function AttachmentPanel({
     queryFn: () => attachmentsApi.list("asset", entityId),
   });
   const input = useRef<HTMLInputElement>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ row: Attachment; trigger: HTMLElement | null } | null>(
-    null,
-  );
+  const [pendingDelete, setPendingDelete] = useState<{
+    row: Attachment;
+    trigger: HTMLElement | null;
+  } | null>(null);
 
   const uploader = useMutation({
     mutationFn: (file: File) => attachmentsApi.upload(entityId, file),
     onSuccess: async (row) => {
       await Promise.all([
         cache.invalidateQueries({ queryKey }),
+        cache.invalidateQueries({ queryKey: ["assets", "detail", entityId] }),
         cache.invalidateQueries({ queryKey: ["audit"] }),
       ]);
       toast.success(`已上传 ${row.originalName}`);
@@ -171,6 +173,7 @@ export function AttachmentPanel({
             if (done) {
               await Promise.all([
                 cache.invalidateQueries({ queryKey }),
+                cache.invalidateQueries({ queryKey: ["assets", "detail", entityId] }),
                 cache.invalidateQueries({ queryKey: ["audit"] }),
               ]);
               toast.success(`已删除附件 ${name}`);

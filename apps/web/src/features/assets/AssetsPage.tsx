@@ -4,14 +4,11 @@ import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CloudDownload, Download, FileUp, Plus } from "lucide-react";
 import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AttachmentPanel } from "@/components/attachments/AttachmentPanel";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { ResourceTableSlot } from "@/components/crud/ResourceTableSlot";
 import type { FilterField } from "@/components/filters/FilterBar";
 import { TableExportMenu } from "@/components/table/TableExportMenu";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DetailDrawer, DetailField, DetailSection } from "@/components/ui/detail-drawer";
 import { toast } from "@/components/ui/toast";
 import { storageKey } from "@/config/app-config";
 import {
@@ -25,8 +22,6 @@ import {
   request,
   unwrapRpc,
 } from "@/console-client";
-// @starter:agent-start
-import { AskAssistant } from "@/features/assistant/AssistantDrawer";
 import { hasPermission, useAccount } from "@/features/auth/session";
 import {
   ASSET_PAGE_SIZES,
@@ -38,8 +33,11 @@ import { type Filters, usePersistedFilters } from "@/hooks/usePersistedFilters";
 import { downloadCsv } from "@/lib/csv";
 import { AssetFormDialog } from "./AssetFormDialog";
 import { AssetImportDialog } from "./AssetImportDialog";
+import { AssetLedgerAnalyticsPanel } from "./AssetLedgerAnalyticsPanel";
 import { assetColumns } from "./columns";
 
+// @starter:agent-start
+import { AskAssistant } from "@/features/assistant/AssistantDrawer";
 // @starter:agent-end
 
 const PERSIST = ["code", "codeOp", "q", "qOp", "domain", "owner", "stage"] as const;
@@ -60,7 +58,7 @@ const parseFilters = (raw: Record<string, unknown>) => filterValues(parseAssetSe
 type PendingAction =
   | { kind: "create" }
   | { kind: "import" }
-  | { kind: "detail" | "edit" | "delete"; row: Asset }
+  | { kind: "edit" | "delete"; row: Asset }
   | {
       kind: "bulk-stage";
       rows: Asset[];
@@ -74,6 +72,15 @@ type PendingAction =
     }
   | null;
 
+function toggleListFilter(
+  current: string | string[] | undefined,
+  value: string,
+): string | string[] | undefined {
+  const prev = asList(current);
+  const next = prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value];
+  return next.length === 0 ? undefined : next.length === 1 ? next[0] : next;
+}
+
 export function AssetsPage() {
   const me = useAccount();
   const cache = useQueryClient();
@@ -83,7 +90,6 @@ export function AssetsPage() {
   const createTrigger = useRef<HTMLButtonElement>(null);
   const importTrigger = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const returnToDetailRef = useRef<number | null>(null);
 
   // The router can keep raw or invalid keys (objects, nested arrays) even after validateSearch, so parse again here.
   const params = parseAssetSearch(route.useSearch() as Record<string, unknown>),
@@ -98,6 +104,8 @@ export function AssetsPage() {
   // Stable value keyed by content: new array references from the router never refetch on their own.
   const searchKey = JSON.stringify({ ...params, sortBy, sortDir, page, size });
   const pageSearch = useMemo(() => JSON.parse(searchKey) as AssetSearch, [searchKey]);
+  const summaryKey = JSON.stringify(filters);
+  const summarySearch = useMemo(() => JSON.parse(summaryKey) as AssetSearch, [summaryKey]);
 
   // Filter/sort/size changes omit `page`, which resets it to 1.
   const navigateSearch = useCallback(
@@ -122,6 +130,13 @@ export function AssetsPage() {
     enabled: Boolean(me.data) && canRead,
   });
 
+  const summaryQuery = useQuery({
+    queryKey: ["assets", "summary", summarySearch],
+    queryFn: ({ signal }) => assetsApi.summary(summarySearch, signal),
+    placeholderData: keepPreviousData,
+    enabled: Boolean(me.data) && canRead,
+  });
+
   const facets = useQuery({
     queryKey: ["assets", "facets"],
     queryFn: () => assetsApi.facets(),
@@ -133,11 +148,6 @@ export function AssetsPage() {
   const owners = facets.data?.owners ?? [];
   const rows = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
-  const activeDetailRow = useMemo(() => {
-    if (pending?.kind !== "detail") return null;
-    return rows.find((r) => r.id === pending.row.id) ?? pending.row;
-  }, [pending, rows]);
-  const detailIndex = activeDetailRow ? rows.findIndex((r) => r.id === activeDetailRow.id) : -1;
 
   // After deletions the current page may be past the end: step back to the last page.
   useEffect(() => {
@@ -231,12 +241,22 @@ export function AssetsPage() {
   });
 
   const openRowAction = useCallback(
-    (kind: "detail" | "edit" | "delete", row: Asset, e?: MouseEvent<HTMLElement>) => {
-      returnToDetailRef.current = null;
+    (kind: "edit" | "delete", row: Asset, e?: MouseEvent<HTMLElement>) => {
       returnFocus.current = e?.currentTarget ?? null;
       setPending({ kind, row });
     },
     [],
+  );
+
+  const openDetail = useCallback(
+    (row: Asset) => {
+      void navigate({
+        to: "/assets/$assetId",
+        params: { assetId: String(row.id) },
+        search: pageSearch,
+      });
+    },
+    [navigate, pageSearch],
   );
 
   const columns = useMemo<ColumnDef<Asset>[]>(() => {
@@ -255,7 +275,10 @@ export function AssetsPage() {
                 variant="ghost"
                 size="sm"
                 aria-label={`查看资产 ${row.name} 详情`}
-                onClick={(e) => openRowAction("detail", row, e)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openDetail(row);
+                }}
               >
                 详情
               </Button>
@@ -266,7 +289,10 @@ export function AssetsPage() {
                     variant="ghost"
                     size="sm"
                     aria-label={`编辑资产 ${row.name}`}
-                    onClick={(e) => openRowAction("edit", row, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openRowAction("edit", row, e);
+                    }}
                   >
                     编辑
                   </Button>
@@ -276,7 +302,10 @@ export function AssetsPage() {
                     size="sm"
                     className="text-destructive hover:text-destructive"
                     aria-label={`删除资产 ${row.name}`}
-                    onClick={(e) => openRowAction("delete", row, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openRowAction("delete", row, e);
+                    }}
                   >
                     删除
                   </Button>
@@ -287,7 +316,7 @@ export function AssetsPage() {
         },
       },
     ];
-  }, [canManage, openRowAction]);
+  }, [canManage, openDetail, openRowAction]);
 
   function renderHeaderActions() {
     // @starter:agent-start
@@ -345,7 +374,7 @@ export function AssetsPage() {
       data={rows}
       isLoading={query.isLoading}
       error={query.error?.message}
-      onRefresh={() => Promise.all([query.refetch(), facets.refetch()])}
+      onRefresh={() => Promise.all([query.refetch(), summaryQuery.refetch(), facets.refetch()])}
       refreshLabel="刷新资产"
       pagination={{
         pageIndex: page - 1,
@@ -372,7 +401,28 @@ export function AssetsPage() {
           }),
       }}
       enableRowSelection={canManage}
-      onRowClick={(row) => openRowAction("detail", row)}
+      onRowClick={openDetail}
+      wrapTable={(table) => (
+        <div className="flex flex-col gap-3">
+          <AssetLedgerAnalyticsPanel
+            summary={summaryQuery.data}
+            isLoading={summaryQuery.isPending}
+            activeStages={asList(params.stage)}
+            activeDomains={asList(params.domain)}
+            activeOwners={asList(params.owner)}
+            onToggleStage={(stage) =>
+              void update({ ...filters, stage: toggleListFilter(params.stage, stage) })
+            }
+            onToggleDomain={(domain) =>
+              void update({ ...filters, domain: toggleListFilter(params.domain, domain) })
+            }
+            onToggleOwner={(owner) =>
+              void update({ ...filters, owner: toggleListFilter(params.owner, owner) })
+            }
+          />
+          {table}
+        </div>
+      )}
       bulkActions={
         canManage
           ? ({ selectedRows, clearSelection }) => (
@@ -462,89 +512,6 @@ export function AssetsPage() {
         />
       }
     >
-      {activeDetailRow && (
-        <DetailDrawer
-          open
-          onOpenChange={(open) => {
-            if (!open) setPending(null);
-          }}
-          title={activeDetailRow.name}
-          description={`资产编号 AS-${String(activeDetailRow.id).padStart(3, "0")}`}
-          badge={
-            <Badge variant={activeDetailRow.stage === "已登记" ? "brand" : "warning"}>
-              {activeDetailRow.stage}
-            </Badge>
-          }
-          onCloseAutoFocus={(e) => {
-            if (returnFocus.current?.isConnected) {
-              e.preventDefault();
-              returnFocus.current.focus();
-            }
-          }}
-          actions={
-            canManage ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    returnToDetailRef.current = activeDetailRow.id;
-                    setPending({ kind: "edit", row: activeDetailRow });
-                  }}
-                >
-                  编辑
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => {
-                    returnToDetailRef.current = activeDetailRow.id;
-                    setPending({ kind: "delete", row: activeDetailRow });
-                  }}
-                >
-                  删除
-                </Button>
-              </>
-            ) : undefined
-          }
-          navigation={
-            detailIndex >= 0
-              ? {
-                  hasPrev: detailIndex > 0,
-                  hasNext: detailIndex < rows.length - 1,
-                  current: detailIndex + 1,
-                  total: rows.length,
-                  onPrev: () => {
-                    const prev = rows[detailIndex - 1];
-                    if (prev) setPending({ kind: "detail", row: prev });
-                  },
-                  onNext: () => {
-                    const next = rows[detailIndex + 1];
-                    if (next) setPending({ kind: "detail", row: next });
-                  },
-                }
-              : undefined
-          }
-        >
-          <DetailSection title="台账信息">
-            <DetailField label="资产编号">
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                AS-{String(activeDetailRow.id).padStart(3, "0")}
-              </span>
-            </DetailField>
-            <DetailField label="登记状态">{activeDetailRow.stage}</DetailField>
-            <DetailField label="资产名称">{activeDetailRow.name}</DetailField>
-            <DetailField label="业务域">{activeDetailRow.domain}</DetailField>
-            <DetailField label="责任团队" fullWidth>
-              {activeDetailRow.owner}
-            </DetailField>
-          </DetailSection>
-          <AttachmentPanel entityId={activeDetailRow.id} canManage={canManage} />
-        </DetailDrawer>
-      )}
       {pending?.kind === "create" && (
         <AssetFormDialog
           trigger={returnFocus.current}
@@ -597,16 +564,8 @@ export function AssetsPage() {
           asset={pending.row}
           trigger={returnFocus.current}
           close={(msg) => {
-            const backId = returnToDetailRef.current;
-            returnToDetailRef.current = null;
-            const fallbackRow = pending.row;
+            setPending(null);
             if (msg) toast.success(msg);
-            if (backId !== null) {
-              const latest = rows.find((r) => r.id === backId) ?? fallbackRow;
-              setPending({ kind: "detail", row: latest });
-            } else {
-              setPending(null);
-            }
           }}
         />
       )}
@@ -619,17 +578,13 @@ export function AssetsPage() {
           action={() => request(`/assets/${pending.row.id}`, "DELETE", {})}
           close={async (done) => {
             const targetRow = pending.row;
-            const backId = returnToDetailRef.current;
-            returnToDetailRef.current = null;
+            setPending(null);
             if (done) {
-              setPending(null);
-              await cache.invalidateQueries({ queryKey: ["assets"] });
+              await Promise.all([
+                cache.invalidateQueries({ queryKey: ["assets"] }),
+                cache.invalidateQueries({ queryKey: ["audit"] }),
+              ]);
               toast.success(`已删除资产 ${targetRow.name}`);
-            } else if (backId !== null) {
-              const latest = rows.find((r) => r.id === backId) ?? targetRow;
-              setPending({ kind: "detail", row: latest });
-            } else {
-              setPending(null);
             }
           }}
         />

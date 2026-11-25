@@ -132,6 +132,7 @@ jobs:
       - name: Dry-run module generator
         run: |
           node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run
+          node scripts/gen-module.mjs vendors --label 供应商台账 --detail page --dry-run
           node scripts/gen-module.mjs agreements --label 合同台账 --singular agreement --fields "code:string:合同编号,amount:number:金额,qty:int:数量,kind:enum:采购|销售:类型,signedAt:date:签约日期,active:boolean:有效,remark:text:备注?" --dry-run
       - uses: actions/upload-artifact@v4
         if: always()

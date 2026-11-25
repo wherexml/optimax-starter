@@ -738,6 +738,15 @@
               <span class="err-note" id="m-singular-msg" hidden></span>
             </div>
           </div>
+          <div class="sheet-row" id="m-detail-row">
+            <label class="sheet-label" for="m-detail">详情</label>
+            <div class="sheet-fill">
+              <select id="m-detail" class="sheet-input" style="cursor:pointer">
+                <option value="drawer" selected>右侧抽屉（≤10 字段速览）</option>
+                <option value="page">独立详情页（含分析视图）</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="field-list">
@@ -895,7 +904,7 @@
 
 <script type="application/json" id="onboarding-cli-contract">
 {
-  "contractVersion": "2026-11-23.1",
+  "contractVersion": "2026-11-25.1",
   "bootstrapSlugPattern": "^[a-z][a-z0-9-]{1,39}$",
   "bootstrapFlags": [
     "--dry-run",
@@ -912,7 +921,7 @@
     "-h"
   ],
   "genModuleSlugPattern": "^[a-z][a-z0-9-]{1,28}$",
-  "genModuleFlags": ["--dry-run", "--fields", "--help", "--label", "--singular", "-h"],
+  "genModuleFlags": ["--detail", "--dry-run", "--fields", "--help", "--label", "--singular", "-h"],
   "genModuleReservedSlugs": [
     "accounts",
     "agent",
@@ -1418,6 +1427,7 @@
     "apps/server/src/modules/assets-policy.test.ts",
     "apps/server/src/modules/assets-query.ts",
     "apps/web/src/routes/assets.tsx",
+    "apps/web/src/routes/assets_.$assetId.tsx",
     "apps/web/src/features/assets/"
   ];
   var MARKED_FILES = [
@@ -1928,7 +1938,12 @@
     }).join(",");
   }
   function modValues() {
-    return { slug: $("m-slug").value.trim(), label: $("m-label").value.trim(), singular: $("m-singular").value.trim() };
+    return {
+      slug: $("m-slug").value.trim(),
+      label: $("m-label").value.trim(),
+      singular: $("m-singular").value.trim(),
+      detail: $("m-detail").value === "page" ? "page" : "drawer"
+    };
   }
   function modErrors() {
     var v = modValues();
@@ -1946,6 +1961,7 @@
     var v = modValues();
     var parts = [script("gen:module"), shq(v.slug || "<slug>"), gf("--label"), shq(v.label || "<名称>")];
     if (v.singular) parts.push(gf("--singular"), shq(v.singular));
+    if (v.detail === "page") parts.push(gf("--detail"), "page");
     var spec = fieldsSpec();
     if (spec) parts.push(gf("--fields"), shq(spec));
     return parts;
@@ -1954,6 +1970,7 @@
     var v = modValues();
     var p = { slug: v.slug, label: v.label };
     if (v.singular) p.singular = v.singular;
+    if (v.detail === "page") p.detail = "page";
     var spec = fieldsSpec();
     if (spec) p.fields = spec;
     return p;
@@ -2083,17 +2100,23 @@
   }
 
   function modTreeEntries() {
-    var s = modValues().slug || "<slug>";
-    var P = modValues().slug ? pascal(modValues().slug) : "<Slug>";
-    return [
+    var v = modValues();
+    var s = v.slug || "<slug>";
+    var P = v.slug ? pascal(v.slug) : "<Slug>";
+    var created = [
       "packages/db/src/schema/" + s + ".ts",
       "packages/api/src/" + s + ".ts",
       "apps/server/src/modules/" + s + ".ts",
       "apps/web/src/features/" + s + "/" + P + "FormDialog.tsx",
-      "apps/web/src/features/" + s + "/" + P + "Page.tsx",
-      "apps/web/src/routes/" + s + ".tsx",
-      "scripts/verify-" + s + ".py"
-    ].map(function (p) { return { path: p, mark: "+" }; }).concat([
+      "apps/web/src/features/" + s + "/" + P + "Page.tsx"
+    ];
+    if (v.detail === "page") {
+      created.push("apps/web/src/features/" + s + "/" + P + "DetailPage.tsx");
+      created.push("apps/web/src/routes/" + s + "_.$id.tsx");
+    }
+    created.push("apps/web/src/routes/" + s + ".tsx");
+    created.push("scripts/verify-" + s + ".py");
+    return created.map(function (p) { return { path: p, mark: "+" }; }).concat([
       "packages/db/src/schema/index.ts",
       "packages/api/src/index.ts",
       "packages/api/src/contracts.ts",
@@ -2148,6 +2171,7 @@
     refreshRunButtons();
   }
   ["m-slug", "m-label", "m-singular"].forEach(function (id) { $(id).addEventListener("input", renderModule); });
+  $("m-detail").addEventListener("change", renderModule);
 
   // ==================================================================== Tab 3: 升级
   var CORE_PATHS = "apps/server/src/core packages/ui apps/web/src/components scripts/ " +

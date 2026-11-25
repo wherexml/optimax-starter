@@ -18,7 +18,10 @@ export const EXAMPLE_PATHS = [
   "apps/server/src/modules/assets-policy.ts",
   "apps/server/src/modules/assets-policy.test.ts",
   "apps/server/src/modules/assets-query.ts",
+  "apps/server/src/modules/assets-topology.ts",
+  "apps/server/src/modules/assets-topology.test.ts",
   "apps/web/src/routes/assets.tsx",
+  "apps/web/src/routes/assets_.$assetId.tsx",
   "apps/web/src/features/assets/",
   // Optional: absent when --no-agent already removed apps/server/src/agent/.
   "apps/server/src/agent/example-assets-tools.ts",

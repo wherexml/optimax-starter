@@ -32,8 +32,11 @@ export const AGENT_MARKED_FILES = [
   "compose.override.yaml",
 ];
 
-/** Stripped only when present (AssetsPage is gone after --no-example). */
-export const AGENT_OPTIONAL_MARKED_FILES = ["apps/web/src/features/assets/AssetsPage.tsx"];
+/** Stripped only when present (assets module is gone after --no-example). */
+export const AGENT_OPTIONAL_MARKED_FILES = [
+  "apps/web/src/features/assets/AssetsPage.tsx",
+  "apps/web/src/features/assets/AssetDetailPage.tsx",
+];
 
 export const AGENT_DEPENDENCIES = {
   "package.json": {
