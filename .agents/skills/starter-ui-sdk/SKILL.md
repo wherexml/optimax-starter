@@ -11,12 +11,12 @@ metadata:
 
 # UI SDK for OptiMax Starter
 
-## Starter adaptation (2026-11-16)
+## Starter adaptation (2026-11-26)
 
 This is the repo-scoped adaptation of Vercel's `ui-sdk` skill. The upstream references and Apache-2.0 license are retained. Use `$starter-ui-sdk` for this project; a global `ui-sdk` skill may also appear and is not merged with this one.
 
 - First choose the matching task in [Starter integration](references/starter.md). It maps components, new routes, URL state, agent actions and verification to the actual project files.
-- Reuse Starter's existing Radix/shared components for ordinary forms, tables and dialogs. Use UI SDK for an unmet behavior or an agent action; a style-only change needs DESIGN/FRONTEND, not a component migration.
+- Prefer `@ui-sdk/react` and `@optimax-starter/ui` shared wrappers (`packages/ui/src/components/{tooltip,dropdown-menu,segmented-control,switch,slider,resizable,alert-dialog,page-tabs}.tsx`) rather than adding a third headless UI library (`@base-ui/react` has been removed).
 - Installed React docs live under `apps/web/node_modules/@ui-sdk/react/docs/`. Read `llms.txt` and the relevant component page, not a newer website API. If dependencies are available only in Docker, use the existing web container as explained in the integration reference.
 - Use browser E2E for project behavior. The upstream framework-unit-test examples are reference material; do not add Vitest/jsdom or write unit tests after implementation. Test necessary isolated behavior before implementation, per AGENTS.md.
 - Keep the current runtime and design boundaries. Loading this skill grants no model, WebMCP, account, deployment or business-write authority.

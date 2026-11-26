@@ -27,7 +27,7 @@
 | Session 存储 | PostgreSQL `console_session`（仅存随机令牌的 SHA-256 摘要；记录登录 `ip_address`，`last_seen_at` 由会话中间件每 60 秒最多刷新一次，`expires` 在与目标到期时间相差超过 5 分钟时滑动顺延） |
 | Token 传递 | 浏览器：HttpOnly、`SameSite=Strict` Cookie（名称由 `SESSION_COOKIE_NAME` 配置，本地默认 `optimax_console`）；Agent / 集成：`Authorization: Bearer optx_…` 个人 API 密钥（`console_api_token`，见 [§12](#12-cookiebearer-与本地存储)） |
 | Session 有效期 | 默认 7 天（`168` 小时 / `604800` 秒）；可在 `/system?tab=settings` 直接输入调整（`1–2160` 小时）并统一点击顶部「应用」生效 |
-| 记住我 | 登录页可选仅在本地记住账户名，不延长服务端会话 |
+| 凭据自动填充 | 移除本地 `localStorage` 记住账户名复选框；登录表单通过 `autocomplete="username" / "current-password"`、`PasswordCredential` API 与 SPA 同文档跳转原生对接浏览器密码管理器 |
 | OAuth Provider | 默认无；`AUTH_OIDC_*` 配置标准 OIDC（仅关联已有启用账户）；`AUTH_FEISHU_*` 配置飞书企业自建应用（强校验 `tenant_key`，可选 `AUTH_FEISHU_AUTO_PROVISION=true` 仅自动创建 `member`）；旧 `AUTH_SSO_*` 自定义入口仍兼容 |
 | 注册限制 | 无开放注册，由具备 `accounts:manage` 的管理员创建成员账户（设置初始密码或生成 72 小时一次性激活链接）；`admin` 与 `super_admin` 角色仅超级管理员可分配 |
 | 登录限流 | 应用层 PostgreSQL `console_login_guard`：账户 `user:<小写账户名>` 30 分钟内失败 5 次锁 30 分钟；来源 `ip:<客户端 IP>` 15 分钟内失败 20 次锁 30 分钟；锁定期返回 `429` + `Retry-After` + `AUTH_LOCKED`，见 [§4](#4-密码登录) |

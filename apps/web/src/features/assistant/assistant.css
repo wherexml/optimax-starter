@@ -1269,6 +1269,47 @@
   background: var(--popover, var(--card));
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 }
+.pi-trigger-popup {
+  z-index: 70;
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(280px, var(--available-height, 280px));
+  padding: 4px;
+  overflow: hidden;
+  border: 0.5px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+.pi-trigger-list {
+  display: grid;
+  gap: 2px;
+  max-height: 236px;
+  overflow-y: auto;
+}
+.pi-trigger-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.pi-trigger-item[data-highlighted="true"],
+.pi-trigger-item[data-highlighted] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.pi-command-empty {
+  padding: 10px 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: center;
+}
 .pi-command-heading {
   padding: 4px 8px;
   color: var(--muted-foreground);

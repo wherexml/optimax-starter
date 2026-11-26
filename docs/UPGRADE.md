@@ -1,83 +1,42 @@
-# 模板基线与派生项目升级指南
+# 从上游 OptiMax Starter 同步底座更新
 
-通过 GitHub Template 创建新仓库后，提交历史会与 `optimax-starter` 分离。为避免后期底座修复、UI 组件或脚本升级时无从比对，项目在初始化时生成 `.starter-version` 文件，用于持续追踪派生所依据的模板提交。
+本仓库由 `bootstrap-project.sh` 派生时会在根目录生成 `.starter-version`，记录：
 
-## 1. `.starter-version` 字段说明
+- `STARTER_REPO`：上游模板仓库地址（Git URL 或本机克隆路径）
+- `STARTER_COMMIT`：当前业务项目已同步到的上游提交 SHA
+- `STARTER_SLUG`：派生项目标识
 
-运行 `./scripts/bootstrap-project.sh <project-slug>` 时会在仓库根目录生成 `.starter-version`（只含非敏感元数据，建议提交到 Git 版本库）：
-
-| 变量 | 含义 |
-| --- | --- |
-| `STARTER_REPO` | 初始化时记录的上游模板仓库地址或标识 |
-| `STARTER_COMMIT` | 当前项目已对齐的模板 Git Commit SHA（初始化时可通过 `--starter-sha <sha>` 显式指定） |
-| `STARTER_BOOTSTRAPPED_AT` | 派生初始化的 UTC ISO 时间戳 |
-| `STARTER_SLUG` | 派生项目的 `project-slug` |
-
-## 2. 目录归属边界
-
-同步上游升级前，先区分三类目录的维护责任：
-
-| 类别 | 包含路径 | 升级策略 |
-| --- | --- | --- |
-| **模板底座（推荐同步）** | `apps/server/src/core/`（含 `job-policy.ts`、`attachment-registry.ts`、`seed.ts` 注册表）、`apps/server/src/modules/` 中的核心模块（`accounts`、`attachments`、`audit`、`auth`、`jobs`、`system`、`tokens`）、`packages/db/src/schema/console.ts`、`packages/api/src/contracts.ts` 等核心契约、`packages/ui/`、`apps/web/src/components/`、`apps/web/src/features/dashboard/DashboardPage.tsx`、`scripts/`（含 `gen-module.mjs`、`lib/`、`check-migrations.mjs`、`doctor.mjs`、`bootstrap-project.sh`、`deploy-production.sh`）、`docs/onboarding.html` | 重点查看上游 diff 并选择性同步；中心注册文件里的 `// @starter:*` 注释锚点必须保留 |
-| **业务扩展（保留本地）** | `packages/db/src/schema/assets.ts` 与生成模块的 `schema/<slug>.ts`、`packages/api/src/<slug>.ts`、`apps/server/src/modules/assets*.ts` 与 `modules/<slug>.ts`、`apps/web/src/features/<业务>/`、`apps/web/src/features/dashboard/registry.ts`（含 `// @starter:dashboard-modules` 锚点）、`apps/web/src/routes/<业务>.tsx`、`packages/db/src/migrations/`、`scripts/verify-<slug>.py` | 承载业务表与页面，不整文件覆盖；只在需要通用新契约时手工挑选合并 |
-| **派生独立配置（禁止覆盖）** | `.env`、`.starter-version`、`package.json`（项目名等）、`compose.yaml`（项目名与镜像名）、`apps/web/src/config/app-config.ts`、`apps/web/public/brand/` | 包含各项目端口、Cookie 名、品牌文案与业务导航，切勿整文件覆盖 |
-
-中心注册文件（`schema/index.ts`、`packages/api/src/index.ts`、`contracts.ts`、`permissions.ts`、`apps/server/src/console.ts`、`app-config.ts`、`dashboard/registry.ts`）同时含底座与业务条目：业务条目位于 `// @starter:*` 锚点之前，示例模块被 `// @starter:example-assets-start` / `end` 包裹。合并时保留本地业务行与全部锚点，只吸收上游新增的核心行。
-
-示例 `assets` 模块可在初始化时用 `--no-example` 移除（会生成 `remove_example_assets` 迁移）；移除后不要再同步上游的 `assets*` 文件。
-
-可选 AI 智能助理属于模板底座，归属 `packages/agent/`（模型网关运行时）、`packages/api/src/agent.ts`（契约）、`apps/server/src/agent/`（路由、工具注册与 Skill）与 `apps/web/src/features/assistant/`（右侧助理面板）。宿主文件中的接入点用 `// @starter:agent-start` / `end`（JSX 中为 `{/* @starter:agent-start */}`，`.env.schema` 中为 `# [starter:agent-start]`）包裹，合并时保留。业务工具写在 `apps/server/src/agent/<模块>-tools.ts` 并按 `example-assets-tools.ts` 的方式注册，属于业务扩展。初始化时可用 `--no-agent` 整体移除（不建表，无需迁移），之后不要再同步上述四个目录。
-
-## 3. 对比与同步步骤
-
-在派生项目根目录执行以下流程，查看自上次对齐以来上游底座的变化并选择性同步：
+## 1. 预览上游变更（推荐先跑 dry-run）
 
 ```bash
-# 1. 首次升级时关联上游只读 remote（若尚未添加）
-git remote add starter https://github.com/wherexml/optimax-starter.git
-git fetch starter
-
-# 2. 读取当前已对齐的模板 Commit
-set -a
-source .starter-version
-set +a
-
-# 3. 仅查看模板底座目录的上游变更摘要与详细 diff
-git log --oneline "${STARTER_COMMIT}..starter/main" -- \
-  apps/server/src/core packages/ui apps/web/src/components scripts/
-
-git diff "${STARTER_COMMIT}..starter/main" -- \
-  apps/server/src/core packages/ui apps/web/src/components scripts/
+bun run upgrade:starter -- --dry-run
+# 如需指定本地预研中的 Starter 工作区：
+bun run upgrade:starter -- --dry-run --source /path/to/optimax-starter --to WORKTREE
 ```
 
-确认需要同步的文件后，推荐按文件挑选检出或导出补丁合并，而非整库 merge：
+`--dry-run` 不会写入任何文件，仅按目录边界分类列出：
+
+- **新增（`+`）**：上游新增的共享组件、工程脚本或核心辅助模块
+- **三路合并（`M`）**：通过 `git merge-file` 对底座文件与中心文件做自动合并
+- **保护跳过**：业务专有目录（`apps/server/src/modules/` 除核心底座外、业务页面路由、`packages/db/src/migrations/`、`app-config.ts`、`dashboard/registry.ts`、`README.md`、`AGENTS.md` 等）永不覆盖
+- **裁剪跳过**：若项目初始化时运行过 `--no-example` 或 `--no-agent`，合并器会在比对前自动剥离上游对应示例/助理标记块，避免把已移除代码重新带回
+
+## 2. 执行同步与应用
+
+确认 dry-run 清单符合预期且不存在冲突后执行：
 
 ```bash
-# 方式 A：直接同步某个确定未做过本地魔改的底座文件或目录
-git checkout starter/main -- packages/ui/src/components/detail-drawer.tsx scripts/gen-module.mjs scripts/lib/
-
-# 方式 B：生成局部补丁后交互式应用（适合做过定制的文件）
-git diff "${STARTER_COMMIT}..starter/main" -- apps/server/src/core/ | git apply -3
+bun run upgrade:starter -- --apply
 ```
 
-同步完成后运行全套质量检查与端到端验收：
+同步完成后请按顺序验证：
 
 ```bash
-bun run doctor     # 只读自检：Docker、端口、.env、迁移漂移、上游差距
-bun run db:check   # schema 与已提交迁移一致；有变更先 bun run db:generate 并提交 SQL
+bun install
 bun run lint
 bun run test
 bun run check-types
-docker compose up -d --build
-python3 scripts/verify-console.py
+bun run db:check
 ```
 
-验证全部通过后，将 `.starter-version` 中的 `STARTER_COMMIT` 更新为本次对齐的上游 `git rev-parse starter/main` 并提交即可。
-
-## 4. 辅助工具
-
-- `bun run db:check`：只读迁移漂移门禁（CI `quality` 同样执行），不写迁移文件、不连接数据库。
-- `bun run doctor`：只读本地自检，输出 `PASS` / `WARN` / `FAIL` 与修复命令，不打印任何密钥。
-- `docs/onboarding.html`：初始化工作台，覆盖新建项目、新增模块、上游升级与环境自查。直接打开（`file://`）为离线预览，只生成命令与 Agent 提示词，不执行、不收集密码。
-- `bun run setup`：在 127.0.0.1 启动本地向导并以直连模式打开上述页面；「上游升级」页自动读取 `.starter-version` 与落后 `starter/main` 的提交数，可一键运行 `doctor` 与 `db:check`。向导只执行白名单命令，不做 git commit、push 或生产部署。三方合并 dry-run 辅助脚本计划在后续步骤提供。
+若某个中心文件（如 `packages/api/src/contracts.ts` 或 `apps/server/src/console.ts`）同时被上下游改动同一相邻行，工具会中止写入并在终端标出 `! <path> (冲突)`（退出码 `2`），可加 `--allow-conflicts` 写入三路冲突标记后手工解决。

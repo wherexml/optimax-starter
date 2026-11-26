@@ -49,6 +49,8 @@
     "gen:module": "node scripts/gen-module.mjs",
     "doctor": "node scripts/doctor.mjs",
     "setup": "node scripts/setup-server.mjs",
+    "upgrade:starter": "node scripts/upgrade-starter.mjs",
+    "test:web-smoke": "node scripts/e2e/ci-web-smoke.mjs",
     "verify": "python3 scripts/verify-console.py"
   },
   "dependencies": {
@@ -58,6 +60,7 @@
     "@biomejs/biome": "^2.6.8",
     "@optimax-starter/config": "workspace:*",
     "@types/bun": "catalog:",
+    "playwright": "^1.52.0",
     "typescript": "catalog:",
     "varlock": "catalog:",
     "vitest": "^3.1.0"

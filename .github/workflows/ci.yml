@@ -104,6 +104,8 @@ jobs:
           node --check scripts/check-migrations.mjs
           node --check scripts/doctor.mjs
           node --check scripts/setup-server.mjs
+          node --check scripts/upgrade-starter.mjs
+          node --check scripts/e2e/ci-web-smoke.mjs
           node --check scripts/lib/strip-example.mjs
           node --check scripts/lib/strip-agent.mjs
           node --check .agents/skills/feishu-auth/scripts/configure-feishu-auth.mjs
@@ -132,7 +134,7 @@ jobs:
       - name: Dry-run module generator
         run: |
           node scripts/gen-module.mjs vendors --label 供应商台账 --dry-run
-          node scripts/gen-module.mjs vendors --label 供应商台账 --detail page --dry-run
+          node scripts/gen-module.mjs vendors --label 供应商台账 --detail page --code-prefix VND --dry-run
           node scripts/gen-module.mjs agreements --label 合同台账 --singular agreement --fields "code:string:合同编号,amount:number:金额,qty:int:数量,kind:enum:采购|销售:类型,signedAt:date:签约日期,active:boolean:有效,remark:text:备注?" --dry-run
       - uses: actions/upload-artifact@v4
         if: always()
@@ -152,6 +154,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
       - name: Initialize local stack config and validate Compose files
         run: |
           ./scripts/init-local.sh
@@ -180,6 +188,13 @@ jobs:
           python3 scripts/verify-easm-rollback.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
           python3 scripts/verify-easm-settings.py --cleanup | tee -a "$RUNNER_TEMP/e2e-summary.log"
           python3 scripts/verify-system-governance.py | tee -a "$RUNNER_TEMP/e2e-summary.log"
+      - name: Run headless Chromium UI SDK & navigation smoke gate
+        env:
+          WEB_SMOKE_REPORT: ${{ runner.temp }}/web-smoke-report.json
+        run: |
+          bun install --frozen-lockfile --ignore-scripts
+          bunx playwright install --with-deps chromium
+          node scripts/e2e/ci-web-smoke.mjs | tee -a "$RUNNER_TEMP/e2e-summary.log"
       - name: Collect container diagnostics and tear down stack
         if: always()
         run: |
@@ -192,6 +207,7 @@ jobs:
           name: api-e2e-evidence
           path: |
             ${{ runner.temp }}/e2e-summary.log
+            ${{ runner.temp }}/web-smoke-report.json
             ${{ runner.temp }}/compose-ps.txt
             ${{ runner.temp }}/compose-app.log
           if-no-files-found: ignore

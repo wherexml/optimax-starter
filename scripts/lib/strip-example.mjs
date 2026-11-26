@@ -40,6 +40,7 @@ export const MARKED_FILES = [
 export const OPTIONAL_MARKED_FILES = [
   "apps/server/src/agent/registry.ts",
   "apps/server/src/agent/routes.ts",
+  "apps/web/src/features/navigation/entity-search.ts",
   "apps/web/src/features/assistant/ToolSteps.tsx",
   "apps/web/src/features/assistant/Composer.tsx",
   "apps/web/src/features/assistant/Conversation.tsx",

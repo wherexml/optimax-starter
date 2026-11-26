@@ -88,6 +88,7 @@ describe("buildActionCommand", () => {
       slug: "vendors",
       label: "供应商台账",
       singular: "vendor",
+      codePrefix: "VND",
       fields: "code:string:编号,kind:enum:采购|销售:类型,remark:text:备注?",
       detail: "page",
     });
@@ -99,6 +100,8 @@ describe("buildActionCommand", () => {
       "供应商台账",
       "--singular",
       "vendor",
+      "--code-prefix",
+      "VND",
       "--fields",
       "code:string:编号,kind:enum:采购|销售:类型,remark:text:备注?",
       "--detail",

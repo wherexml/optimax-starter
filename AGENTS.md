@@ -9,11 +9,11 @@
 | 定位 | OptiMax Starter：可运行的管理后台脚手架与开发规范 |
 | 页面入口 | `apps/web/src/routes/` 只做路由、鉴权与 URL 参数；导航与品牌统一在 `apps/web/src/config/app-config.ts`；业务页面见 [PROJECT.md](./PROJECT.md)，概览与模块注册表见 [dashboard](./apps/web/src/features/dashboard/README.md)，资产台账与拓扑详情见 [assets](./apps/web/src/features/assets/README.md)，登录品牌见 [auth](./apps/web/src/features/auth/README.md)，账户与防提权见 [accounts](./apps/web/src/features/accounts/README.md)，三层角色权限矩阵见 [permissions](./apps/web/src/features/permissions/README.md)，运行探针、时区/会话有效期/AI 模型配置与后台任务见 [system](./apps/web/src/features/system/README.md)，人机双源审计见 [audit](./apps/web/src/features/audit/README.md)，复杂表单弹窗与全套输入控件 Demo 见 [forms-demo](./apps/web/src/features/forms-demo/README.md) |
 | 共享界面 | [CRUD 槽位](./apps/web/src/components/crud/README.md)、`apps/web/src/components/table/`、轻量详情抽屉 DetailDrawer 与 [独立详情页选型规范](./DESIGN.md#详情承载选型独立详情页-vs-右侧抽屉)、顶层页签 PageTabs、概览图表原语、共享表单弹窗与输入控件、右下角全局通知及刷新骨架屏 [packages/ui](./packages/ui/README.md)（`apps/web/src/components/ui/` 重导出兼容）；规范见 [FRONTEND.md 表单弹窗与输入控件](./FRONTEND.md#表单弹窗与输入控件)；主题变量与 `.content` 容器查询（`.cq-*`）在 `apps/web/src/index.css` |
-| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`，含 `rpc.ts` 端到端类型导出）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module`（支持 `--fields` 与 `--detail drawer\|page`） |
+| 服务与数据 | [服务端分层](./apps/server/README.md)（`core/` + `modules/`，含 `rpc.ts` 端到端类型导出）、[共享契约](./packages/api/README.md)、`packages/db/src/schema/console.ts`；新增模块可用 `bun run gen:module`（支持 `--fields`、`--detail drawer\|page` 与 `--code-prefix`） |
 | 本地运行 | [PROJECT.md](./PROJECT.md) |
 | 验证入口 | [TESTING.md](./TESTING.md)；代码检查与单测：`bun run lint`、`bun run test` |
 | 生产边界 | 默认只读；部署细节见 [DEPLOYMENT.md](./DEPLOYMENT.md) |
-| 派生升级 | [.starter-version 与目录边界](./docs/UPGRADE.md) |
+| 派生升级 | [.starter-version 与目录边界](./docs/UPGRADE.md)（`bun run upgrade:starter`） |
 
 ## 本地演示账号
 
@@ -92,7 +92,7 @@
 
 快速导航的布局与键盘验收见 [navigation](./apps/web/src/features/navigation/README.md)。
 
-可选 AI 智能助理（右侧抽屉、网页端加密模型配置、跨轮引用与实体编码芯片、写操作确认卡，`--no-agent` 可移除）见 [服务端 agent](./apps/server/src/agent/README.md) 与 [前端 assistant](./apps/web/src/features/assistant/README.md)。
+可选 AI 智能助理（右侧抽屉、网页端加密模型配置、跨轮引用与实体编码芯片、客户端 WebMCP 桥接、写操作确认卡，`--no-agent` 可移除）见 [服务端 agent](./apps/server/src/agent/README.md) 与 [前端 assistant](./apps/web/src/features/assistant/README.md)。
 
 可选飞书企业 OAuth 登录（零依赖、官方三色矢量 Logo、默认关闭不展示）按需通过 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md) 开启，契约见 [AUTH.md](./AUTH.md)。
 

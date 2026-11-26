@@ -14,11 +14,11 @@
 | 端口 | 本地默认 web `127.0.0.1:38140`，api `127.0.0.1:38141`（由 `.env` 中 `WEB_PORT` / `API_PORT` 驱动），db 仅在 Compose 内部可访问 |
 | API 运行时 | Node 24（本地开发 `node --watch --import tsx src/node.ts`，生产 `node apps/server/dist/node.mjs`）；Bun 执行包管理、前端开发与数据库迁移/同步 |
 | 数据库 | PostgreSQL 17，Drizzle ORM（开发 `db:push`，生产优先版本化 `db:migrate:deploy`） |
-| 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；顶层页签 `PageTabs`、工作台图表原语、共享弹窗、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与工作台模块分别注册在 `apps/web/src/config/app-config.ts` 与 `apps/web/src/features/dashboard/registry.ts`，列表页使用 `ResourceTableSlot`（按 [详情承载选型](./DESIGN.md#详情承载选型独立详情页-vs-右侧抽屉) 区分轻量 `DetailDrawer` 与独立分析详情页）；支持 `bun run gen:module` 生成全栈业务模块（含 `--detail drawer|page`、`Combobox` / `MultiSelect` / 日期区间映射与工作台注册） |
+| 共享契约与模块化 | 前后端契约统一在 `packages/api`（Zod）；顶层页签 `PageTabs`、`Tooltip`、`DropdownMenu`、`SegmentedControl`、`Switch`、`Slider`、`Resizable`、`AlertDialog`、工作台图表原语、共享弹窗（`FormDialog` / `ConfirmDialog` 支持 `data-agent-confirm`）、输入控件、刷新骨架屏与右下角全局通知在 [packages/ui](./packages/ui/README.md)；后端分 `apps/server/src/core/` 与 `modules/`；前端导航与工作台模块分别注册在 `apps/web/src/config/app-config.ts`、`apps/web/src/features/navigation/entity-search.ts` 与 `apps/web/src/features/dashboard/registry.ts`，支持 `bun run gen:module` 生成全栈业务模块（含 Agent 工具与实体芯片规则）以及 `bun run upgrade:starter`（[UPGRADE.md](./docs/UPGRADE.md)）三路合并同步上游底座 |
 | AI 智能助理（可选） | 运行时 `packages/agent`，服务端 [apps/server/src/agent](./apps/server/src/agent/README.md)，右侧面板 [features/assistant](./apps/web/src/features/assistant/README.md)；权限 `agent:use`；模型全部通过 `/system?tab=settings` 网页端直接配置与加密持久化，仅保留可选环境变量 `STARTER_AGENT_SKILLS_DIR`；`--no-agent` 整体移除，不建表 |
 | 角色 | `super_admin`、`admin`、`member`（搭配 `console_role_permission` 模块级「查看 / 操作」权限矩阵） |
 | 项目技能 | [starter-ui-sdk](./.agents/skills/starter-ui-sdk/SKILL.md)（前端交互与 Agent 操作由 AGENTS 默认路由）与 [feishu-auth](./.agents/skills/feishu-auth/SKILL.md)（飞书企业登录按需开启，默认关闭）；随模板复制 |
-| CI/CD | GitHub Actions：`.github/workflows/ci.yml`（`ci-scope` 变更分类 + 静态/构建检查 + 真实容器 HTTP/RBAC/权限矩阵/熔断/事务回滚 E2E + 隔离模型客户端 `ai-client-e2e`）与 `.github/workflows/deploy-production.yml`（调用 `scripts/deploy-production.sh`） |
+| CI/CD | GitHub Actions：`.github/workflows/ci.yml`（`ci-scope` 变更分类 + 静态/构建检查 + 真实容器 HTTP/RBAC/权限矩阵/熔断/事务回滚 E2E + Playwright 无头浏览器 UI SDK 冒烟门禁 `scripts/e2e/ci-web-smoke.mjs` + 隔离模型客户端 `ai-client-e2e`）与 `.github/workflows/deploy-production.yml`（调用 `scripts/deploy-production.sh`） |
 
 ## 模块
 

@@ -41,8 +41,8 @@
     "hono": "catalog:",
     "react-hook-form": "^7.61.1",
     "@hookform/resolvers": "^5.2.2",
-    "@ui-sdk/core": "0.1.0-beta.3",
-    "@ui-sdk/react": "0.1.0-beta.3"
+    "@ui-sdk/core": "0.1.0-beta.17",
+    "@ui-sdk/react": "0.1.0-beta.17"
   },
   "devDependencies": {
     "@optimax-starter/config": "workspace:*",

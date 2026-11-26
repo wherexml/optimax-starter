@@ -38,6 +38,7 @@ import { WorkspaceRefresh } from "@/features/refresh/WorkspaceRefresh";
 import { request } from "../console-client";
 
 // @starter:agent-start
+import "@/features/assistant/ui-agent-bridge";
 import { AssistantDock, SidebarAssistantTrigger } from "@/features/assistant/AssistantDrawer";
 // @starter:agent-end
 

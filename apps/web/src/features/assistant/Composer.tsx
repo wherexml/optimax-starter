@@ -1,10 +1,21 @@
-// Capsule composer with slash commands, adapted from Beautiful Pi Web ChatInput (4a308ed, MIT, see beautiful-pi/LICENSE).
+// Capsule composer with slash commands and entity mentions, powered by @ui-sdk/react/trigger-menu.
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@optimax-starter/ui/components/tooltip";
+import {
+  type TriggerDefinition,
+  TriggerMenu,
+  TriggerMenuContent,
+  type TriggerMenuDataItem,
+  TriggerMenuEmpty,
+  TriggerMenuInput,
+  TriggerMenuItem,
+  TriggerMenuList,
+  createTriggerMenuController,
+} from "@ui-sdk/react/trigger-menu";
 import {
   ArrowUp,
   AtSign,
@@ -48,6 +59,11 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  type EntitySearchResult,
+  hasEntitySearchProviders,
+  searchConsoleEntities,
+} from "@/features/navigation/entity-search";
 import type { AgentScope } from "./api";
 import { scopeLabel } from "./session";
 
@@ -133,19 +149,6 @@ function ComposerAction({
   );
 }
 
-function fuzzy(text: string, query: string) {
-  const haystack = text.toLocaleLowerCase();
-  const needle = query.toLocaleLowerCase().trim();
-  if (!needle || haystack.includes(needle)) return true;
-  let at = 0;
-  for (const char of needle) {
-    at = haystack.indexOf(char, at);
-    if (at < 0) return false;
-    at += 1;
-  }
-  return true;
-}
-
 function estimateTokens(text: string) {
   const cjk = text.match(/[㐀-鿿豈-﫿]/g)?.length ?? 0;
   return Math.ceil(cjk + (text.length - cjk) / 4);
@@ -186,9 +189,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const editor = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   const lastComposition = useRef(0);
-  const [query, setQuery] = useState<string>();
-  const [index, setIndex] = useState(0);
-  const menuId = useId();
+  const entityMapRef = useRef<Map<string, EntitySearchResult>>(new Map());
+  const [menuController] = useState(createTriggerMenuController);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   useImperativeHandle(ref, () => ({ focus: () => editor.current?.focus() }), []);
 
   useEffect(() => {
@@ -198,196 +202,253 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [draft]);
 
-  const options = useMemo(
-    () =>
-      query === undefined
-        ? []
-        : COMMANDS.filter(({ id, description }) => fuzzy(id, query) || fuzzy(description, query)),
-    [query],
-  );
-  useEffect(() => {
-    setIndex(0);
-  }, [query]);
+  const entitiesEnabled = hasEntitySearchProviders();
+  const commandById = useMemo(() => new Map(COMMANDS.map((item) => [item.id, item])), []);
 
-  function detect(value: string) {
-    const slash = /^\/(\S*)$/.exec(value);
-    setQuery(slash ? (slash[1] ?? "") : undefined);
-  }
-
-  function choose(command: Command | undefined) {
-    if (!command) return;
-    setQuery(undefined);
-    setDraft("");
-    onCommand(command);
-  }
+  const triggers = useMemo<TriggerDefinition[]>(() => {
+    const list: TriggerDefinition[] = [
+      {
+        char: "/",
+        boundary: "start",
+        type: "command",
+        items: COMMANDS.map((cmd) => ({
+          value: cmd.id,
+          label: cmd.id,
+          keywords: [cmd.id, cmd.description],
+        })),
+      },
+    ];
+    if (entitiesEnabled) {
+      list.push({
+        char: "@",
+        type: "mention",
+        items: async (query, { signal }) => {
+          const rows = await searchConsoleEntities(query, signal);
+          for (const row of rows) {
+            entityMapRef.current.set(row.code, row);
+          }
+          return rows.map((row) => ({
+            value: row.code,
+            label: row.code,
+            keywords: [row.code, row.title, row.subtitle ?? ""],
+          }));
+        },
+      });
+    }
+    return list;
+  }, [entitiesEnabled]);
 
   function openCommands() {
-    setDraft("/");
-    setQuery("");
+    setDraft("");
     requestAnimationFrame(() => {
       editor.current?.focus();
-      editor.current?.setSelectionRange(1, 1);
+      void menuController.open({ trigger: "/" });
     });
+  }
+
+  function openMentions() {
+    editor.current?.focus();
+    void menuController.open({ trigger: "@" });
   }
 
   const label = scopeLabel(scope);
   const tokens = draft.trim() ? estimateTokens(draft) : 0;
-  const menuOpen = query !== undefined && options.length > 0;
-  const optionId = (id: string) => `${menuId}-${id}`;
 
   return (
     <div className="pi-composer-wrap">
-      <div className="pi-prompt-shell" data-busy={busy || undefined}>
-        {menuOpen && (
-          <div className="pi-command-menu" role="listbox" id={menuId} aria-label="快捷指令">
-            <div className="pi-command-heading">快捷指令</div>
-            {options.map((command, position) => (
-              <button
-                key={command.id}
-                type="button"
-                role="option"
-                id={optionId(command.id)}
-                aria-selected={position === index}
-                onMouseEnter={() => setIndex(position)}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => choose(command)}
-              >
-                <span className="pi-command-icon">{command.icon}</span>
-                <span className="pi-command-name">/{command.id}</span>
-                <span className="pi-command-desc">{command.description}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {label && (
-          <div className="pi-attachments">
-            <span className="pi-context-chip" title="本次提问附带的页面范围">
-              <AtSign size={13} aria-hidden="true" />
-              <span>{label}</span>
-              <button
-                type="button"
-                className="pi-context-clear"
-                aria-label="移除页面范围"
-                title="移除页面范围"
-                onClick={() => setScope(undefined)}
-              >
-                <X size={13} />
-              </button>
-            </span>
-          </div>
-        )}
-        <textarea
-          ref={editor}
-          rows={1}
-          role="combobox"
-          maxLength={MAX_DRAFT}
-          aria-label="输入问题"
-          placeholder="输入问题，/ 打开快捷指令"
-          value={draft}
-          aria-controls={menuOpen ? menuId : undefined}
-          aria-expanded={menuOpen}
-          aria-activedescendant={
-            menuOpen && options[index] ? optionId(options[index].id) : undefined
+      <TriggerMenu
+        controller={menuController}
+        triggers={triggers}
+        open={menuOpen}
+        onOpenChange={(next) => setMenuOpen(next)}
+        onSelect={(value, details) => {
+          if (details.trigger === "/") {
+            details.preventDefault();
+            const cmd = commandById.get(String(value));
+            if (cmd) {
+              setDraft("");
+              onCommand(cmd);
+            }
           }
-          onChange={(event) => {
-            setDraft(event.target.value);
-            detect(event.target.value);
-          }}
-          onBlur={() => setQuery(undefined)}
-          onCompositionStart={() => {
-            composing.current = true;
-          }}
-          onCompositionEnd={() => {
-            composing.current = false;
-            lastComposition.current = Date.now();
-          }}
-          onKeyDown={(event) => {
-            const ime = composing.current || event.nativeEvent.isComposing || event.keyCode === 229;
-            if (menuOpen && !ime) {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                setIndex((index + 1) % options.length);
-                return;
-              }
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                setIndex((index - 1 + options.length) % options.length);
-                return;
-              }
-              if (event.key === "Enter" || event.key === "Tab") {
-                event.preventDefault();
-                choose(options[index]);
-                return;
-              }
-            }
-            if (query !== undefined && event.key === "Escape") {
-              event.preventDefault();
-              setQuery(undefined);
-              return;
-            }
-            if (event.key === "ArrowUp" && !draft && lastQuestion && !ime) {
-              event.preventDefault();
-              setDraft(lastQuestion);
-              return;
-            }
-            if (event.key !== "Enter" || event.shiftKey || ime) return;
-            if (Date.now() - lastComposition.current < 100) {
-              event.preventDefault();
-              return;
-            }
-            if (matchMedia("(pointer: coarse)").matches && !event.ctrlKey && !event.metaKey) return;
-            event.preventDefault();
-            if (!busy) onSend();
-          }}
-        />
-        <div className="pi-composer-toolbar">
-          <TooltipProvider delay={180}>
-            <div className="pi-toolbar-left">
-              <ComposerAction label="快捷指令" hint="查看快捷指令" onClick={openCommands}>
-                <SkillCommandIcon size={16} />
-              </ComposerAction>
-              {pageScope && !label && (
-                <ComposerAction
-                  label="附带当前页面"
-                  hint={`附带当前页面：${scopeLabel(pageScope)}`}
-                  onClick={() => setScope(pageScope)}
+        }}
+      >
+        <div className="pi-prompt-shell" data-busy={busy || undefined}>
+          <TriggerMenuContent side="top" align="start" sideOffset={8} className="pi-trigger-popup">
+            {(state) => (
+              <>
+                <div className="pi-command-heading">
+                  {state.trigger === "@" ? "引用业务实体" : "快捷指令"}
+                </div>
+                <TriggerMenuEmpty className="pi-command-empty">
+                  {(emptyState) =>
+                    emptyState.loading
+                      ? "正在检索业务实体…"
+                      : state.trigger === "@"
+                        ? "未找到匹配实体"
+                        : "未找到匹配指令"
+                  }
+                </TriggerMenuEmpty>
+                <TriggerMenuList className="pi-trigger-list">
+                  {(listState) =>
+                    (listState.items as TriggerMenuDataItem[]).map((item) => {
+                      if (listState.trigger === "/") {
+                        const cmd = commandById.get(String(item.value));
+                        if (!cmd) return null;
+                        return (
+                          <TriggerMenuItem
+                            key={cmd.id}
+                            value={cmd.id}
+                            label={cmd.id}
+                            className="pi-trigger-item"
+                          >
+                            <span className="pi-command-icon">{cmd.icon}</span>
+                            <span className="pi-command-name">/{cmd.id}</span>
+                            <span className="pi-command-desc">{cmd.description}</span>
+                          </TriggerMenuItem>
+                        );
+                      }
+                      const entity = entityMapRef.current.get(String(item.value));
+                      return (
+                        <TriggerMenuItem
+                          key={String(item.value)}
+                          value={String(item.value)}
+                          label={String(item.label ?? item.value)}
+                          className="pi-trigger-item"
+                        >
+                          <span className="pi-command-icon">
+                            <AtSign size={14} />
+                          </span>
+                          <span className="pi-command-name">
+                            {entity?.code ?? String(item.value)}
+                          </span>
+                          <span className="pi-command-desc">
+                            {entity
+                              ? entity.subtitle
+                                ? `${entity.title}（${entity.subtitle}）`
+                                : entity.title
+                              : String(item.label ?? item.value)}
+                          </span>
+                        </TriggerMenuItem>
+                      );
+                    })
+                  }
+                </TriggerMenuList>
+              </>
+            )}
+          </TriggerMenuContent>
+          {label && (
+            <div className="pi-attachments">
+              <span className="pi-context-chip" title="本次提问附带的页面范围">
+                <AtSign size={13} aria-hidden="true" />
+                <span>{label}</span>
+                <button
+                  type="button"
+                  className="pi-context-clear"
+                  aria-label="移除页面范围"
+                  title="移除页面范围"
+                  onClick={() => setScope(undefined)}
                 >
-                  <AtSign size={16} />
+                  <X size={13} />
+                </button>
+              </span>
+            </div>
+          )}
+          <TriggerMenuInput
+            ref={editor}
+            rows={1}
+            maxLength={MAX_DRAFT}
+            aria-label="输入问题"
+            placeholder={
+              entitiesEnabled ? "输入问题，/ 打开快捷指令，@ 引用实体" : "输入问题，/ 打开快捷指令"
+            }
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={() => {
+              composing.current = false;
+              lastComposition.current = Date.now();
+            }}
+            onKeyDown={(event) => {
+              const ime =
+                composing.current || event.nativeEvent.isComposing || event.keyCode === 229;
+              if (ime) return;
+              if (menuOpen) return;
+              if (event.key === "ArrowUp" && !draft && lastQuestion) {
+                event.preventDefault();
+                setDraft(lastQuestion);
+                return;
+              }
+              if (event.key !== "Enter" || event.shiftKey) return;
+              if (Date.now() - lastComposition.current < 100) {
+                event.preventDefault();
+                return;
+              }
+              if (matchMedia("(pointer: coarse)").matches && !event.ctrlKey && !event.metaKey)
+                return;
+              event.preventDefault();
+              if (!busy) onSend();
+            }}
+          />
+          <div className="pi-composer-toolbar">
+            <TooltipProvider delay={180}>
+              <div className="pi-toolbar-left">
+                <ComposerAction label="快捷指令" hint="查看快捷指令" onClick={openCommands}>
+                  <SkillCommandIcon size={16} />
                 </ComposerAction>
+                {entitiesEnabled && (
+                  <ComposerAction
+                    label="引用实体"
+                    hint="输入 @ 引用业务实体"
+                    onClick={openMentions}
+                  >
+                    <AtSign size={16} />
+                  </ComposerAction>
+                )}
+                {pageScope && !label && (
+                  <ComposerAction
+                    label="附带当前页面"
+                    hint={`附带当前页面：${scopeLabel(pageScope)}`}
+                    onClick={() => setScope(pageScope)}
+                  >
+                    <Navigation size={15} />
+                  </ComposerAction>
+                )}
+              </div>
+            </TooltipProvider>
+            <div className="pi-toolbar-right">
+              {tokens > 0 && (
+                <span className="pi-token-hint" title="按字符估算">
+                  {draft.length}/{MAX_DRAFT} 约 {tokens} tokens
+                </span>
+              )}
+              {busy ? (
+                <button
+                  className="pi-send is-stop"
+                  type="button"
+                  aria-label="停止生成"
+                  title="停止生成"
+                  onClick={onStop}
+                >
+                  <Square size={14} />
+                </button>
+              ) : (
+                <button
+                  className="pi-send"
+                  type="button"
+                  disabled={!draft.trim()}
+                  aria-label="发送"
+                  title="发送（Enter）"
+                  onClick={onSend}
+                >
+                  <ArrowUp size={17} />
+                </button>
               )}
             </div>
-          </TooltipProvider>
-          <div className="pi-toolbar-right">
-            {tokens > 0 && (
-              <span className="pi-token-hint" title="按字符估算">
-                {draft.length}/{MAX_DRAFT} 约 {tokens} tokens
-              </span>
-            )}
-            {busy ? (
-              <button
-                className="pi-send is-stop"
-                type="button"
-                aria-label="停止生成"
-                title="停止生成"
-                onClick={onStop}
-              >
-                <Square size={14} />
-              </button>
-            ) : (
-              <button
-                className="pi-send"
-                type="button"
-                disabled={!draft.trim()}
-                aria-label="发送"
-                title="发送（Enter）"
-                onClick={onSend}
-              >
-                <ArrowUp size={17} />
-              </button>
-            )}
           </div>
         </div>
-      </div>
+      </TriggerMenu>
       {notice && <div className="pi-composer-meta">{notice}</div>}
     </div>
   );

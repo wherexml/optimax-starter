@@ -17,6 +17,7 @@ import { getAiCircuitState } from "../core/system-settings";
 // @starter:example-assets-start
 import { exampleAssetTools } from "./example-assets-tools";
 // @starter:example-assets-end
+// @starter:agent-module-imports
 
 export type AgentToolContext = {
   actor: Actor;
@@ -109,6 +110,7 @@ export async function buildAgentTools(context: AgentToolContext) {
   // @starter:example-assets-start
   Object.assign(tools, exampleAssetTools(context));
   // @starter:example-assets-end
+  // @starter:agent-module-tools
   const systemContext = [
     `当前用户：${context.actor.name}（${ROLE_LABELS[context.actor.role as AccountRole] ?? context.actor.role}）`,
     `当前日期：${new Date().toISOString().slice(0, 10)}`,

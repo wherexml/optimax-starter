@@ -1,12 +1,14 @@
 // Page composition ported from optimax-riskops/src/pages/Login.tsx.
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { APP_CONFIG, storageKey } from "@/config/app-config";
@@ -16,7 +18,19 @@ const schema = z.object({
   username: z.string().trim().min(1, "请输入账户名").max(64),
   password: z.string().min(1, "请输入密码").max(256),
 });
-const rememberKey = storageKey("rememberedUsername");
+
+type PasswordCredentialCtor = new (data: { id: string; password: string }) => Credential;
+
+async function storeBrowserPasswordCredential(id: string, password: string): Promise<void> {
+  try {
+    const ctor = (window as Window & { PasswordCredential?: PasswordCredentialCtor })
+      .PasswordCredential;
+    if (!ctor || !navigator.credentials?.store) return;
+    await navigator.credentials.store(new ctor({ id, password }));
+  } catch {
+    // 密码管理器在非安全上下文或用户策略禁用的环境下可能拒绝写入，不阻断登录流程。
+  }
+}
 // Only same-origin absolute paths or https URLs are rendered as SSO links; this blocks javascript:, data: and protocol-relative values.
 const SAFE_LOGIN_PATH = /^\/(?!\/)|^https:\/\//;
 // Fixed dictionary for /login?sso_error=<code>. Unknown values fall back to a generic message;
@@ -51,16 +65,17 @@ function readNotice(): Notice {
   }
 }
 
-function readRemembered() {
-  try {
-    return localStorage.getItem(rememberKey) || "";
-  } catch {
-    return "";
-  }
-}
 export function LoginPage() {
-  const [initial] = useState(readRemembered);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [notice, setNotice] = useState<Notice>(readNotice);
+  useEffect(() => {
+    try {
+      localStorage.removeItem(storageKey("rememberedUsername"));
+    } catch {
+      // 忽略本地存储不可用异常。
+    }
+  }, []);
   useEffect(() => {
     // Strip one-shot params so refresh/back does not repeat the notice.
     try {
@@ -100,12 +115,11 @@ export function LoginPage() {
       cancelled = true;
     };
   }, []);
-  const [remember, setRemember] = useState(!!initial),
-    [showPassword, setShowPassword] = useState(false),
+  const [showPassword, setShowPassword] = useState(false),
     [error, setError] = useState("");
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { username: initial, password: "" },
+    defaultValues: { username: "", password: "" },
   });
   const { errors, isSubmitting: loading } = form.formState;
   const passwordDisabled =
@@ -114,17 +128,14 @@ export function LoginPage() {
     setError("");
     try {
       await unwrapRpc(api.login.$post({ json: values }), { allow401: true });
-      try {
-        if (remember) localStorage.setItem(rememberKey, values.username);
-        else localStorage.removeItem(rememberKey);
-      } catch {
-        // Storage can be unavailable (private mode, blocked site data); login still proceeds.
-      }
-      location.replace("/");
+      await storeBrowserPasswordCredential(values.username, values.password);
+      queryClient.clear();
+      await navigate({ to: "/", replace: true });
     } catch (err) {
       setError((err as Error).message);
     }
   }
+  const handleFormSubmit = form.handleSubmit(submit);
   return (
     <main className="relative min-h-screen overflow-x-hidden bg-[#06111d] text-white">
       <img
@@ -150,26 +161,37 @@ export function LoginPage() {
                 height={48}
                 className="h-10 w-10 object-contain sm:h-12 sm:w-12"
               />
-              <span aria-hidden="true" className="text-2xl font-semibold leading-none tracking-normal text-white">OptiMax</span>
+              <span
+                aria-hidden="true"
+                className="text-2xl font-semibold leading-none tracking-normal text-white"
+              >
+                OptiMax
+              </span>
             </div>
 
             <div className="mt-8 max-w-[540px] lg:mt-10 xl:mt-12">
               <h1 className="m-0 text-3xl font-semibold leading-tight tracking-normal text-white drop-shadow-2xl sm:text-4xl xl:text-5xl">
                 {APP_CONFIG.loginTitle}
               </h1>
-              <p data-login-intro className="mt-4 text-sm leading-7 text-white/85 sm:text-base sm:leading-8">
-                {APP_CONFIG.loginTitle} 为企业应用提供可直接运行的管理底座，整合账户权限、资产台账、操作日志与个人设置，让团队把时间投入真正的业务。统一的界面组件、工程规范和本地运行方式，帮助开发者快速启动新项目；可选的自然语言筛选试点将 AI 接入实际操作，在保留清晰权限边界与可核对结果的同时，逐步扩展业务能力。
+              <p
+                data-login-intro
+                className="mt-4 text-sm leading-7 text-white/85 sm:text-base sm:leading-8"
+              >
+                {APP_CONFIG.loginTitle}{" "}
+                为企业应用提供可直接运行的管理底座，整合账户权限、资产台账、操作日志与个人设置，让团队把时间投入真正的业务。统一的界面组件、工程规范和本地运行方式，帮助开发者快速启动新项目；可选的自然语言筛选试点将
+                AI 接入实际操作，在保留清晰权限边界与可核对结果的同时，逐步扩展业务能力。
               </p>
             </div>
           </div>
         </section>
 
         <section className="flex items-center justify-center lg:justify-end">
-          <div data-login-panel className="border-white/18 w-full max-w-[420px] rounded-lg border bg-white/[0.96] p-6 sm:p-8 text-neutral-950 shadow-2xl shadow-black/35 backdrop-blur-xl">
+          <div
+            data-login-panel
+            className="border-white/18 w-full max-w-[420px] rounded-lg border bg-white/[0.96] p-6 sm:p-8 text-neutral-950 shadow-2xl shadow-black/35 backdrop-blur-xl"
+          >
             <div>
-              <h2 className="text-2xl font-bold tracking-normal text-neutral-950">
-                登录
-              </h2>
+              <h2 className="text-2xl font-bold tracking-normal text-neutral-950">登录</h2>
             </div>
 
             {notice && (
@@ -203,8 +225,15 @@ export function LoginPage() {
 
             {!passwordDisabled && (
               <form
+                method="post"
+                action="/console/login"
                 noValidate
-                onSubmit={form.handleSubmit(submit)}
+                onSubmit={(event) => {
+                  if (showPassword) {
+                    flushSync(() => setShowPassword(false));
+                  }
+                  void handleFormSubmit(event);
+                }}
                 className="mt-6 flex flex-col gap-4 sm:mt-8 sm:gap-5"
               >
                 <div className="flex flex-col gap-2">
@@ -217,18 +246,12 @@ export function LoginPage() {
                     placeholder="输入账户名"
                     {...form.register("username")}
                     aria-invalid={!!errors.username}
-                    aria-describedby={
-                      errors.username ? "username-error" : undefined
-                    }
+                    aria-describedby={errors.username ? "username-error" : undefined}
                     autoComplete="username"
                     className="h-11 border-neutral-200 bg-white text-neutral-950 shadow-sm"
                   />
                   {errors.username && (
-                    <p
-                      id="username-error"
-                      role="alert"
-                      className="text-sm text-destructive"
-                    >
+                    <p id="username-error" role="alert" className="text-sm text-destructive">
                       {errors.username.message}
                     </p>
                   )}
@@ -245,9 +268,7 @@ export function LoginPage() {
                       placeholder="输入密码"
                       {...form.register("password")}
                       aria-invalid={!!errors.password}
-                      aria-describedby={
-                        errors.password ? "password-error" : undefined
-                      }
+                      aria-describedby={errors.password ? "password-error" : undefined}
                       autoComplete="current-password"
                       className="h-11 border-neutral-200 bg-white pr-10 text-neutral-950 shadow-sm"
                     />
@@ -257,38 +278,14 @@ export function LoginPage() {
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition-colors hover:text-neutral-700"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   {errors.password && (
-                    <p
-                      id="password-error"
-                      role="alert"
-                      className="text-sm text-destructive"
-                    >
+                    <p id="password-error" role="alert" className="text-sm text-destructive">
                       {errors.password.message}
                     </p>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="remember"
-                      checked={remember}
-                      onCheckedChange={(v) => setRemember(v === true)}
-                    />
-                    <Label
-                      htmlFor="remember"
-                      className="text-sm font-normal text-neutral-600"
-                    >
-                      记住账户名
-                    </Label>
-                  </div>
                 </div>
 
                 {error && (
@@ -297,10 +294,7 @@ export function LoginPage() {
                     aria-live="polite"
                     className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-800"
                   >
-                    <AlertCircle
-                      className="mt-0.5 h-4 w-4 shrink-0"
-                      aria-hidden="true"
-                    />
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-medium">{error}</p>
                     </div>

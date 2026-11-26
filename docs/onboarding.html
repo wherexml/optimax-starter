@@ -904,7 +904,7 @@
 
 <script type="application/json" id="onboarding-cli-contract">
 {
-  "contractVersion": "2026-11-25.1",
+  "contractVersion": "2026-11-26.1",
   "bootstrapSlugPattern": "^[a-z][a-z0-9-]{1,39}$",
   "bootstrapFlags": [
     "--dry-run",
@@ -921,7 +921,7 @@
     "-h"
   ],
   "genModuleSlugPattern": "^[a-z][a-z0-9-]{1,28}$",
-  "genModuleFlags": ["--detail", "--dry-run", "--fields", "--help", "--label", "--singular", "-h"],
+  "genModuleFlags": ["--code-prefix", "--detail", "--dry-run", "--fields", "--help", "--label", "--singular", "-h"],
   "genModuleReservedSlugs": [
     "accounts",
     "agent",
@@ -963,6 +963,8 @@
     "postinstall",
     "setup",
     "test",
+    "test:web-smoke",
+    "upgrade:starter",
     "verify"
   ]
 }

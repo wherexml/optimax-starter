@@ -23,6 +23,7 @@ export const WRITE_TOOLS = new Set<string>([
   "update_asset_stage",
   // @starter:example-assets-end
 ]);
+// @starter:agent-step-write-tools
 
 export const TOOLS: Record<string, { label: string; icon: ReactNode }> = {
   get_console_overview: { label: "查看控制台概览", icon: <LayoutDashboard size={14} /> },
@@ -32,6 +33,7 @@ export const TOOLS: Record<string, { label: string; icon: ReactNode }> = {
   summarize_assets: { label: "统计资产分布", icon: <ChartPie size={14} /> },
   update_asset_stage: { label: "更新资产阶段", icon: <PencilLine size={14} /> },
   // @starter:example-assets-end
+  // @starter:agent-step-tools
 };
 
 /** Human-readable names for common tool input fields. Unknown keys are shown as-is. */

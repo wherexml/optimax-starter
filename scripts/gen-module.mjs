@@ -4,7 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPrimaryField, parseFieldsSpec, toSnakeCase } from "./lib/gen-module-fields.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = process.env.STARTER_GEN_ROOT
+  ? path.resolve(process.env.STARTER_GEN_ROOT)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RESERVED = new Set([
   "auth",
   "accounts",
@@ -24,18 +26,18 @@ const RESERVED = new Set([
 
 function usage() {
   console.log(`用法:
-  bun run gen:module <slug> --label <中文模块名> [--singular <单数英文名>] [--detail drawer|page] [--fields "<字段声明>"] [--dry-run]
+  bun run gen:module <slug> --label <中文模块名> [--singular <单数英文名>] [--code-prefix <编码前缀>] [--detail drawer|page] [--fields "<字段声明>"] [--dry-run]
 
 字段语法（可选，省略时生成 name/category/owner/status 默认 4 字段）:
   <name>:<type>[:<中文标签>][?] ，多字段用英文逗号分隔；末尾 ? 表示可选
   支持类型: string | text | int | number | boolean | date | enum:选项A|选项B
 
 详情承载模式（--detail）:
-  drawer  默认值，列表页右侧抽屉（仅限 ≤10 个只读/轻交互字段的记录速览）
+  drawer  默认值，列表页右侧抽屉（仅限 <= 10 个只读/轻交互字段的记录速览）
   page    独立详情页（/<slug>/$id），适用于大图可视化、多维分析或复杂关联流程
 
 示例:
-  bun run gen:module vendors --label 供应商台账 --singular vendor
+  bun run gen:module vendors --label 供应商台账 --singular vendor --code-prefix VND
   bun run gen:module contracts --label 合同台账 --singular contract --detail page \\
     --fields "code:string:合同编号,amount:number:金额,qty:int:数量,kind:enum:采购|销售:类型,signedAt:date:签约日期,active:boolean:有效,remark:text:备注?"
 
@@ -45,7 +47,8 @@ function usage() {
   3. apps/server/src/modules/<slug>.ts        Hono 链式分页筛选 + 单条读取 + 管理员 CRUD + 同事务审计路由
   4. apps/web/src/features/<slug>/*           ResourceTableSlot 列表页 + FormDialog + 详情抽屉或独立详情页 + CSV 导出
   5. apps/web/src/routes/<slug>*.tsx          TanStack Router 路由并注册侧栏 / Cmd+K 导航
-  6. scripts/verify-<slug>.py                 接口级权限、分页与审计闭环 E2E 脚本`);
+  6. apps/server/src/agent/<slug>-tools.ts    AI 智能助理查询/汇总/审批创建工具（未裁剪助理时自动生成）
+  7. scripts/verify-<slug>.py                 接口级权限、分页与审计闭环 E2E 脚本`);
 }
 
 const args = process.argv.slice(2);
@@ -57,6 +60,7 @@ if (!args.length || args.includes("-h") || args.includes("--help")) {
 const slug = args[0];
 let label = "";
 let singular = "";
+let codePrefixArg = "";
 let fieldsSpec = "";
 let detailMode = "drawer";
 let dryRun = false;
@@ -66,6 +70,8 @@ for (let i = 1; i < args.length; i += 1) {
     label = args[++i] ?? "";
   } else if (args[i] === "--singular") {
     singular = args[++i] ?? "";
+  } else if (args[i] === "--code-prefix") {
+    codePrefixArg = args[++i] ?? "";
   } else if (args[i] === "--fields") {
     fieldsSpec = args[++i] ?? "";
   } else if (args[i] === "--detail") {
@@ -82,6 +88,9 @@ if (!/^[a-z][a-z0-9-]{1,28}$/.test(slug) || RESERVED.has(slug)) {
 }
 if (!label.trim()) {
   throw new Error("请通过 --label 提供中文模块名称，例如 --label 供应商台账");
+}
+if (codePrefixArg && !/^[A-Z][A-Z0-9]{1,7}$/.test(codePrefixArg.trim())) {
+  throw new Error(`无效的编码前缀: ${codePrefixArg}（需为 2-8 位大写字母或数字，以字母开头）`);
 }
 if (detailMode !== "drawer" && detailMode !== "page") {
   throw new Error(`无效的详情模式: ${detailMode}（仅支持 drawer 或 page）`);
@@ -118,7 +127,8 @@ const singularPascal = singularSlug
   .split("_")
   .map((s) => s.slice(0, 1).toUpperCase() + s.slice(1))
   .join("");
-const codePrefix = singularSlug.slice(0, 2).toUpperCase();
+const codePrefix = codePrefixArg.trim() || singularSlug.slice(0, 2).toUpperCase();
+const agentPresent = existsSync(path.join(ROOT, "apps/server/src/agent/registry.ts"));
 
 function toPascal(name) {
   return name.slice(0, 1).toUpperCase() + name.slice(1);
@@ -2067,6 +2077,139 @@ finally:
 `;
 }
 
+function buildAgentToolsContent() {
+  const detailRoute = detailMode === "page" ? `\`/${slug}/\${row.id}\`` : `"/${slug}"`;
+  const searchWhereLines = [];
+  const searchParams = [];
+  if (searchField) {
+    searchParams.push(
+      `  q: z.string().trim().max(80).optional().describe(${JSON.stringify(`${searchField.label}关键字`)}),`,
+    );
+    searchWhereLines.push(
+      `          q ? ilike(${camel}Table.${searchField.name}, containsPattern(q)) : undefined,`,
+    );
+  }
+  const summaryGroupBlock = primaryEnum
+    ? `        const byGroup = await db
+          .select({ group: ${camel}Table.${primaryEnum.name}, n: count() })
+          .from(${camel}Table)
+          .groupBy(${camel}Table.${primaryEnum.name});
+        return {
+          total: Number(totalRow?.n ?? 0),
+          byGroup: byGroup.map((row) => ({ group: String(row.group ?? "-"), count: Number(row.n) })),
+        };`
+    : `        return { total: Number(totalRow?.n ?? 0) };`;
+
+  const searchWhereCode =
+    searchWhereLines.length > 0
+      ? `        const where = and(\n${searchWhereLines.join("\n")}\n        );`
+      : "        const where = undefined;";
+
+  return `import { and, count, desc, ilike } from "drizzle-orm";
+import { ${camel}InputSchema } from "@optimax-starter/api/${slug}";
+import { ${camel}Table } from "@optimax-starter/db/schema/${slug}";
+import { type ToolSet, redact, tool, z } from "@optimax-starter/agent";
+import { db } from "../services";
+import { auditResource, containsPattern } from "../core/audit";
+import { Refusal, lockPermission } from "../core/guards";
+import type { AgentToolContext } from "./registry";
+
+const SEARCH_LIMIT = 20;
+
+const recordCode = (id: number) => \`${codePrefix}-\${String(id).padStart(3, "0")}\`;
+
+export const ${camel}WriteTools = {
+  create_${singularSlug}: { permission: "${slug}:manage", input: ${camel}InputSchema },
+} as const;
+
+const searchInput = z.object({
+${searchParams.join("\n")}
+});
+
+export function ${camel}Tools({ actor, approvals, citations }: AgentToolContext): ToolSet {
+  const tools: ToolSet = {};
+  if (actor.permissions.includes("${slug}:read")) {
+    tools.search_${tableIdent} = tool({
+      description: "按条件检索${label}记录，最多返回 20 条。",
+      inputSchema: searchInput,
+      execute: async (${searchField ? "{ q }" : "_input"}) => {
+${searchWhereCode}
+        const [rows, totals] = await Promise.all([
+          db
+            .select()
+            .from(${camel}Table)
+            .where(where)
+            .orderBy(desc(${camel}Table.id))
+            .limit(SEARCH_LIMIT),
+          db.select({ n: count() }).from(${camel}Table).where(where),
+        ]);
+        const items = rows.map((row) => {
+          const cid = \`E\${citations.length + 1}\`;
+          const title = String((row as Record<string, unknown>)[${JSON.stringify(primaryField.name)}] ?? row.id);
+          citations.push({
+            id: cid,
+            title: redact(title),
+            snippet: \`\${recordCode(row.id)} | \${redact(title)}\`,
+            to: ${detailRoute},
+          });
+          return {
+            citation: cid,
+            id: row.id,
+            code: recordCode(row.id),
+            ${primaryField.name}: redact(title),
+          };
+        });
+        const total = Number(totals[0]?.n ?? 0);
+        return { total, returned: items.length, truncated: total > items.length, items };
+      },
+    });
+
+    tools.summarize_${tableIdent} = tool({
+      description: "统计${label}记录总数与分布情况。",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const [totalRow] = await db.select({ n: count() }).from(${camel}Table);
+${summaryGroupBlock}
+      },
+    });
+  }
+
+  if (actor.permissions.includes("${slug}:manage")) {
+    tools.create_${singularSlug} = tool({
+      description: "新增一条${label}记录，需用户确认后执行。",
+      inputSchema: ${camel}InputSchema,
+      needsApproval: true,
+      execute: async (input, { toolCallId }) => {
+        if (!approvals.has(toolCallId)) {
+          throw new Refusal(403, "确认已失效，请重新发起操作", "APPROVAL_INVALID");
+        }
+        return db.transaction(async (tx) => {
+          const self = await lockPermission(tx, actor.id, "${slug}:manage");
+          const [row] = await tx
+            .insert(${camel}Table)
+            .values(input)
+            .onConflictDoNothing()
+            .returning();
+          if (!row) throw new Refusal(409, "${primaryField.label}已存在或创建失败");
+          const nameVal = String((row as Record<string, unknown>)[${JSON.stringify(primaryField.name)}] ?? row.id);
+          await auditResource(
+            tx,
+            "${singularSlug}.create",
+            self,
+            { id: row.id, code: recordCode(row.id), name: nameVal },
+            { fields: Object.keys(input) },
+            "agent",
+          );
+          return { ok: true, id: row.id, code: recordCode(row.id), name: redact(nameVal) };
+        });
+      },
+    });
+  }
+  return tools;
+}
+`;
+}
+
 const files = [
   {
     rel: `packages/db/src/schema/${slug}.ts`,
@@ -2120,6 +2263,14 @@ export const Route = createFileRoute("/${slug}")({
 });
 `,
   },
+  ...(agentPresent
+    ? [
+        {
+          rel: `apps/server/src/agent/${slug}-tools.ts`,
+          content: buildAgentToolsContent(),
+        },
+      ]
+    : []),
   {
     rel: `scripts/verify-${slug}.py`,
     mode: 0o755,
@@ -2277,6 +2428,111 @@ const centralEdits = [
       },
     ],
   },
+  ...(agentPresent
+    ? [
+        {
+          rel: "apps/server/src/agent/registry.ts",
+          inserts: [
+            {
+              marker: "@starter:agent-module-imports",
+              lines: [`import { ${camel}Tools } from "./${slug}-tools";`],
+            },
+            {
+              marker: "@starter:agent-module-tools",
+              lines: [`Object.assign(tools, ${camel}Tools(context));`],
+            },
+          ],
+        },
+        {
+          rel: "apps/server/src/agent/routes.ts",
+          inserts: [
+            {
+              marker: "@starter:agent-write-tool-imports",
+              lines: [`import { ${camel}WriteTools } from "./${slug}-tools";`],
+            },
+            {
+              marker: "@starter:agent-write-tools",
+              lines: [
+                `for (const [name, spec] of Object.entries(${camel}WriteTools)) writeTools.set(name, spec);`,
+              ],
+            },
+          ],
+        },
+        {
+          rel: "apps/web/src/features/assistant/ToolSteps.tsx",
+          inserts: [
+            {
+              marker: "@starter:agent-step-write-tools",
+              lines: [`WRITE_TOOLS.add("create_${singularSlug}");`],
+            },
+            {
+              marker: "@starter:agent-step-tools",
+              lines: [
+                `search_${tableIdent}: { label: "检索${label}", icon: <LayoutDashboard size={14} /> },`,
+                `summarize_${tableIdent}: { label: "统计${label}", icon: <LayoutDashboard size={14} /> },`,
+                `create_${singularSlug}: { label: "新增${label}", icon: <Wrench size={14} /> },`,
+              ],
+            },
+          ],
+        },
+        ...(detailMode === "page" &&
+        existsSync(path.join(ROOT, "apps/web/src/features/assistant/assistant-links-utils.ts"))
+          ? [
+              {
+                rel: "apps/web/src/features/assistant/assistant-links-utils.ts",
+                inserts: [
+                  {
+                    marker: "@starter:entity-link-rules",
+                    lines: [
+                      "{",
+                      `  kind: ${JSON.stringify(slug)},`,
+                      `  pattern: /\\b${codePrefix}-([1-9]\\d{0,8})\\b/,`,
+                      "  resolve: (match) => ({",
+                      `    kind: ${JSON.stringify(slug)},`,
+                      `    code: \`${codePrefix}-\${match[1]}\`,`,
+                      `    to: \`/${slug}/\${match[1]}\`,`,
+                      `    label: \`打开${label} ${codePrefix}-\${match[1]}\`,`,
+                      "  }),",
+                      "},",
+                    ],
+                  },
+                ],
+              },
+            ]
+          : []),
+      ]
+    : []),
+  ...(detailMode === "page" &&
+  existsSync(path.join(ROOT, "apps/web/src/features/navigation/entity-search.ts"))
+    ? [
+        {
+          rel: "apps/web/src/features/navigation/entity-search.ts",
+          inserts: [
+            {
+              marker: "@starter:entity-search-providers",
+              lines: [
+                "async (query, signal) => {",
+                '  const { request: apiRequest } = await import("@/console-client");',
+                '  const qs = new URLSearchParams({ page: "1", size: "8" });',
+                `  if (query.trim()) qs.set(${searchField ? '"q"' : '"q"'}, query.trim());`,
+                `  const res = await apiRequest<{ items: Array<Record<string, unknown>> }>(\`/${slug}?\${qs.toString()}\`, "GET", undefined, { signal });`,
+                "  return res.items.map((row) => {",
+                "    const id = Number(row.id);",
+                `    const code = id < 1000 ? \`${codePrefix}-\${String(id).padStart(3, "0")}\` : \`${codePrefix}-\${id}\`;`,
+                "    return {",
+                `      id: \`${slug}-\${id}\`,`,
+                "      code,",
+                `      title: String(row[${JSON.stringify(primaryField.name)}] ?? code),`,
+                `      to: \`/${slug}/\${id}\`,`,
+                "    };",
+                "  });",
+                "},",
+              ],
+            },
+          ],
+        },
+      ]
+    : []),
 ];
 
 // Fail fast: every central file and marker must exist before anything is written.

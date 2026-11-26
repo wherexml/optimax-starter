@@ -1,8 +1,7 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
+import { type RenderProp, mergeProps, renderElement } from "@ui-sdk/react/primitive";
 import { cn } from "@optimax-starter/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
-import * as React from "react";
+import type * as React from "react";
 
 function BubbleGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -61,11 +60,18 @@ function Bubble({
   );
 }
 
-function BubbleContent({ className, render, ...props }: useRender.ComponentProps<"div">) {
-  return useRender({
-    defaultTagName: "div",
-    props: mergeProps<"div">(
+function BubbleContent({
+  className,
+  render,
+  ...props
+}: React.ComponentProps<"div"> & {
+  render?: RenderProp;
+}) {
+  return renderElement(
+    "div",
+    mergeProps(
       {
+        "data-slot": "bubble-content",
         className: cn(
           "w-fit max-w-full min-w-0 overflow-hidden rounded-none border border-transparent px-2.5 py-2 text-xs leading-relaxed wrap-break-word group-data-[align=end]/bubble:self-end [button]:text-left [button,a]:transition-colors [button,a]:outline-none [button,a]:focus-visible:border-ring [button,a]:focus-visible:ring-1 [button,a]:focus-visible:ring-ring/50",
           className,
@@ -74,10 +80,7 @@ function BubbleContent({ className, render, ...props }: useRender.ComponentProps
       props,
     ),
     render,
-    state: {
-      slot: "bubble-content",
-    },
-  });
+  );
 }
 
 const bubbleReactionsVariants = cva(

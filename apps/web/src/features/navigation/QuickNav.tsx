@@ -1,9 +1,24 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Search } from "lucide-react";
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import { getQuickNavEntries, type QuickNavEntry } from "@/config/app-config";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandGroupLabel,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@ui-sdk/react/command";
+import { Hash, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { getQuickNavEntries, type QuickNavEntry } from "@/config/app-config";
 import type { Account } from "@/console-client";
+import {
+  type EntitySearchResult,
+  hasEntitySearchProviders,
+  searchConsoleEntities,
+} from "./entity-search";
 
 export function QuickNav({
   open,
@@ -21,31 +36,49 @@ export function QuickNav({
   );
 }
 
-function Palette({
-  account,
-  close,
-}: {
-  account: Account | null | undefined;
-  close: () => void;
-}) {
+function Palette({ account, close }: { account: Account | null | undefined; close: () => void }) {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   // 首次渲染时记录打开前的焦点（自动聚焦之前），关闭后归还。
   const [returnTo] = useState(() => document.activeElement);
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
-  const id = useId();
-  const items = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return getQuickNavEntries(account).filter(
-      (e) => !q || [e.label, ...e.aliases].some((t) => t.toLowerCase().includes(q)),
-    );
-  }, [account, query]);
-  const current = Math.min(active, Math.max(items.length - 1, 0));
+  const [entities, setEntities] = useState<EntitySearchResult[]>([]);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+
+  const navEntries = useMemo(() => getQuickNavEntries(account), [account]);
+  const hasEntities = hasEntitySearchProviders();
+  const trimmedQuery = query.trim();
+
   useEffect(() => {
-    document.getElementById(`${id}-${current}`)?.scrollIntoView({ block: "nearest" });
-  }, [current, id, items]);
-  function go(entry: QuickNavEntry) {
+    if (!hasEntities || !trimmedQuery) {
+      setEntities([]);
+      setLoadingEntities(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingEntities(true);
+    const timer = window.setTimeout(() => {
+      void searchConsoleEntities(trimmedQuery, controller.signal)
+        .then((rows) => {
+          if (!controller.signal.aborted) {
+            setEntities(rows);
+            setLoadingEntities(false);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setEntities([]);
+            setLoadingEntities(false);
+          }
+        });
+    }, 140);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [hasEntities, trimmedQuery]);
+
+  function goNav(entry: QuickNavEntry) {
     close();
     if (entry.to !== path) {
       if (entry.defaultSearch) {
@@ -55,19 +88,35 @@ function Palette({
       }
     }
   }
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (!items.length) return;
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      setActive((current + step + items.length) % items.length);
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const entry = items[current];
-      if (entry) go(entry);
+
+  function goEntity(entity: EntitySearchResult) {
+    close();
+    if (entity.search) {
+      void navigate({ to: entity.to as never, search: entity.search as never });
+    } else {
+      void navigate({ to: entity.to as never });
     }
   }
+
+  const showEntityGroup = hasEntities && Boolean(trimmedQuery) && entities.length > 0;
+
+  const navItems = navEntries.map((entry) => {
+    const Icon = entry.icon;
+    return (
+      <CommandItem
+        key={entry.to}
+        value={`nav:${entry.to}`}
+        label={entry.label}
+        keywords={entry.aliases}
+        className="quick-nav-item"
+      >
+        <Icon size={16} aria-hidden="true" />
+        <span>{entry.label}</span>
+        {entry.to === path && <small>当前</small>}
+      </CommandItem>
+    );
+  });
+
   return (
     <DialogContent
       size="sm"
@@ -83,52 +132,79 @@ function Palette({
       }}
     >
       <DialogTitle className="sr-only">快速导航</DialogTitle>
-      <label className="quick-nav-input">
-        <Search size={16} aria-hidden="true" />
-        <input
-          autoFocus
-          role="combobox"
-          aria-label="搜索页面"
-          aria-expanded={true}
-          aria-controls={`${id}-list`}
-          aria-activedescendant={items[current] ? `${id}-${current}` : undefined}
-          placeholder="搜索页面"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActive(0);
-          }}
-          onKeyDown={onKeyDown}
-        />
-      </label>
-      <div id={`${id}-list`} role="listbox" aria-label="页面列表" className="quick-nav-list">
-        {items.length === 0 ? (
-          <p className="m-0 px-2.5 py-5 text-center text-sm text-muted-foreground">
-            未找到匹配页面
-          </p>
-        ) : (
-          items.map((entry, i) => {
-            const Icon = entry.icon;
-            const selected = i === current;
-            return (
-              <button
-                key={entry.to}
-                id={`${id}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={"quick-nav-item" + (selected ? " active" : "")}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(entry)}
-              >
-                <Icon size={16} aria-hidden="true" />
-                <span>{entry.label}</span>
-                {entry.to === path && <small>当前</small>}
-              </button>
-            );
-          })
-        )}
-      </div>
+      <Command
+        loop
+        autoHighlight
+        filter="contains"
+        query={query}
+        onQueryChange={(next) => setQuery(next)}
+        onAction={(actionValue) => {
+          if (actionValue.startsWith("nav:")) {
+            const to = actionValue.slice(4);
+            const entry = navEntries.find((item) => item.to === to);
+            if (entry) goNav(entry);
+            return;
+          }
+          if (actionValue.startsWith("entity:")) {
+            const id = actionValue.slice(7);
+            const entity = entities.find((item) => item.id === id);
+            if (entity) goEntity(entity);
+          }
+        }}
+        className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden"
+      >
+        <label className="quick-nav-input">
+          <Search size={16} aria-hidden="true" />
+          <CommandInput
+            autoFocus
+            aria-label="搜索页面"
+            placeholder={hasEntities ? "搜索页面或业务实体编码" : "搜索页面"}
+          />
+        </label>
+        <CommandList aria-label="页面列表" className="quick-nav-list">
+          <CommandEmpty className="quick-nav-empty">
+            {loadingEntities ? "正在检索业务实体…" : "未找到匹配页面"}
+          </CommandEmpty>
+          {showEntityGroup ? (
+            <CommandGroup>
+              <CommandGroupLabel className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                控制台页面
+              </CommandGroupLabel>
+              {navItems}
+            </CommandGroup>
+          ) : (
+            navItems
+          )}
+          {showEntityGroup ? (
+            <>
+              <CommandSeparator className="my-1 h-px bg-[var(--hairline)]" />
+              <CommandGroup>
+                <CommandGroupLabel className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                  业务实体
+                </CommandGroupLabel>
+                {entities.map((entity) => (
+                  <CommandItem
+                    key={entity.id}
+                    value={`entity:${entity.id}`}
+                    label={`${entity.code} ${entity.title}`}
+                    keywords={[entity.code, entity.title, entity.subtitle ?? "", trimmedQuery]}
+                    className="quick-nav-item"
+                  >
+                    <Hash size={15} aria-hidden="true" />
+                    <span className="flex min-w-0 items-center gap-2">
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-primary">
+                        {entity.code}
+                      </code>
+                      <span className="truncate">{entity.title}</span>
+                    </span>
+                    {entity.subtitle ? <small>{entity.subtitle}</small> : null}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
+          ) : null}
+        </CommandList>
+      </Command>
     </DialogContent>
   );
 }

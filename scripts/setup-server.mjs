@@ -143,7 +143,7 @@ function bootstrapArgs(params, { dryRun }) {
 }
 
 function genModuleArgs(params, { dryRun }) {
-  assertKeys(params, ["slug", "label", "singular", "fields", "detail"]);
+  assertKeys(params, ["slug", "label", "singular", "codePrefix", "fields", "detail"]);
   const slug = reqString(params, "slug", {
     re: /^[a-z][a-z0-9-]{1,28}$/,
     max: 29,
@@ -162,6 +162,12 @@ function genModuleArgs(params, { dryRun }) {
     message: "singular 必须为小写英文",
   });
   if (singular) args.push("--singular", singular);
+  const codePrefix = optString(params, "codePrefix", {
+    re: /^[A-Z][A-Z0-9]{1,7}$/,
+    max: 8,
+    message: "编码前缀必须为 2-8 位大写字母或数字且以字母开头",
+  });
+  if (codePrefix) args.push("--code-prefix", codePrefix);
   const fields = optString(params, "fields", {
     re: TEXT_RE,
     max: 2000,

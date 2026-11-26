@@ -1,40 +1,42 @@
-import * as React from "react";
+"use client";
+
+import { Switch as SwitchPrimitive, SwitchThumb } from "@ui-sdk/react/switch";
 import { cn } from "@optimax-starter/ui/lib/utils";
+import * as React from "react";
 
 export interface SwitchProps
-  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+  extends Omit<
+    React.ComponentProps<typeof SwitchPrimitive>,
+    "checked" | "defaultChecked" | "onCheckedChange"
+  > {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }
 
 const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
   ({ checked, onCheckedChange, disabled, className, ...props }, ref) => (
-    <button
+    <SwitchPrimitive
       ref={ref}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      data-slot="switch"
-      data-state={checked ? "checked" : "unchecked"}
+      checked={checked}
       disabled={disabled}
-      onClick={() => {
-        if (!disabled) onCheckedChange(!checked);
+      onCheckedChange={(next, details) => {
+        if (disabled) {
+          details.cancel();
+          return;
+        }
+        onCheckedChange(next);
       }}
       className={cn(
-        "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-[0.5px] border-transparent p-0.5 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "border-input bg-muted",
+        "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-[0.5px] border-transparent p-0.5 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 data-checked:bg-primary data-unchecked:border-input data-unchecked:bg-muted",
         className,
       )}
       {...props}
     >
-      <span
+      <SwitchThumb
         aria-hidden="true"
-        className={cn(
-          "pointer-events-none block size-4 rounded-full bg-white shadow-xs transition-transform duration-150",
-          checked ? "translate-x-4" : "translate-x-0",
-        )}
+        className="pointer-events-none block size-4 rounded-full bg-white shadow-xs transition-transform duration-150 data-checked:translate-x-4 data-unchecked:translate-x-0"
       />
-    </button>
+    </SwitchPrimitive>
   ),
 );
 Switch.displayName = "Switch";

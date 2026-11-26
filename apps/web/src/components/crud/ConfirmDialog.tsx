@@ -7,6 +7,7 @@ export function ConfirmDialog({
   description,
   submitText,
   submitVariant = "destructive",
+  agentConfirm,
   action,
   close,
   trigger,
@@ -15,6 +16,7 @@ export function ConfirmDialog({
   description: string;
   submitText: string;
   submitVariant?: ButtonProps["variant"];
+  agentConfirm?: string;
   action: () => Promise<unknown>;
   close: (done?: boolean) => void;
   trigger: HTMLElement | null;
@@ -28,6 +30,7 @@ export function ConfirmDialog({
       size="sm"
       submitText={submitText}
       submitVariant={submitVariant}
+      submitAgentConfirm={agentConfirm ?? `${title}（${description}）`}
       loading={run.isPending}
       onSubmit={() => run.mutate()}
       onCloseAutoFocus={(e) => {

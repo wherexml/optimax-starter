@@ -54,13 +54,7 @@ export function UnsavedChangesBanner({
         >
           {keepText}
         </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          onClick={onDiscard}
-          className="h-8"
-        >
+        <Button type="button" variant="destructive" size="sm" onClick={onDiscard} className="h-8">
           {discardText}
         </Button>
       </div>
@@ -78,6 +72,7 @@ export interface FormDialogProps {
   onCancel?: () => void;
   submitText?: string;
   submitVariant?: ButtonProps["variant"];
+  submitAgentConfirm?: string;
   cancelText?: string;
   submitDisabled?: boolean;
   size?: "sm" | "md" | "lg" | "xl" | "full";
@@ -86,9 +81,7 @@ export interface FormDialogProps {
   footerStart?: React.ReactNode;
   unsaved?: UnsavedChangesBannerProps | null;
   bodyClassName?: string;
-  onCloseAutoFocus?: React.ComponentProps<
-    typeof DialogContent
-  >["onCloseAutoFocus"];
+  onCloseAutoFocus?: React.ComponentProps<typeof DialogContent>["onCloseAutoFocus"];
 }
 
 export function FormDialog({
@@ -101,6 +94,7 @@ export function FormDialog({
   onCancel,
   submitText = "确认",
   submitVariant = "default",
+  submitAgentConfirm,
   cancelText = "取消",
   submitDisabled = false,
   size = "lg",
@@ -124,10 +118,7 @@ export function FormDialog({
         {...(!description ? { "aria-describedby": undefined } : {})}
       >
         <DialogHeader
-          className={cn(
-            "shrink-0 px-6 py-4 pr-14",
-            hasBody && "border-b-[0.5px] border-border",
-          )}
+          className={cn("shrink-0 px-6 py-4 pr-14", hasBody && "border-b-[0.5px] border-border")}
         >
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -162,6 +153,7 @@ export function FormDialog({
                   type={formId ? "submit" : "button"}
                   variant={submitVariant}
                   form={formId}
+                  data-agent-confirm={submitAgentConfirm}
                   onClick={onSubmit}
                   disabled={submitDisabled || loading}
                 >

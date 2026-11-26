@@ -15,7 +15,7 @@ Resolve project paths below from the repository root; Markdown links are relativ
 
 ## Read the installed API
 
-1. Inspect `apps/web/package.json` and the installed packages. At integration time (2026-11-16), React and Core both use `0.1.0-beta.3`; verify the current version before changing code. Do not upgrade dependencies as a side effect of reading this skill.
+1. Inspect `apps/web/package.json` and the installed packages. React and Core both use `0.1.0-beta.17`; verify the current version before changing code. Do not upgrade dependencies as a side effect of reading this skill.
 2. Read `apps/web/node_modules/@ui-sdk/react/docs/llms.txt`, then only the required component guide. For custom primitives, search `docs/core.md` by heading and read `docs/rendering.md`. Do not inspect or modify compiled `dist/*.js`.
 3. If host dependencies are absent but the existing local web container is running, read the same installed documentation there:
 
@@ -36,7 +36,7 @@ Use [PROJECT](../../../../PROJECT.md) / [README](../../../../README.md) for depe
 ## Connect an agent only when needed
 
 - Give controls and choices meaningful names. Use UI SDK parts for the new agent-operated interface; for existing Radix controls, adapt the business state via a custom primitive instead of presenting a snapshot the agent cannot actually change.
-- `features/assets/filter-primitive.ts` and `AssetFilterScope.tsx` demonstrate strict `setValue` validation and controlled state. `features/assets/agent-bridge.ts` demonstrates an action allowlist. `apps/web/src/components/ui/page-tabs.tsx` encapsulates UI SDK Tabs behavior for views such as `features/system/SystemPage.tsx`.
+- `apps/web/src/components/ui/page-tabs.tsx` encapsulates `@ui-sdk/react/tabs` for views such as `features/system/SystemPage.tsx`; `packages/ui/src/components/{tooltip,dropdown-menu,segmented-control,switch,slider,resizable,alert-dialog}.tsx` wrap `@ui-sdk/react/*` primitives for direct reuse. `features/navigation/QuickNav.tsx` uses `@ui-sdk/react/command`, `features/assistant/Composer.tsx` uses `@ui-sdk/react/trigger-menu`, `features/assistant/DrawerResizeHandle.tsx` implements custom split drag, and `features/assistant/ui-agent-bridge.ts` initializes `createAgent` + `registerTools` (with `data-agent-confirm` on `ConfirmDialog.tsx`).
 - Check business conditions in SDK change callbacks or validated actions, including agent-originated changes. Manual draft, stale page, cancellation and unmount guards must still apply. Do not rely only on DOM click/keyboard listeners.
 - After `agent.act`, verify the actual applied state and data; `ok: true` alone is insufficient. Agent calls must reach the same query/mutation boundary and validation as manual operations.
 - Keep passwords/tokens out of snapshots and logs. Mark sensitive regions appropriately; preserve password-manager behavior on login/password fields. Search-field ignore markers remain local to those fields.

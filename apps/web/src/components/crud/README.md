@@ -11,7 +11,7 @@
   4. `DataTable` + `FilterBar`（支持草稿持久化 `draftStorageKey`、变更通知 `onDraftChange`）+ 工具栏右侧按「刷新按钮 → `toolbarEnd` 扩展操作（推荐 `@/components/table/TableExportMenu` 纯图标导出菜单配合 `@/lib/csv` 的 `downloadCsv`）→ 列设置」顺序排列 + 可选服务端分页 `pagination`；
   5. 高频表格三件套能力：多行勾选与表头半选（`enableRowSelection`、`bulkActions` 悬浮批量操作栏）、行点击交互（`onRowClick` 按 [详情承载选型](../../../../../DESIGN.md#详情承载选型独立详情页-vs-右侧抽屉) 区分：`≤ 10` 字段轻速览接 `DetailDrawer`，含拓扑图/多图表/复杂分析须跳往独立详情路由 `routes/<slug>_.$id.tsx`，详见 [FRONTEND 独立详情页路由](../../../../../FRONTEND.md#独立详情页路由与筛选上下文透传)），以及列设置排除 `select`/`action` 等锁定列；
   6. 可选 `wrapTable`（可用于在表格上方挂载统计/筛选联动概览卡片）与弹窗/抽屉子节点 `children`。
-- [ConfirmDialog.tsx](./ConfirmDialog.tsx)：高风险操作（停用、强制下线、删除记录）二次确认弹窗，内置异步提交 loading、错误回显及关闭后焦点归还触发按钮（`onCloseAutoFocus`）。
+- [ConfirmDialog.tsx](./ConfirmDialog.tsx)：高风险操作（停用、强制下线、删除记录）二次确认弹窗，内置异步提交 loading、错误回显、关闭后焦点归还触发按钮（`onCloseAutoFocus`）及 `agentConfirm` 属性（自动挂载 `data-agent-confirm` 供客户端 UI Agent 人工确认门禁识别）。
 
 ## 参考用法
 

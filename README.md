@@ -29,7 +29,7 @@ Demo 入口：[/demo/forms?dialog=create](http://127.0.0.1:38140/demo/forms?dial
 
 | 层 | 选型 |
 | --- | --- |
-| 前端 | React、Vite、TanStack Router / Query / Table、Tailwind CSS v4、Radix（shadcn 风格组件）、Hono `hc` 类型安全 RPC |
+| 前端 | React、Vite、TanStack Router / Query / Table、Tailwind CSS v4、Radix + `@ui-sdk/react` / `@ui-sdk/core` `0.1.0-beta.17`（共享原语与无障碍组件，无第三方额外底座冗余）、Hono `hc` 类型安全 RPC |
 | 后端 | Hono，常驻进程用 Node 24 运行（`@hono/node-server` + `tsx`），`src/rpc.ts` 导出纯类型契约 |
 | 数据 | PostgreSQL 17、Drizzle ORM（schema push） |
 | 校验与安全 | Zod、Argon2id（`@node-rs/argon2`，与原 Bun 哈希格式兼容） |
@@ -104,7 +104,8 @@ docker compose up -d --build              # 修改 package.json / bun.lock 后�
 bun run lint                              # Biome 静态检查（容器内运行）
 bun run format:check                      # Biome 格式检查（容器内运行）
 bun run test                              # Vitest 纯逻辑单元测试（容器内运行）
-bun run gen:module vendors --label 供应商  # 一键生成默认 4 字段全栈模块（可用 --detail drawer|page 选型，或传入 --fields）
+bun run gen:module vendors --label 供应商  # 一键生成默认 4 字段全栈模块（可用 --detail drawer|page、--code-prefix VND 或传入 --fields；含 Agent 工具）
+bun run upgrade:starter -- --dry-run      # 预览上游脚手架底座升级差异（--apply 执行三路合并并保护业务模块，详见 docs/UPGRADE.md）
 bun run gen:module agreements --label 合同台账 --fields "code:string:合同编号,amount:number:金额,kind:enum:采购|销售:类型,signedAt:date:签约日期,remark:text:备注?"
 ```
 

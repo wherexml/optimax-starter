@@ -34,6 +34,7 @@ export const DEFAULT_ENTITY_LINK_RULES: EntityLinkRule[] = [
     }),
   },
   // @starter:example-assets-end
+  // @starter:entity-link-rules
 ];
 
 function isCitation(value: unknown): value is AgentCitation {
